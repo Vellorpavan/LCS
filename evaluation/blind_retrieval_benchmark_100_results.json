@@ -1,0 +1,748 @@
+{
+  "v1": {
+    "p1": 0.7714285714285715,
+    "p1_hits": 54,
+    "p3": 0.5880952380952379,
+    "recall3": 0.8125,
+    "recall_hits": 65,
+    "total_targets": 80,
+    "mrr": 0.7857142857142857,
+    "abstain_rate": 0.8666666666666667,
+    "correct_abstentions": 26,
+    "fp_rate": 0.13333333333333333,
+    "false_positives": 4,
+    "multi_cap_recall": 0.95,
+    "multi_cap_complete_rate": 0.9,
+    "failure_count": 21,
+    "failures": [
+      {
+        "id": "D01",
+        "category": "Direct Task",
+        "query": "calculate sha256 checksum of release tarball",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "D09",
+        "category": "Direct Task",
+        "query": "compute 90th percentile rank of api response times",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.data-transform:calculate-percentile-rank"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S01",
+        "category": "Synonyms & Paraphrasing",
+        "query": "who touched line 45 in server.py",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:extract-git-blame"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S02",
+        "category": "Synonyms & Paraphrasing",
+        "query": "show me uncommitted code changes in working tree",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:format-git-diff"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S03",
+        "category": "Synonyms & Paraphrasing",
+        "query": "check if repo is clean or has untracked files",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:parse-git-status"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S08",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how much space is left on /var partition",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S11",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how much cpu and memory is pid 4096 consuming",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:inspect-process-metrics"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S12",
+        "category": "Synonyms & Paraphrasing",
+        "query": "ping gateway to check network connectivity",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:ping-network-host"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S16",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how crackable is this user password",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:check-password-entropy"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S17",
+        "category": "Synonyms & Paraphrasing",
+        "query": "unscramble aes encrypted message",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:decrypt-aes-gcm"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:encrypt-aes-gcm",
+            "score": 0.522,
+            "name": "Encrypt Aes Gcm"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.crypto-security:encrypt-aes-gcm",
+        "matched_top3": []
+      },
+      {
+        "id": "S18",
+        "category": "Synonyms & Paraphrasing",
+        "query": "get two-factor 2fa auth code for login",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:generate-totp-token"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S19",
+        "category": "Synonyms & Paraphrasing",
+        "query": "check if https certificate has expired",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:inspect-tls-certificate"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S20",
+        "category": "Synonyms & Paraphrasing",
+        "query": "convert 50000 jpy to gbp",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.data-transform:convert-currency-amount"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "T01",
+        "category": "Lexical Trap",
+        "query": "format sql query without running or executing any database query",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.data-transform:format-sql-query"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+            "score": 0.5584,
+            "name": "Query Local Database"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.data-transform:format-sql-query",
+            "score": 0.5366,
+            "name": "Format Sql Query"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.data-transform:format-sql-query"
+        ]
+      },
+      {
+        "id": "T04",
+        "category": "Lexical Trap",
+        "query": "check disk usage of local sqlite database file on filesystem",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+            "score": 0.4044,
+            "name": "Query Local Database"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:calculate-disk-usage",
+            "score": 0.3518,
+            "name": "Calculate Disk Usage"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ]
+      },
+      {
+        "id": "T11",
+        "category": "Lexical Trap",
+        "query": "calculate sha256 checksum of compressed tar archive",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+            "score": 0.522,
+            "name": "Compress Tar Archive"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+        "matched_top3": []
+      },
+      {
+        "id": "M01",
+        "category": "Multi-Capability",
+        "query": "compress logs into tar archive and calculate its sha256 checksum",
+        "reason": "Partial multi-capability retrieval in top-3",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+            "score": 0.4861,
+            "name": "Compress Tar Archive"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:tail-system-log",
+            "score": 0.2908,
+            "name": "Tail System Log"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.system-devops:compress-tar-archive"
+        ]
+      },
+      {
+        "id": "A01",
+        "category": "Ambiguous Request",
+        "query": "check status",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:parse-git-status",
+            "score": 0.4667,
+            "name": "Parse Git Status"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      },
+      {
+        "id": "A03",
+        "category": "Ambiguous Request",
+        "query": "run verify",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:verify-jwt-signature",
+            "score": 0.3283,
+            "name": "Verify Jwt Signature"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:verify-pgp-signature",
+            "score": 0.3283,
+            "name": "Verify Pgp Signature"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      },
+      {
+        "id": "A04",
+        "category": "Ambiguous Request",
+        "query": "parse file",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:parse-git-status",
+            "score": 0.35,
+            "name": "Parse Git Status"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.data-transform:parse-csv-records",
+            "score": 0.3283,
+            "name": "Parse Csv Records"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      },
+      {
+        "id": "A08",
+        "category": "Ambiguous Request",
+        "query": "convert string",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.data-transform:convert-timezone",
+            "score": 0.4817,
+            "name": "Convert Timezone"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:check-password-entropy",
+            "score": 0.2858,
+            "name": "Check Password Entropy"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      }
+    ]
+  },
+  "v1_1": {
+    "p1": 0.8285714285714286,
+    "p1_hits": 58,
+    "p3": 0.6071428571428571,
+    "recall3": 0.8625,
+    "recall_hits": 69,
+    "total_targets": 80,
+    "mrr": 0.85,
+    "abstain_rate": 0.9,
+    "correct_abstentions": 27,
+    "fp_rate": 0.1,
+    "false_positives": 3,
+    "multi_cap_recall": 0.9,
+    "multi_cap_complete_rate": 0.8,
+    "failure_count": 17,
+    "failures": [
+      {
+        "id": "D09",
+        "category": "Direct Task",
+        "query": "compute 90th percentile rank of api response times",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.data-transform:calculate-percentile-rank"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S01",
+        "category": "Synonyms & Paraphrasing",
+        "query": "who touched line 45 in server.py",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:extract-git-blame"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S02",
+        "category": "Synonyms & Paraphrasing",
+        "query": "show me uncommitted code changes in working tree",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:format-git-diff"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S07",
+        "category": "Synonyms & Paraphrasing",
+        "query": "check if semver package version 1.2.3 satisfies caret range",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S08",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how much space is left on /var partition",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S11",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how much cpu and memory is pid 4096 consuming",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:inspect-process-metrics"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S16",
+        "category": "Synonyms & Paraphrasing",
+        "query": "how crackable is this user password",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:check-password-entropy"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S18",
+        "category": "Synonyms & Paraphrasing",
+        "query": "get two-factor 2fa auth code for login",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:generate-totp-token"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "S20",
+        "category": "Synonyms & Paraphrasing",
+        "query": "convert 50000 jpy to gbp",
+        "reason": "Erroneous abstention (NO_SUITABLE_CAPABILITY_FOUND)",
+        "expected": [
+          "urn:lcs:tool:mcp.data-transform:convert-currency-amount"
+        ],
+        "returned": [],
+        "abstained": true,
+        "abstention_code": "NO_SUITABLE_CAPABILITY_FOUND",
+        "rank1_urn": null,
+        "matched_top3": []
+      },
+      {
+        "id": "T04",
+        "category": "Lexical Trap",
+        "query": "check disk usage of local sqlite database file on filesystem",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+            "score": 0.4777,
+            "name": "Query Local Database"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:calculate-disk-usage",
+            "score": 0.3518,
+            "name": "Calculate Disk Usage"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:tail-system-log",
+            "score": 0.2661,
+            "name": "Tail System Log"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.doc-tools:query-local-database",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.system-devops:calculate-disk-usage"
+        ]
+      },
+      {
+        "id": "T11",
+        "category": "Lexical Trap",
+        "query": "calculate sha256 checksum of compressed tar archive",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+            "score": 0.522,
+            "name": "Compress Tar Archive"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest",
+            "score": 0.2574,
+            "name": "Hash Sha256 Digest"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ]
+      },
+      {
+        "id": "T13",
+        "category": "Lexical Trap",
+        "query": "parse semver version string embedded in git branch name",
+        "reason": "P@1 miss",
+        "expected": [
+          "urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:list-git-branches",
+            "score": 0.4561,
+            "name": "List Git Branches"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression",
+            "score": 0.4432,
+            "name": "Parse Semver Expression"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:inspect-git-commit",
+            "score": 0.3838,
+            "name": "Inspect Git Commit"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.git-vcs:list-git-branches",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression"
+        ]
+      },
+      {
+        "id": "M01",
+        "category": "Multi-Capability",
+        "query": "compress logs into tar archive and calculate its sha256 checksum",
+        "reason": "Partial multi-capability retrieval in top-3",
+        "expected": [
+          "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+          "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+            "score": 0.4861,
+            "name": "Compress Tar Archive"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.system-devops:tail-system-log",
+            "score": 0.2908,
+            "name": "Tail System Log"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.system-devops:compress-tar-archive"
+        ]
+      },
+      {
+        "id": "M08",
+        "category": "Multi-Capability",
+        "query": "check git status of repo and format git diff of uncommitted changes",
+        "reason": "Partial multi-capability retrieval in top-3",
+        "expected": [
+          "urn:lcs:tool:mcp.git-vcs:parse-git-status",
+          "urn:lcs:tool:mcp.git-vcs:format-git-diff"
+        ],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:format-git-diff",
+            "score": 0.7509,
+            "name": "Format Git Diff"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:inspect-git-commit",
+            "score": 0.5284,
+            "name": "Inspect Git Commit"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:list-git-branches",
+            "score": 0.5284,
+            "name": "List Git Branches"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null,
+        "rank1_urn": "urn:lcs:tool:mcp.git-vcs:format-git-diff",
+        "matched_top3": [
+          "urn:lcs:tool:mcp.git-vcs:format-git-diff"
+        ]
+      },
+      {
+        "id": "A03",
+        "category": "Ambiguous Request",
+        "query": "run verify",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:verify-jwt-signature",
+            "score": 0.3283,
+            "name": "Verify Jwt Signature"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:verify-pgp-signature",
+            "score": 0.3283,
+            "name": "Verify Pgp Signature"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      },
+      {
+        "id": "A04",
+        "category": "Ambiguous Request",
+        "query": "parse file",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.git-vcs:parse-git-status",
+            "score": 0.35,
+            "name": "Parse Git Status"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.data-transform:parse-csv-records",
+            "score": 0.3283,
+            "name": "Parse Csv Records"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      },
+      {
+        "id": "A08",
+        "category": "Ambiguous Request",
+        "query": "convert string",
+        "reason": "Failed to abstain (False Positive)",
+        "expected": [],
+        "returned": [
+          {
+            "urn": "urn:lcs:tool:mcp.data-transform:convert-timezone",
+            "score": 0.4817,
+            "name": "Convert Timezone"
+          },
+          {
+            "urn": "urn:lcs:tool:mcp.crypto-security:check-password-entropy",
+            "score": 0.2858,
+            "name": "Check Password Entropy"
+          }
+        ],
+        "abstained": false,
+        "abstention_code": null
+      }
+    ]
+  }
+}

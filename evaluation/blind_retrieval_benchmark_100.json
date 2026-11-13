@@ -1,0 +1,732 @@
+[
+  {
+    "id": "D01",
+    "category": "Direct Task",
+    "query": "calculate sha256 checksum of release tarball",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D02",
+    "category": "Direct Task",
+    "query": "measure password entropy for user signups",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:check-password-entropy"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D03",
+    "category": "Direct Task",
+    "query": "decrypt ciphertext using aes-256-gcm key",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:decrypt-aes-gcm"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D04",
+    "category": "Direct Task",
+    "query": "encrypt api payload with aes-gcm",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:encrypt-aes-gcm"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D05",
+    "category": "Direct Task",
+    "query": "export certificate to standard pem format",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:format-certificate-pem"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D06",
+    "category": "Direct Task",
+    "query": "generate 6-digit totp code from shared secret",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:generate-totp-token"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D07",
+    "category": "Direct Task",
+    "query": "inspect expiration date on ssl tls certificate",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:inspect-tls-certificate"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D08",
+    "category": "Direct Task",
+    "query": "verify jwt token signature using rsa public key",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:verify-jwt-signature"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D09",
+    "category": "Direct Task",
+    "query": "compute 90th percentile rank of api response times",
+    "expected": ["urn:lcs:tool:mcp.data-transform:calculate-percentile-rank"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D10",
+    "category": "Direct Task",
+    "query": "strip dangerous script tags from raw html input",
+    "expected": ["urn:lcs:tool:mcp.data-transform:clean-html-markup"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D11",
+    "category": "Direct Task",
+    "query": "convert 250 eur to usd exchange rate",
+    "expected": ["urn:lcs:tool:mcp.data-transform:convert-currency-amount"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D12",
+    "category": "Direct Task",
+    "query": "convert timestamp from utc to america new_york",
+    "expected": ["urn:lcs:tool:mcp.data-transform:convert-timezone"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D13",
+    "category": "Direct Task",
+    "query": "extract all email addresses matching regex pattern",
+    "expected": ["urn:lcs:tool:mcp.data-transform:extract-regex-matches"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D14",
+    "category": "Direct Task",
+    "query": "format unformatted sql select query with proper indentation",
+    "expected": ["urn:lcs:tool:mcp.data-transform:format-sql-query"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D15",
+    "category": "Direct Task",
+    "query": "parse comma-separated csv rows into structured records",
+    "expected": ["urn:lcs:tool:mcp.data-transform:parse-csv-records"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D16",
+    "category": "Direct Task",
+    "query": "validate whether 10.0.4.15 is a valid ipv4 address",
+    "expected": ["urn:lcs:tool:mcp.data-transform:validate-ip-address"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D17",
+    "category": "Direct Task",
+    "query": "convert markdown documentation file into pdf format",
+    "expected": ["urn:lcs:tool:mcp.doc-tools:convert-document-format"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D18",
+    "category": "Direct Task",
+    "query": "run sql query against local sqlite database",
+    "expected": ["urn:lcs:tool:mcp.doc-tools:query-local-database"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D19",
+    "category": "Direct Task",
+    "query": "extract text content and pages from pdf file",
+    "expected": ["urn:lcs:tool:mcp.doc-tools:read-pdf-document"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D20",
+    "category": "Direct Task",
+    "query": "calculate surface area of geojson polygon in square meters",
+    "expected": ["urn:lcs:tool:mcp.geo-tools:calculate-polygon-area"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D21",
+    "category": "Direct Task",
+    "query": "compute haversine distance in km between two lat lon points",
+    "expected": ["urn:lcs:tool:mcp.geo-tools:compute-haversine-distance"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D22",
+    "category": "Direct Task",
+    "query": "find bounding box envelope for set of gps coordinates",
+    "expected": ["urn:lcs:tool:mcp.geo-tools:find-bounding-envelope"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D23",
+    "category": "Direct Task",
+    "query": "clone remote git repo to local workstation",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:clone-git-repository"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D24",
+    "category": "Direct Task",
+    "query": "inspect git commit message and author info by hash",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:inspect-git-commit"],
+    "expect_abstain": false
+  },
+  {
+    "id": "D25",
+    "category": "Direct Task",
+    "query": "list all active git branches in repo",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:list-git-branches"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S01",
+    "category": "Synonyms & Paraphrasing",
+    "query": "who touched line 45 in server.py",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:extract-git-blame"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S02",
+    "category": "Synonyms & Paraphrasing",
+    "query": "show me uncommitted code changes in working tree",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:format-git-diff"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S03",
+    "category": "Synonyms & Paraphrasing",
+    "query": "check if repo is clean or has untracked files",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:parse-git-status"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S04",
+    "category": "Synonyms & Paraphrasing",
+    "query": "verify gpg signature on signed release commit",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:verify-pgp-signature"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S05",
+    "category": "Synonyms & Paraphrasing",
+    "query": "calculate sample variance for server latency benchmark",
+    "expected": ["urn:lcs:tool:mcp.sdk-analytics:calculate-statistical-variance"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S06",
+    "category": "Synonyms & Paraphrasing",
+    "query": "check if csp and hsts security headers are present",
+    "expected": ["urn:lcs:tool:mcp.sdk-analytics:inspect-http-header-security"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S07",
+    "category": "Synonyms & Paraphrasing",
+    "query": "check if semver package version 1.2.3 satisfies caret range",
+    "expected": ["urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S08",
+    "category": "Synonyms & Paraphrasing",
+    "query": "how much space is left on /var partition",
+    "expected": ["urn:lcs:tool:mcp.system-devops:calculate-disk-usage"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S09",
+    "category": "Synonyms & Paraphrasing",
+    "query": "pack build artifacts into a compressed tar archive",
+    "expected": ["urn:lcs:tool:mcp.system-devops:compress-tar-archive"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S10",
+    "category": "Synonyms & Paraphrasing",
+    "query": "pretty-print this compact minified json string",
+    "expected": ["urn:lcs:tool:mcp.system-devops:format-json-document"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S11",
+    "category": "Synonyms & Paraphrasing",
+    "query": "how much cpu and memory is pid 4096 consuming",
+    "expected": ["urn:lcs:tool:mcp.system-devops:inspect-process-metrics"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S12",
+    "category": "Synonyms & Paraphrasing",
+    "query": "ping gateway to check network connectivity",
+    "expected": ["urn:lcs:tool:mcp.system-devops:ping-network-host"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S13",
+    "category": "Synonyms & Paraphrasing",
+    "query": "lookup cname and mx records for domain",
+    "expected": ["urn:lcs:tool:mcp.system-devops:query-dns-records"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S14",
+    "category": "Synonyms & Paraphrasing",
+    "query": "stream real-time lines from access.log",
+    "expected": ["urn:lcs:tool:mcp.system-devops:tail-system-log"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S15",
+    "category": "Synonyms & Paraphrasing",
+    "query": "check if kubernetes deployment yaml has syntax errors",
+    "expected": ["urn:lcs:tool:mcp.system-devops:validate-yaml-syntax"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S16",
+    "category": "Synonyms & Paraphrasing",
+    "query": "how crackable is this user password",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:check-password-entropy"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S17",
+    "category": "Synonyms & Paraphrasing",
+    "query": "unscramble aes encrypted message",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:decrypt-aes-gcm"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S18",
+    "category": "Synonyms & Paraphrasing",
+    "query": "get two-factor 2fa auth code for login",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:generate-totp-token"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S19",
+    "category": "Synonyms & Paraphrasing",
+    "query": "check if https certificate has expired",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:inspect-tls-certificate"],
+    "expect_abstain": false
+  },
+  {
+    "id": "S20",
+    "category": "Synonyms & Paraphrasing",
+    "query": "convert 50000 jpy to gbp",
+    "expected": ["urn:lcs:tool:mcp.data-transform:convert-currency-amount"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T01",
+    "category": "Lexical Trap",
+    "query": "format sql query without running or executing any database query",
+    "expected": ["urn:lcs:tool:mcp.data-transform:format-sql-query"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T02",
+    "category": "Lexical Trap",
+    "query": "format git diff patch into clean readable diff output",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:format-git-diff"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T03",
+    "category": "Lexical Trap",
+    "query": "inspect git commit that modified our pem certificate",
+    "expected": ["urn:lcs:tool:mcp.git-vcs:inspect-git-commit"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T04",
+    "category": "Lexical Trap",
+    "query": "check disk usage of local sqlite database file on filesystem",
+    "expected": ["urn:lcs:tool:mcp.system-devops:calculate-disk-usage"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T05",
+    "category": "Lexical Trap",
+    "query": "encrypt confidential password string with aes gcm cipher",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:encrypt-aes-gcm"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T06",
+    "category": "Lexical Trap",
+    "query": "ping remote host found in access log file",
+    "expected": ["urn:lcs:tool:mcp.system-devops:ping-network-host"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T07",
+    "category": "Lexical Trap",
+    "query": "extract regex matches from unstructured pdf report text",
+    "expected": ["urn:lcs:tool:mcp.data-transform:extract-regex-matches"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T08",
+    "category": "Lexical Trap",
+    "query": "validate yaml syntax inside json document config string",
+    "expected": ["urn:lcs:tool:mcp.system-devops:validate-yaml-syntax"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T09",
+    "category": "Lexical Trap",
+    "query": "check process metrics for background git clone daemon",
+    "expected": ["urn:lcs:tool:mcp.system-devops:inspect-process-metrics"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T10",
+    "category": "Lexical Trap",
+    "query": "verify jwt signature token extracted from http authorization header",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:verify-jwt-signature"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T11",
+    "category": "Lexical Trap",
+    "query": "calculate sha256 checksum of compressed tar archive",
+    "expected": ["urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T12",
+    "category": "Lexical Trap",
+    "query": "compute haversine distance between two server ip address coordinates",
+    "expected": ["urn:lcs:tool:mcp.geo-tools:compute-haversine-distance"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T13",
+    "category": "Lexical Trap",
+    "query": "parse semver version string embedded in git branch name",
+    "expected": ["urn:lcs:tool:mcp.sdk-analytics:parse-semver-expression"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T14",
+    "category": "Lexical Trap",
+    "query": "clean html markup containing currency price symbols and span tags",
+    "expected": ["urn:lcs:tool:mcp.data-transform:clean-html-markup"],
+    "expect_abstain": false
+  },
+  {
+    "id": "T15",
+    "category": "Lexical Trap",
+    "query": "convert document format of markdown release notes into html file",
+    "expected": ["urn:lcs:tool:mcp.doc-tools:convert-document-format"],
+    "expect_abstain": false
+  },
+  {
+    "id": "M01",
+    "category": "Multi-Capability",
+    "query": "compress logs into tar archive and calculate its sha256 checksum",
+    "expected": [
+      "urn:lcs:tool:mcp.system-devops:compress-tar-archive",
+      "urn:lcs:tool:mcp.crypto-security:hash-sha256-digest"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M02",
+    "category": "Multi-Capability",
+    "query": "format sql query nicely and query local sqlite database",
+    "expected": [
+      "urn:lcs:tool:mcp.data-transform:format-sql-query",
+      "urn:lcs:tool:mcp.doc-tools:query-local-database"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M03",
+    "category": "Multi-Capability",
+    "query": "parse csv customer records and extract regex matches from emails",
+    "expected": [
+      "urn:lcs:tool:mcp.data-transform:parse-csv-records",
+      "urn:lcs:tool:mcp.data-transform:extract-regex-matches"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M04",
+    "category": "Multi-Capability",
+    "query": "clone git repository and inspect the initial commit log",
+    "expected": [
+      "urn:lcs:tool:mcp.git-vcs:clone-git-repository",
+      "urn:lcs:tool:mcp.git-vcs:inspect-git-commit"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M05",
+    "category": "Multi-Capability",
+    "query": "format pem certificate and inspect tls certificate expiration",
+    "expected": [
+      "urn:lcs:tool:mcp.crypto-security:format-certificate-pem",
+      "urn:lcs:tool:mcp.crypto-security:inspect-tls-certificate"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M06",
+    "category": "Multi-Capability",
+    "query": "read pdf document and convert document format to markdown",
+    "expected": [
+      "urn:lcs:tool:mcp.doc-tools:read-pdf-document",
+      "urn:lcs:tool:mcp.doc-tools:convert-document-format"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M07",
+    "category": "Multi-Capability",
+    "query": "find bounding envelope of coordinates and calculate polygon area",
+    "expected": [
+      "urn:lcs:tool:mcp.geo-tools:find-bounding-envelope",
+      "urn:lcs:tool:mcp.geo-tools:calculate-polygon-area"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M08",
+    "category": "Multi-Capability",
+    "query": "check git status of repo and format git diff of uncommitted changes",
+    "expected": [
+      "urn:lcs:tool:mcp.git-vcs:parse-git-status",
+      "urn:lcs:tool:mcp.git-vcs:format-git-diff"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M09",
+    "category": "Multi-Capability",
+    "query": "validate ip address format and ping network host",
+    "expected": [
+      "urn:lcs:tool:mcp.data-transform:validate-ip-address",
+      "urn:lcs:tool:mcp.system-devops:ping-network-host"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "M10",
+    "category": "Multi-Capability",
+    "query": "encrypt secret payload with aes gcm and generate totp token",
+    "expected": [
+      "urn:lcs:tool:mcp.crypto-security:encrypt-aes-gcm",
+      "urn:lcs:tool:mcp.crypto-security:generate-totp-token"
+    ],
+    "expect_abstain": false
+  },
+  {
+    "id": "A01",
+    "category": "Ambiguous Request",
+    "query": "check status",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A02",
+    "category": "Ambiguous Request",
+    "query": "format data",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A03",
+    "category": "Ambiguous Request",
+    "query": "run verify",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A04",
+    "category": "Ambiguous Request",
+    "query": "parse file",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A05",
+    "category": "Ambiguous Request",
+    "query": "inspect object",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A06",
+    "category": "Ambiguous Request",
+    "query": "calculate value",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A07",
+    "category": "Ambiguous Request",
+    "query": "process log",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A08",
+    "category": "Ambiguous Request",
+    "query": "convert string",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A09",
+    "category": "Ambiguous Request",
+    "query": "read input",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "A10",
+    "category": "Ambiguous Request",
+    "query": "find item",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O01",
+    "category": "Out-of-Domain",
+    "query": "post webhook notification message to slack channel",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O02",
+    "category": "Out-of-Domain",
+    "query": "transcribe voice memo audio file from mp3 to english text",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O03",
+    "category": "Out-of-Domain",
+    "query": "resize jpeg image to 800x600 thumbnail",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O04",
+    "category": "Out-of-Domain",
+    "query": "deploy docker container image to kubernetes cluster",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O05",
+    "category": "Out-of-Domain",
+    "query": "send transactional email via sendgrid smtp api",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O06",
+    "category": "Out-of-Domain",
+    "query": "translate spanish document to english with neural translation",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O07",
+    "category": "Out-of-Domain",
+    "query": "train random forest classification model on tabular dataset",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O08",
+    "category": "Out-of-Domain",
+    "query": "transcode mp4 video file to webm with ffmpeg",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O09",
+    "category": "Out-of-Domain",
+    "query": "charge customer credit card using stripe payment intent",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O10",
+    "category": "Out-of-Domain",
+    "query": "synthesize natural speech audio from text using elevenlabs",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O11",
+    "category": "Out-of-Domain",
+    "query": "compile rust cargo project into optimized release binary",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O12",
+    "category": "Out-of-Domain",
+    "query": "transfer erc-20 tokens to wallet address on ethereum testnet",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O13",
+    "category": "Out-of-Domain",
+    "query": "provision aws ec2 virtual machine instance using terraform",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O14",
+    "category": "Out-of-Domain",
+    "query": "generate qr code barcode image from website url",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O15",
+    "category": "Out-of-Domain",
+    "query": "ocr receipt image to extract merchant name and total dollar amount",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O16",
+    "category": "Out-of-Domain",
+    "query": "sync google calendar events with outlook calendar schedule",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O17",
+    "category": "Out-of-Domain",
+    "query": "scrape product review comments from amazon using selenium webdriver",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O18",
+    "category": "Out-of-Domain",
+    "query": "render 3d animation scene to png frame sequence in blender",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O19",
+    "category": "Out-of-Domain",
+    "query": "run postgresql vacuum analyze to rebuild btree indexes",
+    "expected": [],
+    "expect_abstain": true
+  },
+  {
+    "id": "O20",
+    "category": "Out-of-Domain",
+    "query": "send apple push notification to ios device token via apns",
+    "expected": [],
+    "expect_abstain": true
+  }
+]
