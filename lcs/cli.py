@@ -880,6 +880,12 @@ def cmd_run_list(ctx: LCSContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve_mcp(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Runs LCS as a standard JSON-RPC 2.0 stdio MCP server."""
+    from .mcp_server import run_mcp_server
+    return run_mcp_server(ctx=ctx)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lcs",
@@ -1018,6 +1024,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_run_list.add_argument("--limit", type=int, default=20, help="Maximum number of runs to list")
     sub_run_list.set_defaults(func=cmd_run_list)
     sub_run.set_defaults(func=cmd_run_list)
+
+    # lcs serve-mcp
+    sub_mcp = subparsers.add_parser("serve-mcp", help="Run LCS as a standard JSON-RPC 2.0 stdio MCP server")
+    sub_mcp.set_defaults(func=cmd_serve_mcp)
 
     parsed_args = parser.parse_args(argv)
 

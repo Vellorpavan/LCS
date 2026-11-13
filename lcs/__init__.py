@@ -90,11 +90,14 @@ from .execution import (
     ensure_execution_engine_schema
 )
 from .migrations import MigrationManager
+from .mcp_server import LCSMCPServer, run_mcp_server
 
 __version__ = "3.0.0"
 __all__ = [
     "LCSConfig",
     "LCSContext",
+    "LCSMCPServer",
+    "run_mcp_server",
     "SecureCASStorageEngine",
     "PersistentReceiptKeyStore",
     "CapabilityRegistrationService",
