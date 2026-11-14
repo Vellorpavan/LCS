@@ -1,0 +1,25 @@
+services:
+  lcs-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lcs-core:3.0.0
+    container_name: lcs-telemetry-dashboard
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      - LCS_ROOT=/data/lcs
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - lcs_data:/data/lcs
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/status')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  lcs_data:
+    driver: local

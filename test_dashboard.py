@@ -89,3 +89,4 @@ class TestDashboardServer:
         assert req.status == 200
         data = json.loads(req.read().decode("utf-8"))
         assert "runs" in data
+
