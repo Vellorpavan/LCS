@@ -39,3 +39,4 @@ include = ["lcs*"]
 [tool.pytest.ini_options]
 testpaths = ["."]
 python_files = ["test_*.py"]
+

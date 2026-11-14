@@ -886,6 +886,16 @@ def cmd_serve_mcp(ctx: LCSContext, args: argparse.Namespace) -> int:
     return run_mcp_server(ctx=ctx)
 
 
+def cmd_dashboard(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Launches the LCS Web Telemetry & Capability Dashboard."""
+    from .dashboard import run_dashboard
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8765)
+    open_browser = getattr(args, "open_browser", False)
+    run_dashboard(host=host, port=port, open_browser=open_browser, ctx=ctx)
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lcs",
@@ -1028,6 +1038,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     # lcs serve-mcp
     sub_mcp = subparsers.add_parser("serve-mcp", help="Run LCS as a standard JSON-RPC 2.0 stdio MCP server")
     sub_mcp.set_defaults(func=cmd_serve_mcp)
+
+    # lcs dashboard
+    sub_dash = subparsers.add_parser("dashboard", help="Launch the LCS Web Telemetry & Capability Dashboard")
+    sub_dash.add_argument("--host", default="127.0.0.1", help="Host interface to bind to (default: 127.0.0.1)")
+    sub_dash.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
+    sub_dash.add_argument("--open", dest="open_browser", action="store_true", help="Automatically open dashboard in web browser")
+    sub_dash.set_defaults(func=cmd_dashboard)
 
     parsed_args = parser.parse_args(argv)
 

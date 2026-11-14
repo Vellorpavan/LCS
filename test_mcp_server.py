@@ -69,3 +69,4 @@ class TestLCSMCPServer:
         server = LCSMCPServer(ctx=mcp_test_ctx)
         res = server.handle_tool_call("non_existent_tool", {})
         assert res.get("isError") is True
+

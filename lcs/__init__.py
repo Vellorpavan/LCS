@@ -91,6 +91,7 @@ from .execution import (
 )
 from .migrations import MigrationManager
 from .mcp_server import LCSMCPServer, run_mcp_server
+from .dashboard import run_dashboard
 
 __version__ = "3.0.0"
 __all__ = [
@@ -98,6 +99,7 @@ __all__ = [
     "LCSContext",
     "LCSMCPServer",
     "run_mcp_server",
+    "run_dashboard",
     "SecureCASStorageEngine",
     "PersistentReceiptKeyStore",
     "CapabilityRegistrationService",

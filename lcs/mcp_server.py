@@ -351,3 +351,4 @@ def run_mcp_server(ctx: Optional[LCSContext] = None) -> int:
     server = LCSMCPServer(ctx=ctx)
     server.run_stdio()
     return 0
+
