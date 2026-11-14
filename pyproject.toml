@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lcs-core"
-version = "3.0.0"
+version = "3.0.1"
 description = "Living Capability System (LCS) — Cryptographic Zero-Trust Discovery, Planning & Execution Substrate"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,10 +33,30 @@ dev = [
 [project.scripts]
 lcs = "lcs.cli:main"
 
+[tool.setuptools]
+py-modules = [
+    "cas_storage_engine_v2b",
+    "capability_registry_v2b",
+    "interface_policy_v2b",
+    "capability_discovery_v2b",
+    "capability_profile_v2b",
+    "capability_retrieval_v1",
+    "capability_retrieval_v1_1",
+    "capability_parameter_v1",
+    "capability_planning_v1",
+    "governance_policy_v1",
+    "skill_discovery_v1",
+    "skill_intelligence_v1",
+    "execution_engine_v1",
+    "migration_manager",
+]
+
 [tool.setuptools.packages.find]
 include = ["lcs*"]
+
+[tool.setuptools.package-data]
+lcs = ["*.sql", "schemas/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["."]
 python_files = ["test_*.py"]
-

@@ -125,7 +125,11 @@ class MigrationManager:
             file_path = os.path.join(self.schema_dir, fn)
 
             if not os.path.exists(file_path):
-                raise MigrationError(f"Migration file missing from schema directory: {file_path}")
+                pkg_schema = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lcs", "schemas", fn)
+                if os.path.exists(pkg_schema):
+                    file_path = pkg_schema
+                else:
+                    raise MigrationError(f"Migration file missing from schema directory: {file_path}")
 
             with open(file_path, "rb") as f:
                 content = f.read()

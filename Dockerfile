@@ -7,7 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy packaging configuration and all source modules for wheel compilation
 COPY pyproject.toml README.md ./
+COPY *.py ./
+COPY *.sql ./
 COPY lcs/ ./lcs/
 
 RUN pip install --no-cache-dir --upgrade pip wheel && \
@@ -34,6 +37,7 @@ COPY --chown=lcs:lcs . /app/
 USER lcs
 
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     LCS_ROOT=/data/lcs \
     PATH="/usr/local/bin:${PATH}"
 

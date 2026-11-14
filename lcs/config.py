@@ -42,6 +42,8 @@ class LCSConfig:
             parent_dir = os.path.dirname(pkg_dir)
             if os.path.exists(os.path.join(parent_dir, "lcs_schema_v2b.sql")):
                 s_dir = parent_dir
+            elif os.path.exists(os.path.join(pkg_dir, "schemas", "lcs_schema_v2b.sql")):
+                s_dir = os.path.join(pkg_dir, "schemas")
             else:
                 s_dir = pkg_dir
 

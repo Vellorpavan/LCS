@@ -587,6 +587,10 @@ class DiscoveryIndexService:
     def ensure_schema(self) -> None:
         """Applies the Milestone 4 FTS5 schema migration idempotently."""
         migration_path = os.path.join(os.path.dirname(__file__), "lcs_schema_m4_migration.sql")
+        if not os.path.exists(migration_path):
+            pkg_schema = os.path.join(os.path.dirname(__file__), "lcs", "schemas", "lcs_schema_m4_migration.sql")
+            if os.path.exists(pkg_schema):
+                migration_path = pkg_schema
         with open(migration_path, "r", encoding="utf-8") as f:
             ddl = f.read()
         self.conn.executescript(ddl)

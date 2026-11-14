@@ -4,6 +4,8 @@ Living Capability System (LCS)
 Canonical Stage 2B Implementation: Milestones 1–4 Integrated.
 """
 
+__version__ = "3.0.1"
+
 from .config import LCSConfig
 from .context import LCSContext
 from .storage import SecureCASStorageEngine, PersistentReceiptKeyStore
@@ -93,7 +95,6 @@ from .migrations import MigrationManager
 from .mcp_server import LCSMCPServer, run_mcp_server
 from .dashboard import run_dashboard
 
-__version__ = "3.0.0"
 __all__ = [
     "LCSConfig",
     "LCSContext",

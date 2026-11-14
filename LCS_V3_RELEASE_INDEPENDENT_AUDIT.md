@@ -1,0 +1,191 @@
+# LCS v3.0.0 Independent Release Audit Report
+
+**System Name:** Living Capability System (LCS)  
+**Release Tag:** `v3.0.0` (Commit `919880d64b1f271ceb35dee542221a62918fcc76`)  
+**Auditor Role:** Independent Release Auditor  
+**Audit Date:** 2026-11-14T21:12:00+05:30  
+**Overall Verdict:** **CONDITIONALLY APPROVED**  
+*(Core Substrate & Security: **APPROVED** | Packaging & Containerization: **CONDITIONAL ON RUNTIME PATH CONFIGURATION**)*
+
+---
+
+## 1. Verification Environment
+
+| Parameter | Observed Value |
+| :--- | :--- |
+| **Operating System** | macOS Darwin 25.2.0 (Darwin Kernel Version 25.2.0: Tue Nov 18 21:09:40 PST 2025; root:xnu-12377.61.12~1/RELEASE_ARM64_T6000 arm64) |
+| **Python Runtime** | Python 3.14.3 (`/Library/Frameworks/Python.framework/Versions/3.14/bin/python3`) |
+| **Pytest Version** | Pytest 9.0.2 (plugins: cov-7.1.0, platformdirs-4.12.3, asyncio-1.3.0, typeguard-4.6.0, anyio-4.13.0) |
+| **Repository Path** | `/Users/pavan/Desktop/LCS` |
+| **Git Commit / Branch** | `919880d` (`HEAD -> main`, tag: `v3.0.0`) |
+| **Installed Package** | `lcs-core==3.0.0` (installed in editable mode at `/Library/Frameworks/Python.framework/Versions/3.14/bin/lcs`) |
+| **Host Tooling** | `git` present, `python3` present, `docker` absent (`zsh: command not found: docker`), `gh` absent |
+
+---
+
+## 2. Test Suite Reproduction & Test Count Reconciliation
+
+### 2.1 Exact Command Executed
+```bash
+pytest -q
+```
+
+### 2.2 Actual Test Results
+```
+287 passed, 7 warnings in 51.92s
+```
+*(Warnings: Python 3.14 deprecation notices regarding `os.fork()` in multi-threaded test harnesses in `test_stage_2b_keystore_durability.py`).*
+
+### 2.3 Resolution of 287 vs 278 Passing Test Discrepancy
+
+An authoritative reconciliation between the earlier reported 278 tests and the current 287 tests was conducted via git commit history and test collection audits:
+
+| Git Commit | Description | Test Files Added | Added Tests | Cumulative Total |
+| :--- | :--- | :--- | :---: | :---: |
+| **`19a8ec2`** | Initial LCS v3.0.0 release integration | 21 test suites across Stages 1–2B | - | **278** |
+| **`13375c1`** | Add `pyproject.toml` & stdio MCP server (`lcs serve-mcp`) | `test_mcp_server.py` | +4 | **282** |
+| **`11a7c08`** | Add Production Tools server & Web Dashboard (`lcs dashboard`) | `test_dashboard.py` | +5 | **287** |
+| **`919880d`** | Add GitHub Actions CI/CD pipeline and Docker setup | None | +0 | **287** |
+
+**Conclusion:** The discrepancy is fully resolved. When the initial release report was compiled at commit `19a8ec2`, exactly 278 tests were collected and passed. Subsequent follow-up tasks added the stdio MCP server (+4 tests) and Web Telemetry Dashboard (+5 tests), bringing the total to exactly 287 passing tests with zero test removals or modifications.
+
+---
+
+## 3. Cryptographic Invariance of Frozen Modules
+
+All five frozen baseline modules were independently audited using SHA-256 digests computed directly on disk (`shasum -a 256 <file>`):
+
+| File Name | Authoritative Baseline SHA-256 | Current Disk SHA-256 | Verification Status |
+| :--- | :--- | :--- | :---: |
+| `capability_retrieval_v1.py` | `b7d476236d2f5addd6619f619a6f1145bf407a6917d20493e4d85afd0ca843b4` | `b7d476236d2f5addd6619f619a6f1145bf407a6917d20493e4d85afd0ca843b4` | **100% MATCH** |
+| `capability_retrieval_v1_1.py` | `2a29c3dcec1e792021a63707fec9a92c3a6505080b0c05a63e377c69ce272e12` | `2a29c3dcec1e792021a63707fec9a92c3a6505080b0c05a63e377c69ce272e12` | **100% MATCH** |
+| `capability_parameter_v1.py` | `469b743cf6af1f6807544f2182dee12a4708ceb5512dd32185c4e5986a524c00` | `469b743cf6af1f6807544f2182dee12a4708ceb5512dd32185c4e5986a524c00` | **100% MATCH** |
+| `capability_planning_v1.py` | `eb81b3255d58958d73689b99cb8506647f8c781d30d93cea1c90dfd435d070e4` | `eb81b3255d58958d73689b99cb8506647f8c781d30d93cea1c90dfd435d070e4` | **100% MATCH** |
+| `governance_policy_v1.py` | `5273f17e83d1c90cd5f935b815841db711a3523a08d1d180f2a4d67bcad44252` | `5273f17e83d1c90cd5f935b815841db711a3523a08d1d180f2a4d67bcad44252` | **100% MATCH** |
+
+**Conclusion:** Zero bytes modified. Strict cryptographic invariance is maintained.
+
+---
+
+## 4. Security Verification Evidence
+
+### 4.1 Persistent Key Storage & Stage 2A.26 Issue Resolution
+- **Prior Issue:** In Stage 2A.26, HMAC signing keys were held ephemerally in process memory; process termination resulted in loss of signing keys, causing receipt verification across restarts to fail.
+- **Verification Harness:** Executed a multi-process test harness in an isolated temporary directory:
+  1. *Process 1:* Initialized `PersistentReceiptKeyStore` in a dedicated directory with `0700` directory and `0600` file permissions. Created active key `k1`, published blob `367c31c8...`, reserved and completed physical deletion, emitting a deletion receipt signed with `k1`. Process terminated.
+  2. *Process 2 (Fresh Process):* Instantiated storage engine from disk. Successfully loaded `k1`, verified the deletion receipt generated by Process 1 across the OS process boundary. Executed key rotation to `k2`, published second blob `fdbc09b1...`, completed physical deletion, emitting a deletion receipt signed with `k2`. Process terminated.
+  3. *Process 3 (Fresh Process):* Instantiated a third fresh engine. Verified *both* receipt 1 (using historical key `k1`) and receipt 2 (using active key `k2`).
+  4. *Tamper Injection:* When an invalid signature (`forged_sig_deadbeef`) was presented in SQLite, the engine immediately raised:
+     ```
+     CASSecurityViolationError: CAS_TAMPERING_DETECTED: Forged deletion receipt signature for blob ... Receipt ID 1 has invalid signature 'forged_sig_deadbeef'
+     ```
+  5. *SQL Immutability:* Direct `UPDATE` queries against `cas_physical_deletion_receipts` were blocked at the database engine level via SQLite trigger:
+     ```
+     sqlite3.IntegrityError: GC_RECEIPT_ERROR: Physical deletion receipts are immutable
+     ```
+
+### 4.2 EAT Single-Use, Replay Prevention, and Plan Integrity
+- **Single-Use Enforcement:** Evaluated `test_06_token_consumption_and_single_use_permit`. Issuing a dispatch permit transitions token state to `CONSUMED`. A second dispatch attempt with the same token raises `TokenAlreadyConsumedError`.
+- **Single-Use Permit:** Once accepted by the runtime executor, the permit transitions to `ACCEPTED`. A subsequent attempt to accept the same permit raises `DispatchPermitAlreadyUsedError`.
+- **Plan Integrity Tampering:** Verified via `test_04_plan_integrity_tampering_detection`. Modifying a bound argument (e.g. changing an output archive path to `/etc/shadow`) or reordering execution steps alters the canonical RFC 8785 JSON representation, causing `compute_plan_integrity_hash` to diverge and raising `PlanIntegrityTamperedError`.
+- **Concurrent Consumption Race:** Verified via `test_15_concurrency_and_multi_connection_serialization`. Five concurrent threads on separate SQLite connections attempted to consume the same EAT token simultaneously. Exactly 1 thread succeeded; all other 4 threads were rejected with `TokenAlreadyConsumedError`.
+
+### 4.3 Execution Supervision, Timeouts, and Reverse Compensation
+- **Process Group Isolation:** Inspected `ProcessSupervisor.execute_command`. Child processes are launched with POSIX session leadership (`preexec_fn=os.setsid`) to isolate the process tree into a dedicated process group.
+- **Hard Timeout Enforcement:** Commands exceeding specified execution ceilings trigger `_kill_process_group`, dispatching `SIGTERM` followed by `SIGKILL` to `os.killpg(pid)` to guarantee no orphaned child processes survive. Verified via `test_process_supervisor_timeout_enforcement`.
+- **Environment Filtering:** Execution environments whitelist safe variables (`PATH`, `HOME`, `USER`, `TMPDIR`, `LANG`, `LC_ALL`, `VIRTUAL_ENV`, `PYTHONPATH`) and scrub sensitive host tokens.
+- **Reverse-Order Compensation:** Inspected Phase 3 of `ExecutionEngineV1.execute_plan`. On step failure, the engine transitions to `COMPENSATION_UNWIND`, walks backwards through previously completed steps (`for rec in reversed(step_records)`), executes defined `compensation_urn` actions, marks the steps as `COMPENSATED`, and logs `COMPENSATION_ACTION_DISPATCHED` events to the audit ledger.
+
+### 4.4 Audit Ledger Integrity & CAS Execution Trace Receipts
+- **Hash Chaining & Preimage Verification:** Verified `GovernanceAuditLedger.verify_ledger()`. The ledger verifies:
+  1. Sequence continuity from Genesis (`sequence_number = 1`) to Head.
+  2. SHA-256 hash chaining (`prev_record_hash`).
+  3. Strict RFC 8785 canonical JSON preimage calculation across 10 mandatory fields.
+  4. Head anchor verification matching authenticated signature.
+- **Tampering & Truncation Injection:**
+  - Injecting an altered payload into line 2 of `audit_events.log` raised:
+    `AuditChainIntegrityError: Preimage hash mismatch at record 2: calculated e3fcac57..., stored da7b0e19...`
+  - Truncating the last record raised:
+    `AuditLogTailTruncatedError: AUDIT_LOG_TAIL_TRUNCATED: Log contains 2 records, but authenticated anchor requires 3`
+- **CAS Execution Trace Storage:** Tested live run `run-f0d0848e969f`. Verified that trace digest `8bc265999a3fd901504c273e2ac9427117354e6509de29a46c9460e5b0829fce` stored in CAS contains exact timing, token IDs, permit IDs, plan integrity hash, step status, and input/output CAS digests.
+
+---
+
+## 5. System & CLI Functional Validation
+
+The global CLI `/Library/Frameworks/Python.framework/Versions/3.14/bin/lcs` was verified in live operation:
+
+1. `lcs status`:
+   - Database size: 5,959,680 bytes in WAL journal mode with Foreign Keys active.
+   - All 3 schema migrations applied (`001_v2b_baseline`, `002_m3_interface_policy`, `003_m4_discovery`).
+   - CAS: 15,572 stored blobs, 285,162,769 bytes volume.
+   - Capability Registry: 773 registered capabilities (100% ACTIVE).
+   - Policy Decisions Log: 101 decisions recorded.
+   - FTS5 Index: 763 capabilities indexed.
+2. `lcs search "text transformation"`:
+   - Returned 10 ranked candidates (top: `urn:lcs:tool:mcp.production-tools:text-transform`, score `-13.43`).
+3. `lcs plan "convert text to uppercase and hash sha256"`:
+   - Synthesized DAG plan `plan-6ab8ef42` with topological step sequence `step-1 -> step-2`. Correctly identified missing mandatory parameters (`operation`, `text`, `data`) and generated clarifying questions.
+4. `lcs audit-log verify`:
+   - `[VERIFIED] All 35 records cryptographically verified from Genesis to Head`.
+5. `lcs run list` and `lcs run inspect <run_id>`:
+   - Successfully retrieved execution runs, step execution statuses, and CAS trace digests.
+
+---
+
+## 6. Outstanding Defects & Limitations
+
+During the independent audit of deployment, packaging, and containerization artifacts, the following issues were identified:
+
+### 6.1 Defect 1: Standalone Package Wheel Isolation (Packaging)
+- **Description:** `pyproject.toml` defines:
+  ```toml
+  [tool.setuptools.packages.find]
+  include = ["lcs*"]
+  ```
+  The root-level implementation modules (`migration_manager.py`, `cas_storage_engine_v2b.py`, `governance_policy_v1.py`, `execution_engine_v1.py`, `skill_discovery_v1.py`, `capability_discovery_v2b.py`, `interface_policy_v2b.py`, etc.) and the SQL migration files (`lcs_schema_*.sql`) reside in the repository root rather than inside `lcs/`.
+- **Impact:** In an editable installation (`pip install -e .`), imports succeed because the repo root is on `sys.path`. However, when built as a standalone wheel (`pip install .` or PyPI distribution) without setting `PYTHONPATH`, executing `import lcs` in an external directory fails with `ModuleNotFoundError: No module named 'migration_manager'`.
+- **Remediation Condition:** Set `PYTHONPATH` to include the project root, or declare root modules / package data in `pyproject.toml` prior to standalone PyPI publication.
+
+### 6.2 Defect 2: Docker Container Runtime Environment Path
+- **Description:** In `Dockerfile`:
+  ```dockerfile
+  ENV PYTHONUNBUFFERED=1 \
+      LCS_ROOT=/data/lcs \
+      PATH="/usr/local/bin:${PATH}"
+  ```
+  `PYTHONPATH` is not explicitly exported to include `/app`. While `COPY --chown=lcs:lcs . /app/` places the source code into `/app`, invoking `lcs` from `/usr/local/bin/lcs` looks in site-packages and fails to locate the root modules.
+- **Impact:** The containerized telemetry service may encounter `ModuleNotFoundError` upon startup unless `ENV PYTHONPATH=/app` is defined in `Dockerfile`.
+- **Remediation Condition:** Add `ENV PYTHONPATH=/app` to the production stage of `Dockerfile`.
+
+### 6.3 Limitation 1: Host Docker Daemon Availability
+- `docker` CLI is not installed on this specific host environment (`zsh: command not found: docker`). Container verification was conducted via static file analysis, layer inspection, and virtualenv dependency isolation. Live daemon testing must be executed in CI or an environment equipped with Docker.
+
+### 6.4 Limitation 2: Unpushed Remote Git Repository
+- `git remote -v` reports no configured remotes. All commits (`19a8ec2`, `13375c1`, `11a7c08`, `919880d`) and tag `v3.0.0` are committed and verified locally on `main`, awaiting user provision of the target remote GitHub repository URL.
+
+---
+
+## 7. Final Release Verdict
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        RELEASE AUDIT VERDICT                           │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│                       CONDITIONALLY APPROVED                           │
+│                                                                        │
+│   • Core Zero-Trust Substrate & Cryptography:        APPROVED          │
+│   • Test Suite Pass Rate (287 / 287):                APPROVED          │
+│   • Frozen Module Integrity (5 / 5 SHA-256):         APPROVED          │
+│   • Key Persistence, EAT Tokens & Governance:        APPROVED          │
+│   • Execution Supervision & Audit Ledger:            APPROVED          │
+│   • Standalone Wheel & Containerization:             CONDITIONAL       │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Approval Conditions:**
+1. For container deployments, configure `ENV PYTHONPATH=/app` in `Dockerfile` (or pass `-e PYTHONPATH=/app` in `docker run` / `docker-compose.yml`).
+2. For standalone wheel distributions (non-editable PyPI wheels), include root implementation modules and SQL assets in package specifications or retain repository structure.
+3. Configure the remote Git repository and push `main` along with tag `v3.0.0`.
