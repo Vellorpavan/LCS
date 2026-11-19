@@ -1000,18 +1000,22 @@ BEGIN
     -- State machine transitions validation
     SELECT CASE
         -- Terminal states cannot be altered
-        WHEN OLD.reservation_state IN ('PHYSICALLY_DELETED', 'REVERTED')
-        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Cannot alter terminal reservation state ' || OLD.reservation_state)
+        WHEN OLD.reservation_state = 'PHYSICALLY_DELETED'
+        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Cannot alter terminal reservation state PHYSICALLY_DELETED')
+        WHEN OLD.reservation_state = 'REVERTED'
+        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Cannot alter terminal reservation state REVERTED')
         
         -- Transitions from RESERVED:
         -- Must be COMMITTED_FOR_UNLINK or REVERTED (cannot jump to PHYSICALLY_DELETED)
+        WHEN OLD.reservation_state = 'RESERVED' AND NEW.reservation_state = 'PHYSICALLY_DELETED'
+        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Illegal state transition from RESERVED to PHYSICALLY_DELETED; cannot bypass COMMITTED_FOR_UNLINK')
         WHEN OLD.reservation_state = 'RESERVED' AND NEW.reservation_state NOT IN ('RESERVED', 'COMMITTED_FOR_UNLINK', 'REVERTED')
-        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Illegal state transition from RESERVED to ' || NEW.reservation_state || '; cannot bypass COMMITTED_FOR_UNLINK')
+        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Illegal state transition from RESERVED; cannot bypass COMMITTED_FOR_UNLINK')
         
         -- Transitions from COMMITTED_FOR_UNLINK:
         -- Must be PHYSICALLY_DELETED, or REVERTED strictly with an authenticated cancellation receipt
         WHEN OLD.reservation_state = 'COMMITTED_FOR_UNLINK' AND NEW.reservation_state NOT IN ('COMMITTED_FOR_UNLINK', 'PHYSICALLY_DELETED', 'REVERTED')
-        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Illegal state transition from COMMITTED_FOR_UNLINK to ' || NEW.reservation_state)
+        THEN RAISE(ABORT, 'GC_TRANSITION_ERROR: Illegal state transition from COMMITTED_FOR_UNLINK')
 
         -- Transition from COMMITTED_FOR_UNLINK to REVERTED strictly requires verified physical existence cancellation receipt
         WHEN OLD.reservation_state = 'COMMITTED_FOR_UNLINK' AND NEW.reservation_state = 'REVERTED' AND NOT EXISTS (

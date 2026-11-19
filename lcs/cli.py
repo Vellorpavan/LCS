@@ -896,6 +896,98 @@ def cmd_dashboard(ctx: LCSContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Invokes the thin /call-me entry point with a natural-language task."""
+    raw_instruction = args.task
+    if not raw_instruction or not raw_instruction.strip():
+        print("Error: Task description cannot be empty.", file=sys.stderr)
+        return 1
+
+    resp = ctx.call_me.execute_call_me(
+        f"/call-me {raw_instruction}",
+        session_id=getattr(args, "session_id", None)
+    )
+
+    if not resp:
+        print("Error: /call-me entry point returned no response.", file=sys.stderr)
+        return 1
+
+    if getattr(args, "raw_json", False):
+        print(json.dumps(resp.to_dict(), indent=2))
+        return 0 if resp.status == "ACCEPTED" else 1
+
+    print("=" * 72)
+    print(" LIVING CAPABILITY SYSTEM (LCS) — /call-me INVOCATION")
+    print("=" * 72)
+    print(f"  Request ID:         {resp.request_id}")
+    print(f"  Session ID:         {resp.session_id}")
+    print(f"  Status:             {resp.status}")
+    print(f"  Governance:         {resp.governance_status}")
+    print(f"  Matched Candidates: {resp.candidate_count}")
+    print(f"  Message:            {resp.message}")
+
+    if resp.candidate_urns:
+        print("\nCandidate Capabilities:")
+        for urn in resp.candidate_urns:
+            print(f"  * {urn}")
+
+    if resp.error_details:
+        print(f"\nError Details: {resp.error_details}", file=sys.stderr)
+
+    return 0 if resp.status == "ACCEPTED" else 1
+
+
+def cmd_install_command(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Installs host-specific /call-me slash-command artifacts."""
+    env = getattr(args, "environment", "all").lower()
+    is_global = getattr(args, "is_global", False)
+    overwrite = getattr(args, "overwrite", False)
+    workspace = ctx.config.root_dir
+
+    print("=" * 72)
+    print(" LCS SLASH-COMMAND INSTALLER")
+    print("=" * 72)
+
+    installed = {}
+    try:
+        if env in ("antigravity", "all"):
+            p = ctx.command_generator.install_antigravity(workspace, is_global=is_global, overwrite=overwrite)
+            installed["Antigravity (.agents/skills/call-me/SKILL.md)"] = p
+        if env in ("claude_code", "claude", "all"):
+            p = ctx.command_generator.install_claude_code(workspace, is_global=is_global, overwrite=overwrite)
+            installed["Claude Code (.claude/commands/call-me.md)"] = p
+        if env in ("opencode", "all"):
+            p = ctx.command_generator.install_opencode(workspace, overwrite=overwrite)
+            installed["OpenCode (.opencode/commands/call-me.md)"] = p
+    except Exception as e:
+        print(f"  [!] Installation Error: {e}", file=sys.stderr)
+        return 1
+
+    for name, path in installed.items():
+        print(f"  [+] Installed {name}: {path}")
+
+    return 0
+
+
+def cmd_uninstall_command(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Uninstalls host-specific /call-me slash-command artifacts."""
+    env = getattr(args, "environment", "all").lower()
+    is_global = getattr(args, "is_global", False)
+    workspace = ctx.config.root_dir
+
+    print("=" * 72)
+    print(" LCS SLASH-COMMAND UNINSTALLER")
+    print("=" * 72)
+
+    targets = ["antigravity", "claude_code", "opencode"] if env == "all" else [env]
+    for target in targets:
+        success = ctx.command_generator.uninstall(workspace, target, is_global=is_global)
+        status = "REMOVED" if success else "NOT FOUND / SKIPPED"
+        print(f"  [-] {target.upper()}: {status}")
+
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lcs",
@@ -1045,6 +1137,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_dash.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
     sub_dash.add_argument("--open", dest="open_browser", action="store_true", help="Automatically open dashboard in web browser")
     sub_dash.set_defaults(func=cmd_dashboard)
+
+    # lcs call-me (Phase 2A)
+    sub_call_me = subparsers.add_parser("call-me", help="Explicit /call-me invocation entry point")
+    sub_call_me.add_argument("task", help="Natural language task description")
+    sub_call_me.add_argument("--session-id", help="Optional persistent session identifier")
+    sub_call_me.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
+    sub_call_me.set_defaults(func=cmd_call_me)
+
+    # lcs install-command (Phase 2A)
+    sub_inst_cmd = subparsers.add_parser("install-command", help="Install /call-me slash command artifacts into host environments")
+    sub_inst_cmd.add_argument("--environment", choices=["antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
+    sub_inst_cmd.add_argument("--global", dest="is_global", action="store_true", help="Install to user home directory instead of workspace")
+    sub_inst_cmd.add_argument("--overwrite", action="store_true", help="Overwrite existing non-LCS files")
+    sub_inst_cmd.set_defaults(func=cmd_install_command)
+
+    # lcs uninstall-command (Phase 2A)
+    sub_uninst_cmd = subparsers.add_parser("uninstall-command", help="Remove /call-me slash command artifacts from host environments")
+    sub_uninst_cmd.add_argument("--environment", choices=["antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
+    sub_uninst_cmd.add_argument("--global", dest="is_global", action="store_true", help="Remove from user home directory instead of workspace")
+    sub_uninst_cmd.set_defaults(func=cmd_uninstall_command)
 
     parsed_args = parser.parse_args(argv)
 

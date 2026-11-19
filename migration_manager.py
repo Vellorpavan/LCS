@@ -39,8 +39,30 @@ MIGRATIONS_REGISTRY = [
         "migration_id": "003_m4_discovery",
         "filename": "lcs_schema_m4_migration.sql",
         "description": "Milestone 4 FTS5 Full-Text Search Discovery Index, Triggers, and MCP Server Registrations"
+    },
+    {
+        "migration_id": "004_m5_sqlite_compat",
+        "filename": "lcs_schema_m5_sqlite_compat.sql",
+        "description": "Milestone 5 Cross-Platform SQLite Compatibility Trigger Patch"
     }
 ]
+
+# Canonical historical baseline SHA-256 transitions recognized for backward compatibility.
+# For each migration_id, maps recognized legacy recorded hashes to the approved current disk hash.
+# If recorded == historical_recorded, disk MUST strictly equal approved_disk.
+# Any unexpected recorded or disk hash will fail integrity checks.
+APPROVED_HISTORICAL_TRANSITIONS = {
+    "001_v2b_baseline": {
+        # Historical v3.0.0/v3.0.1 macOS baseline -> v3.0.2 portable baseline
+        "historical_recorded": "3fb567d2b67e63ef66b3aa36547a4ad1eca0d5d7822a5ee9608e302c49659a9c",
+        "approved_disk": "49ee7ff523e6740f01d52ba279da77055047f1ea0325a7042614befb7401e421",
+    }
+}
+HISTORICAL_MIGRATION_BASELINES = {
+    "001_v2b_baseline": {
+        APPROVED_HISTORICAL_TRANSITIONS["001_v2b_baseline"]["historical_recorded"]
+    }
+}
 
 
 class MigrationError(Exception):
@@ -186,16 +208,30 @@ class MigrationManager:
         return applied_now
 
     def verify_integrity(self) -> Tuple[bool, List[str]]:
-        """Verifies that all recorded migrations match on-disk file checksums."""
+        """Verifies that all recorded migrations match on-disk file checksums or approved historical transitions."""
         status = self.get_status()
         issues = []
         for item in status:
             if item["applied"]:
-                if item["file_sha256"] != item["recorded_sha256"]:
-                    issues.append(
-                        f"Checksum mismatch for {item['migration_id']}: "
-                        f"recorded={item['recorded_sha256']}, disk={item['file_sha256']}"
-                    )
+                recorded = item["recorded_sha256"]
+                disk = item["file_sha256"]
+                m_id = item["migration_id"]
+
+                # Direct match between recorded and on-disk
+                if recorded == disk:
+                    continue
+
+                # Check if this is an explicitly approved historical transition
+                # Requires BOTH the recorded hash to match the approved historical hash
+                # AND the disk hash to match the approved portable target hash.
+                transition = APPROVED_HISTORICAL_TRANSITIONS.get(m_id)
+                if transition and recorded == transition["historical_recorded"] and disk == transition["approved_disk"]:
+                    continue
+
+                issues.append(
+                    f"Checksum mismatch for {m_id}: "
+                    f"recorded={recorded}, disk={disk}"
+                )
         return len(issues) == 0, issues
 
 

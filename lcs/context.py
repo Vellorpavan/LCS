@@ -27,6 +27,40 @@ from .planning import CapabilityPlanningEngineV1
 from .governance import ExecutionGovernanceEngineV1
 from .skills import SkillIntelligenceServiceV1, UnifiedRetrievalCoordinator
 from .execution import ExecutionEngineV1
+from .adapters import (
+    AdapterRegistry,
+    ActivationIntegrityVerifier,
+    AntigravityAdapter,
+    ClaudeCodeAdapter,
+    OpenCodeAdapter,
+    GenericPOSIXAdapter,
+)
+from .cache import (
+    LocalCapabilityCache,
+    FilesystemWatcher,
+    DeltaEngine,
+)
+from .interface import (
+    CallMeInterface,
+    SlashCommandGenerator,
+)
+from .hydration import (
+    HydrationEngine,
+    HydratedCapability,
+    ResourceUtilizationState,
+)
+from .dependencies import (
+    DependencyResolver,
+    DependencyGraph,
+)
+from .verification import (
+    UnifiedResourceVerifier,
+    VerificationState,
+)
+from .subagents import (
+    AntigravitySubagentBridge,
+    SubagentTask,
+)
 
 
 class LCSContext:
@@ -124,6 +158,14 @@ class LCSContext:
         )
         self.retrieval_coordinator = self.skill_service.retrieval_coordinator
 
+        # Environment Adapters & Live Verification
+        self.activation_verifier = ActivationIntegrityVerifier(self.conn)
+        self.adapter_registry = AdapterRegistry()
+        self.adapter_registry.register(AntigravityAdapter(workspace_root=self.config.root_dir))
+        self.adapter_registry.register(ClaudeCodeAdapter(workspace_root=self.config.root_dir))
+        self.adapter_registry.register(OpenCodeAdapter(workspace_root=self.config.root_dir))
+        self.adapter_registry.register(GenericPOSIXAdapter(workspace_root=self.config.root_dir))
+
         # Execution Engine V1
         self.execution_engine = ExecutionEngineV1(
             conn=self.conn,
@@ -135,8 +177,45 @@ class LCSContext:
             workspace_root=self.config.root_dir
         )
 
+        # High-Performance Local Cache & Filesystem Watcher (Phase 1C)
+        self.cache = LocalCapabilityCache(
+            conn=self.conn,
+            cas_engine=self.cas_engine,
+            resolver=self.skill_service.resolver,
+            activation_verifier=self.activation_verifier
+        )
+        self.fs_watcher = FilesystemWatcher(
+            roots=[self.config.root_dir],
+            resolver=self.skill_service.resolver
+        )
+        # Prime in-memory cache from catalog
+        self.cache.warm_cache()
+
+        # Thin Call Me Entry Point (Phase 2A)
+        self.call_me = CallMeInterface(self)
+        self.command_generator = SlashCommandGenerator
+
+        # Phase 2B: Full Capability Utilization & Execution Readiness
+        self.hydration_engine = HydrationEngine(
+            conn=self.conn,
+            cas_engine=self.cas_engine,
+            resolver=self.skill_service.resolver
+        )
+        self.dependency_resolver = DependencyResolver
+        self.resource_verifier = UnifiedResourceVerifier
+        self.subagent_bridge = AntigravitySubagentBridge(self)
+
+    def get_active_adapter(self):
+        """Resolves the active environment adapter for current workspace."""
+        return self.adapter_registry.detect_active()
+
     def close(self) -> None:
         """Closes all active resources cleanly."""
+        if hasattr(self, "fs_watcher") and self.fs_watcher and self.fs_watcher.is_active:
+            try:
+                self.fs_watcher.stop()
+            except Exception:
+                pass
         if hasattr(self, "cas_engine") and self.cas_engine:
             try:
                 self.cas_engine.close()

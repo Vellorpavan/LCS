@@ -607,6 +607,18 @@ class NativeSimulationHandler:
         if "echo" in clean_urn:
             return {"echo": arguments, "result": "ECHO_OK"}
 
+        if "deprovision" in clean_urn or "cleanup" in clean_urn or "delete" in clean_urn:
+            if arguments.get("fail_compensation"):
+                raise RuntimeError("Simulated compensation action failure: storage deprovision timeout")
+            target_path = arguments.get("path") or arguments.get("scratch_dir") or arguments.get("target")
+            if target_path and os.path.exists(target_path):
+                if os.path.isdir(target_path):
+                    import shutil
+                    shutil.rmtree(target_path, ignore_errors=True)
+                else:
+                    os.remove(target_path)
+            return {"result": f"Deprovisioned {target_path}", "status": "COMPLETED"}
+
         # Default fallback
         return {
             "result": f"Executed capability {capability_urn}",
@@ -638,7 +650,8 @@ class ExecutionEngineV1:
         profile_service: CapabilityProfileService,
         key_store: Any,
         audit_ledger: GovernanceAuditLedger,
-        workspace_root: Optional[str] = None
+        workspace_root: Optional[str] = None,
+        activation_verifier: Optional[Any] = None
     ):
         self.conn = conn
         self.cas_engine = cas_engine
@@ -647,6 +660,7 @@ class ExecutionEngineV1:
         self.key_store = key_store
         self.audit_ledger = audit_ledger
         self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        self.activation_verifier = activation_verifier
 
         # Ensure schema
         ensure_execution_engine_schema(self.conn)
@@ -718,6 +732,14 @@ class ExecutionEngineV1:
             )
         except Exception as e:
             raise PreflightVerificationError(f"Dispatch permit acceptance failed: {e}") from e
+
+        # 3. Hash-on-activation verification (fail-closed if on-disk capability drifted)
+        if self.activation_verifier is not None:
+            try:
+                for step in plan.steps:
+                    self.activation_verifier.verify_capability_activation(step.capability_urn)
+            except Exception as e:
+                raise PreflightVerificationError(f"Hash-on-activation integrity verification failed: {e}") from e
 
         # 3. Create execution run record
         cur = self.conn.cursor()
@@ -976,6 +998,14 @@ class ExecutionEngineV1:
             step_outputs_map[step.step_id] = output_data
             completed_count += 1
 
+            step_comp_urn = getattr(step, "compensation_urn", None)
+            step_rev_type = getattr(step, "reversibility_type", StepReversibilityType.IDEMPOTENT)
+            if isinstance(step_rev_type, str):
+                try:
+                    step_rev_type = StepReversibilityType(step_rev_type)
+                except ValueError:
+                    step_rev_type = StepReversibilityType.IDEMPOTENT
+
             rec = StepExecutionRecord(
                 step_record_id=step_rec_id,
                 run_id=run_id,
@@ -990,7 +1020,9 @@ class ExecutionEngineV1:
                 input_arguments_cas_digest=input_cas_digest,
                 output_result=output_data,
                 output_result_cas_digest=output_cas_digest,
-                retry_count=retries_attempted
+                retry_count=retries_attempted,
+                reversibility_type=step_rev_type,
+                compensation_urn=step_comp_urn
             )
             step_records.append(rec)
 
@@ -998,9 +1030,9 @@ class ExecutionEngineV1:
                 UPDATE execution_step_records
                 SET status = 'COMPLETED', end_time = ?, duration_ms = ?,
                     input_arguments_cas_digest = ?, output_result_cas_digest = ?,
-                    retry_count = ?
+                    retry_count = ?, reversibility_type = ?, compensation_urn = ?
                 WHERE step_record_id = ?;
-            """, (step_end, dur_ms, input_cas_digest, output_cas_digest, retries_attempted, step_rec_id))
+            """, (step_end, dur_ms, input_cas_digest, output_cas_digest, retries_attempted, step_rev_type.value, step_comp_urn, step_rec_id))
             cur.execute("UPDATE execution_runs SET completed_steps = ? WHERE run_id = ?;", (completed_count, run_id))
             self.conn.commit()
 
@@ -1051,8 +1083,26 @@ class ExecutionEngineV1:
                                 }
                             )
                         except Exception as ce:
-                            # Log compensation error
-                            pass
+                            rec.status = StepExecutionStatus.FAILED
+                            rec.error_details = f"Compensation failed: {ce}"
+                            cur.execute("""
+                                UPDATE execution_step_records
+                                SET status = 'FAILED', error_details = ? WHERE step_record_id = ?;
+                            """, (rec.error_details, rec.step_record_id))
+                            self.conn.commit()
+
+                            self.audit_ledger.append_event(
+                                event_type="COMPENSATION_ACTION_FAILED",
+                                plan_id=plan.plan_id,
+                                plan_integrity_hash=permit.plan_integrity_hash,
+                                token_id=token.token_id,
+                                event_payload={
+                                    "run_id": run_id,
+                                    "original_step_id": rec.step_id,
+                                    "compensation_urn": rec.compensation_urn,
+                                    "error_details": str(ce)
+                                }
+                            )
 
         # --------------------------------------------------------------------
         # Phase 4: Finalization & Audit Receipts

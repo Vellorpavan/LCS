@@ -87,14 +87,14 @@ def test_03_migration_manager_idempotency_and_integrity():
         db_p = os.path.join(tmp_dir, "mig_test.db")
         mgr = MigrationManager(db_p, schema_dir=CURRENT_DIR)
         applied1 = mgr.apply_pending()
-        assert len(applied1) == 3
+        assert len(applied1) == 4
         # Idempotent re-run
         applied2 = mgr.apply_pending()
         assert len(applied2) == 0
         # Integrity check
         ok, issues = mgr.verify_integrity()
         assert ok, f"Integrity issues: {issues}"
-    print("  Verified: All 3 migrations applied idempotently with verified checksums.")
+    print("  Verified: All 4 migrations applied idempotently with verified checksums.")
 
 
 def test_04_cli_status_command():
@@ -103,7 +103,7 @@ def test_04_cli_status_command():
         code, out, err = run_cli_capture(["status"], tmp_dir)
         assert code == 0, f"Expected 0, got {code}. err: {err}"
         assert "LIVING CAPABILITY SYSTEM (LCS) — SYSTEM STATUS" in out
-        assert "3/3 applied" in out
+        assert "4/4 applied" in out
         assert "Foreign Keys:      ENABLED (1)" in out
     print("  Verified: 'lcs status' returns clean status across all subsystems.")
 

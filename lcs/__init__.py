@@ -4,7 +4,7 @@ Living Capability System (LCS)
 Canonical Stage 2B Implementation: Milestones 1–4 Integrated.
 """
 
-__version__ = "3.0.1"
+__version__ = "3.1.0"
 
 from .config import LCSConfig
 from .context import LCSContext
@@ -69,6 +69,41 @@ from .skills import (
     UnifiedRetrievalCoordinator,
     UnifiedRetrievalCandidate,
     SkillIntelligenceServiceV1
+)
+from .hydration import (
+    ResourceUtilizationState,
+    AuxiliaryFileRecord,
+    DependencyReference,
+    HydratedCapability,
+    HydrationEngine,
+    HydrationError,
+)
+from .dependencies import (
+    ResourceType,
+    DependencyType as ResourceDependencyType,
+    DependencyNode,
+    DependencyEdge,
+    DependencyGraph,
+    DependencyError,
+    CircularDependencyError,
+    MissingDependencyError,
+    DependencyResolver,
+)
+from .verification import (
+    VerificationState,
+    EvidenceTier,
+    EvidenceRecord,
+    VerificationResult,
+    UnifiedResourceVerifier,
+)
+from .subagents import (
+    SubagentTaskState,
+    SubagentTask,
+    SubagentExecutionResult,
+    AntigravitySubagentBridge,
+    SubagentBridgeError,
+    UnsupportedSubagentEnvironmentError,
+    SubagentTimeoutError,
 )
 from .execution import (
     ExecutionLifecycleState,
@@ -183,5 +218,32 @@ __all__ = [
     "ExecutionEngineV1",
     "ensure_execution_engine_schema",
     "MigrationManager",
+    "ResourceUtilizationState",
+    "AuxiliaryFileRecord",
+    "DependencyReference",
+    "HydratedCapability",
+    "HydrationEngine",
+    "HydrationError",
+    "ResourceType",
+    "ResourceDependencyType",
+    "DependencyNode",
+    "DependencyEdge",
+    "DependencyGraph",
+    "DependencyError",
+    "CircularDependencyError",
+    "MissingDependencyError",
+    "DependencyResolver",
+    "VerificationState",
+    "EvidenceTier",
+    "EvidenceRecord",
+    "VerificationResult",
+    "UnifiedResourceVerifier",
+    "SubagentTaskState",
+    "SubagentTask",
+    "SubagentExecutionResult",
+    "AntigravitySubagentBridge",
+    "SubagentBridgeError",
+    "UnsupportedSubagentEnvironmentError",
+    "SubagentTimeoutError",
 ]
 

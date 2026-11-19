@@ -54,8 +54,8 @@ def init_isolated_env(tmp_dir: str):
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
 
-    # Apply all 3 migrations
-    for schema_file in ("lcs_schema_v2b.sql", "lcs_schema_m3_migration.sql", "lcs_schema_m4_migration.sql"):
+    # Apply all 4 migrations
+    for schema_file in ("lcs_schema_v2b.sql", "lcs_schema_m3_migration.sql", "lcs_schema_m4_migration.sql", "lcs_schema_m5_sqlite_compat.sql"):
         p = os.path.join(CURRENT_DIR, schema_file)
         with open(p, "r", encoding="utf-8") as f:
             conn.executescript(f.read())

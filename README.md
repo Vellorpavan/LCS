@@ -1,205 +1,143 @@
-# Living Capability System (LCS) — Production Release v3.0.0
+# Living Capability System (LCS) — Release v3.1.0-RC1
 
 The **Living Capability System (LCS)** is an autonomous, cryptographic, zero-trust infrastructure for discovering, understanding, planning, governing, and executing agentic tools, MCP servers, and agent skills.
 
-LCS guarantees complete integrity and safety across the entire agent action lifecycle:
-- **Zero-Trust Verification**: Tools and interfaces must be attested with HMAC-SHA256 signatures before plan authorization.
-- **Fail-Closed Governance**: Strict dual-gated enforcement (Policy Gate 1 & Approver Consent Gate 2).
-- **Cryptographic Authorization**: Monotonic, single-use Execution Authorization Tokens (EAT) and Dispatch Permits tied to RFC 8785 Plan Integrity Hashes.
-- **Sandboxed Execution**: Process supervisor with process groups (`os.setsid`), graceful `SIGTERM` $\to$ `SIGKILL` timeout management, and strict descriptor-relative path security (`O_NOFOLLOW`).
-- **Audit Traceability**: Immutable append-only audit ledgers and exact-byte CAS execution traces for all operations.
+LCS v3.1.0 introduces the **Call Me Invocation Architecture** (`/call-me`): universal multi-agent capability intelligence and execution orchestration across Google Antigravity, Claude Code, OpenCode, and Generic POSIX environments without conversational interference, context token inflation, or ungoverned tool execution.
 
 ---
 
-## Architecture & Integrated Milestones
+## Core Security & Operational Invariants
 
-```
-  [ DISCOVERY LAYER ]
-  ├── MCP Stdio Servers (JSON-RPC 2.0 tools/list pagination)
-  └── Multi-Environment Skill Intelligence (Antigravity, Claude Code, OpenCode)
-            │
-            ▼
-  [ STORAGE & IDENTITY LAYER ]
-  ├── Content-Addressed Storage (CAS) Engine (Exact-byte fidelity, O_NOFOLLOW, F_FULLFSYNC)
-  ├── SQLite Relational Catalog & URN Registry (urn:lcs:<entity_kind>:<namespace>:<identifier>)
-  └── Cryptographic Key Store & Attestation Engine (HMAC-SHA256, atomic key rotation)
-            │
-            ▼
-  [ INTELLIGENCE & PLANNING LAYER ]
-  ├── Semantic Profiling & Parameter Extraction (Explicit vs. Inferred Template Variables)
-  ├── Dual-Engine Natural Language Retrieval (BM25 + FTS5 + Context Precedence Ranking)
-  └── Multi-Capability Planning Engine (Acyclic DAG synthesis, output-to-input parameter binding)
-            │
-            ▼
-  [ GOVERNANCE & POLICY LAYER ]
-  ├── Gate 1: Capability Policy & Interface Attestation Verification
-  ├── Gate 2: Two-Person-Rule / Role-Based Approver Consent
-  ├── RFC 8785 JSON Canonicalization (JCS) & PlanIntegrityHash binding
-  └── Monotonic Compare-and-Consume Single-Use Execution Authorization Tokens (EAT)
-            │
-            ▼
-  [ RUNTIME EXECUTION ENGINE ]
-  ├── Modality Handlers: MCP Tools, Exact-Byte Skills, Native Capabilities
-  ├── Process Supervisor (Process groups, filtered envs, timeout enforcement)
-  ├── Reverse-Order Compensation Unwinding on mid-plan failures
-  └── Append-Only Audit Ledger & CAS Execution Trace Receipts
-```
-
-### Verified Milestone Capabilities:
-1. **Milestones 1–4**: CAS engine, canonical registration, interface policy & attestations, MCP discovery, SQLite FTS5 search.
-2. **Capability Retrieval V1 & V1.1 (Frozen)**: Natural language semantic retrieval, BM25 scoring, trust status filtering, blind validation.
-3. **Capability Parameter Understanding V1 (Frozen)**: Schema validation, parameter readiness analysis, type inference, evidence-grounded parameter mapping.
-4. **Multi-Capability Planning V1 (Frozen)**: DAG plan generation, topological sorting, dependency validation, input-output data binding.
-5. **Execution Governance V1 (Frozen)**: Dual-gate enforcement, approver consent, single-use EAT tokens, hash-chained audit ledger, RFC 8785 JCS canonicalization.
-6. **Skill Intelligence V1**: Taxonomy classification (Skill, Command, Rule, Instruction, Config), safe descriptor reading, Merkle bundle hashing, context precedence boosting.
-7. **Execution Engine V1 & E2E Integration**: Sandboxed process supervision, MCP/Skill/Native execution handlers, compensation unwinding, and end-to-end integration suite.
+- **Cryptographic Zero-Trust Governance**: Capabilities and interfaces must be attested with HMAC-SHA256 signatures before plan authorization.
+- **Fail-Closed Dual-Gate Control**: Strict verification requires Policy Gate 1 (attestation & version invariants) and Approver Consent Gate 2 (role-based confirmation).
+- **Plan Tampering Immunity**: Tokens are bound to the SHA-256 hash of the RFC 8785 JSON Canonicalization (JCS) representation (`PlanIntegrityHash`). Any mid-flight parameter or step alteration fails closed.
+- **Single-Use Replay Protection**: Monotonic Compare-and-Consume protocol consumes Execution Authorization Tokens (EAT) and Dispatch Permits atomically under SQLite exclusive transaction locks (`BEGIN IMMEDIATE`).
+- **Conversational Dormancy**: Non-`/call-me` developer messages completely bypass LCS Core (0 Core invocations, 0 catalog queries, 0 SQLite mutations, 0 CAS writes, 0 injected context tokens).
+- **Exact-Byte Provenance & Sandboxing**: Artifacts are hashed and preserved bit-for-bit in CAS storage (`O_NOFOLLOW`, descriptor-relative path pinning). Process groups (`os.setsid`) manage graceful `SIGTERM` $\to$ `SIGKILL` termination, child reaping, and reverse-order compensation unwinding.
 
 ---
 
-## Project Structure
+## Installation & Clean Initialization
 
+### 1. Installation
+
+LCS is packaged as a standard Python package (`lcs-core`).
+
+**From Local Source (Editable):**
+```bash
+python3 -m pip install -e .
 ```
-/Users/pavan/Desktop/LCS/
-├── bin/
-│   └── lcs                           # Executable CLI launcher
-├── lcs/                              # Canonical Python package
-│   ├── __init__.py                   # Package exports (v3.0.0)
-│   ├── config.py                     # LCSConfig path resolver & directory setup
-│   ├── context.py                    # LCSContext lifecycle & unified service manager
-│   ├── storage.py                    # SecureCASStorageEngine & PersistentReceiptKeyStore
-│   ├── registry.py                   # CapabilityRegistrationService & CapabilityDefinition
-│   ├── policy.py                     # InterfacePolicyService & InterfaceTrustPolicy
-│   ├── discovery.py                  # CapabilityDiscoveryPipeline & DiscoveryIndexService
-│   ├── profile.py                    # CapabilityProfileService & Semantic Profiling
-│   ├── retrieval.py                  # CapabilityRetrievalEngine V1 & V1.1
-│   ├── parameter.py                  # ParameterUnderstandingEngine V1
-│   ├── planning.py                   # CapabilityPlanningEngine V1
-│   ├── governance.py                 # ExecutionGovernanceEngine V1
-│   ├── skills.py                     # SkillDiscoveryEngine & SkillIntelligenceService V1
-│   ├── execution.py                  # ExecutionEngine V1 runtime layer
-│   ├── migrations.py                 # MigrationManager wrapper
-│   └── cli.py                        # Comprehensive operator CLI
-├── capability_retrieval_v1.py        # [FROZEN] Retrieval V1 Engine
-├── capability_retrieval_v1_1.py      # [FROZEN] Retrieval V1.1 Engine
-├── capability_parameter_v1.py        # [FROZEN] Parameter Understanding V1 Engine
-├── capability_planning_v1.py         # [FROZEN] Multi-Capability Planning V1 Engine
-├── governance_policy_v1.py           # [FROZEN] Execution Governance V1 Engine
-├── skill_discovery_v1.py             # Skill Discovery Engine & Taxonomy Classifier
-├── skill_intelligence_v1.py          # Skill Intelligence V1 & Unified Retrieval Coordinator
-├── execution_engine_v1.py            # Execution Engine V1 Runtime Orchestrator
-├── evaluation_fixtures/              # Test fixtures & executable MCP stdio servers
-├── test_*.py                         # Complete verification suite (278 authoritative tests)
-└── lcs_project_final_report.md       # Comprehensive milestone completion report
+
+**From Standalone Wheel Package:**
+```bash
+python3 -m pip install dist/lcs_core-3.1.0rc1-py3-none-any.whl
+```
+
+*Requirements:* Python $\ge 3.10$, `pyyaml >= 6.0`.
+
+### 2. Initialization & System Status
+
+Initialize a clean workspace or verify system health:
+```bash
+lcs status
+```
+*Note:* Running `lcs status` in a new workspace automatically creates the SQLite relational database (`lcs.db`), applies baseline schemas and migrations, provisions Content-Addressable Storage (CAS) directories, and initializes the persistent cryptographic key store.
+
+To run against a custom directory root:
+```bash
+lcs --root /path/to/custom_dir status
 ```
 
 ---
 
-## Quick Start & Operator CLI
+## Supported Host Environments & Slash Commands
 
-Make sure the CLI binary is executable:
+LCS adapts dynamically to the host environment using dedicated environment adapters:
+
+| Host Environment | Active Adapter | Slash Command Target | Subagent Delegation | Live MCP Stdio |
+| :--- | :--- | :--- | :---: | :---: |
+| **Google Antigravity** | `AntigravityAdapter` | `.agents/skills/call-me/SKILL.md` | In-Memory (Simulated) | Supported |
+| **Claude Code** | `ClaudeCodeAdapter` | `.claude/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
+| **OpenCode** | `OpenCodeAdapter` | `.opencode/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
+| **Generic POSIX** | `GenericPOSIXAdapter` | CLI Subcommand: `lcs call-me` | *Unsupported (fails closed)* | Supported |
+
+### Installing `/call-me` Slash Commands
+
+Install slash command definition files into your workspace or user home:
 ```bash
-chmod +x ./bin/lcs
+# Install into all detected environments in workspace:
+lcs install-command --environment all
+
+# Install globally to user home:
+lcs install-command --environment all --global
+
+# Safely uninstall command artifacts:
+lcs uninstall-command --environment all
 ```
-
-### 1. System Health & Status
-```bash
-./bin/lcs status
-```
-
-### 2. Discover MCP Servers & Capabilities
-```bash
-# Discover tools from an MCP server over stdio:
-./bin/lcs discover --server-command "python3 evaluation_fixtures/executable_test_server.py" --server-name "demo-server"
-```
-
-### 3. Discover Skills across Environments
-```bash
-# Discover skills from Google Antigravity, Claude Code, and OpenCode workspaces:
-./bin/lcs skill discover
-./bin/lcs skill list
-./bin/lcs skill search "data formatter"
-```
-
-### 4. Create and Govern Multi-Capability Plans
-```bash
-# Generate a DAG execution plan from plain English intent:
-./bin/lcs plan "format input text then calculate checksum"
-
-# Request Gate 1 evaluation and Gate 2 approver consent:
-./bin/lcs approve --plan plan.json --role SECURITY_OFFICER
-```
-
-### 5. Execute Governed Plans
-```bash
-# Execute plan with signed Execution Authorization Token (EAT):
-./bin/lcs execute --token eat-abc12345 --plan plan.json
-
-# Inspect completed execution run receipts:
-./bin/lcs run list
-./bin/lcs run inspect <run_id>
-```
+*Safety Invariant:* `install-command` will refuse to overwrite existing non-LCS files unless `--overwrite` is explicitly provided. `uninstall-command` only deletes verified LCS-managed files and only removes directories if completely empty.
 
 ---
 
-## Python API Usage
+## Invocation & Usage
 
+### 1. Host Slash Command Invocation
+In supported host conversational interfaces (Antigravity, Claude Code, OpenCode):
+```text
+/call-me "Inspect release version, run compliance security scan, and deploy to staging"
+```
+
+### 2. CLI Invocation
+In generic POSIX shells or automation pipelines:
+```bash
+lcs call-me "Inspect release version, run compliance security scan, and deploy to staging"
+```
+
+### 3. Python API Usage
 ```python
-from lcs import LCSConfig, LCSContext, ApproverConsent, ApproverRole
+from lcs import LCSConfig, LCSContext, ApproverConsent, ApproverRole, InterfaceTrustPolicy
 
-# 1. Initialize LCS Context with automatic migrations and secure permissions
-config = LCSConfig.resolve(root_override="./.lcs")
+config = LCSConfig.resolve()
 with LCSContext(config=config, auto_migrate=True) as ctx:
-    # 2. Discover skills across authorized roots
-    records = ctx.skill_service.run_full_pipeline()
-    print(f"Discovered {len(records)} skills.")
+    # 1. User explicit /call-me intake
+    resp = ctx.call_me.execute_call_me('/call-me "Format data and compute checksum"')
+    print(f"Call Me Intake Status: {resp.status}, Matched: {resp.candidate_count}")
 
-    # 3. Create Multi-Capability DAG Execution Plan
-    plan = ctx.planning_engine.create_plan("format input text")
-
-    # 4. Evaluate Governance Gate 1 (Capability Trust Policy)
-    eval_res = ctx.governance_engine.evaluate_plan(plan)
-    print(f"Gate 1 Status: {eval_res.gate_1_status}")
-
-    # 5. Grant Gate 2 Approver Consent & Issue EAT Token
-    consent = ApproverConsent(principal="security-officer", role=ApproverRole.SECURITY_OFFICER)
-    token, approval = ctx.governance_engine.approve_plan(plan, consent)
-    print(f"Issued Authorization Token: {token.token_id}")
-
-    # 6. Execute Plan in Sandboxed Runtime
-    run_result = ctx.execution_engine.execute_plan(plan, token)
-    print(f"Execution State: {run_result.lifecycle_state.value}")
-    print(f"Execution Trace CAS Digest: {run_result.trace_cas_digest}")
+    # 2. Planning and Governance
+    plan = ctx.planning_engine.create_plan("format data and compute checksum")
+    policy = InterfaceTrustPolicy(policy_name="default", min_interface_version=1)
+    consent = ApproverConsent(principal="security-officer@local", role=ApproverRole.SECURITY_OFFICER, method="API")
+    
+    token, eval_res = ctx.governance_engine.approve_plan(plan, consent, active_policy=policy)
+    
+    # 3. Execution & Audit Ledger
+    result = ctx.execution_engine.execute_plan(plan, token)
+    print(f"Execution State: {result.lifecycle_state.value}")
 ```
 
 ---
 
-## Verification & Test Results
+## Known Operational Boundaries & Documented Limitations
 
-The Living Capability System contains **278 unit, integration, and regression tests** across 23 test suites.
+1. **Subagent Delegation Boundary:**
+   - Host-level subagent coordination is validated for structured task creation, parameter handoff, and output deliverable verification under in-memory executor callbacks (**SIMULATED**).
+   - In standalone CPython execution without host-provided IPC callbacks, live interactive Antigravity child agent execution is **NOT VERIFIED**. Non-supporting environments (Claude Code, OpenCode) fail closed honestly.
+2. **Governance Duplicate Attestation Invariant:**
+   - In frozen core module `governance_policy_v1.py`, `evaluate_plan()` preserves attestation duplicates while `approve_plan()` deduplicates attestation IDs via `set()`.
+   - Multi-step plans under strict `require_attestation=True` where multiple steps share an identical attestation ID fail closed at dispatch with `PlanIntegrityTamperedError`.
+   - **Mitigation / Safe Compatibility Pattern:** Multi-tool single-server plans must register capabilities under qualified interface URNs (`urn:lcs:interface:mcp.{server}.{tool}:v1`), assigning distinct attestation IDs per capability.
+3. **Pending SQLite Version Migration:**
+   - `lcs_schema_m5_sqlite_compat.sql` provides backward-compatible static error literals for SQLite `< 3.44`. Production database migration remains deferred pending explicit operator migration authorization.
 
-```bash
-# Run full authoritative test suite:
-python3 -m pytest -q
-# 278 passed in 48.18s (100% PASS RATE)
-```
+---
 
-### Cryptographically Sealed Frozen Modules:
-All five baseline modules remain 100% bit-for-bit identical to their approved cryptographic digests:
+## Cryptographically Sealed Frozen Core
 
-| File Name | SHA-256 Digest | Status |
+The five foundational baseline modules remain 100% bit-for-bit invariant against their authoritative SHA-256 digests:
+
+| File Name | Authoritative SHA-256 Digest | Status |
 | :--- | :--- | :---: |
 | `capability_retrieval_v1.py` | `b7d476236d2f5addd6619f619a6f1145bf407a6917d20493e4d85afd0ca843b4` | ✅ VERIFIED |
 | `capability_retrieval_v1_1.py` | `2a29c3dcec1e792021a63707fec9a92c3a6505080b0c05a63e377c69ce272e12` | ✅ VERIFIED |
 | `capability_parameter_v1.py` | `469b743cf6af1f6807544f2182dee12a4708ceb5512dd32185c4e5986a524c00` | ✅ VERIFIED |
 | `capability_planning_v1.py` | `eb81b3255d58958d73689b99cb8506647f8c781d30d93cea1c90dfd435d070e4` | ✅ VERIFIED |
 | `governance_policy_v1.py` | `5273f17e83d1c90cd5f935b815841db711a3523a08d1d180f2a4d67bcad44252` | ✅ VERIFIED |
-
----
-
-## Security Invariants
-
-1. **Zero Unsigned Execution**: No plan or step can execute without a cryptographically valid, unconsumed EAT token signed by the LCS Key Store.
-2. **Replay & Double-Spend Defense**: EAT tokens and Dispatch Permits are atomically consumed under SQLite `BEGIN IMMEDIATE` transactions.
-3. **Plan Tampering Immunity**: Tokens are bound to the SHA-256 hash of the RFC 8785 canonicalized plan (`PlanIntegrityHash`). Any mid-flight modification halts execution immediately.
-4. **Path Confinement Security**: All file operations enforce `openat` and `O_NOFOLLOW` pinned to authorized discovery roots. Path traversal attempts (`../`) and symlink cycles fail closed.
-5. **Exact-Byte Preservation**: Artifact contents are hashed and preserved bit-for-bit in CAS storage without alteration.
