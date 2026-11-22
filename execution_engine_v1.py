@@ -718,8 +718,15 @@ class SkillExecutionHandler:
 
             if script_to_run.endswith(".py"):
                 cmd = [sys.executable, script_to_run]
+            elif sys.platform == "win32":
+                import shutil
+                bash_path = shutil.which("bash") or shutil.which("sh") or r"C:\Program Files\Git\bin\bash.exe"
+                if os.path.exists(bash_path):
+                    cmd = [bash_path, script_to_run]
+                else:
+                    cmd = ["cmd.exe", "/c", script_to_run]
             else:
-                cmd = ["/bin/bash", script_to_run]
+                cmd = ["/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh", script_to_run]
 
             for k, v in arguments.items():
                 cmd.extend([f"--{k}", str(v)])

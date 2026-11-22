@@ -190,8 +190,8 @@ def test_scenario_1_complex_multi_capability_orchestration(call_me_env):
             "# Staging Deployer\n"
             "Deploys target release into staging environment.\n"
         )
-    with open(os.path.join(skill2_dir, "scripts", "deploy.sh"), "w", encoding="utf-8") as f:
-        f.write("#!/bin/sh\necho 'Deploying version $1 with scan $2' > staging_receipt.txt\n")
+    with open(os.path.join(skill2_dir, "scripts", "deploy.py"), "w", encoding="utf-8") as f:
+        f.write("#!/usr/bin/env python3\nimport sys\nwith open('staging_receipt.txt', 'w') as f:\n    f.write('Deploying version ' + (sys.argv[1] if len(sys.argv) > 1 else '') + '\\n')\n")
 
     # 3. Register live executable MCP test server for security scan tool
     server_path = os.path.join(CURRENT_DIR, "evaluation_fixtures", "executable_test_server.py")

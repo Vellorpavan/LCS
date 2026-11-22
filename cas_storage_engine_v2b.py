@@ -1023,7 +1023,17 @@ class PersistentReceiptKeyStore:
                 pid_str = pid_thread_uuid.split("_")[0]
                 try:
                     pid = int(pid_str)
-                    os.kill(pid, 0)
+                    if pid <= 0:
+                        is_dead_pid = True
+                    elif sys.platform == "win32":
+                        import ctypes
+                        h_proc = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+                        if not h_proc:
+                            is_dead_pid = True
+                        else:
+                            ctypes.windll.kernel32.CloseHandle(h_proc)
+                    else:
+                        os.kill(pid, 0)
                 except ProcessLookupError:
                     is_dead_pid = True
                 except (ValueError, PermissionError, OSError):

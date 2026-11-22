@@ -185,8 +185,10 @@ class FilesystemWatcher:
             for old_path, old_stat in prev_snapshot.items():
                 if old_path not in current_stats:
                     # Check if inode still exists at another path (Rename detection)
-                    key = (old_stat.st_ino, old_stat.st_dev)
-                    new_path = new_inode_map.get(key)
+                    new_path = None
+                    if old_stat.st_ino != 0:
+                        key = (old_stat.st_ino, old_stat.st_dev)
+                        new_path = new_inode_map.get(key)
                     if new_path and new_path != old_path:
                         deltas.append(DeltaChange(
                             kind=ChangeKind.RENAMED,
@@ -205,9 +207,10 @@ class FilesystemWatcher:
             for curr_path, curr_stat in current_stats.items():
                 if curr_path not in prev_snapshot:
                     # If this was already emitted as RENAMED in step 1, skip duplicate ADDED
-                    key = (curr_stat.st_ino, curr_stat.st_dev)
-                    if key in prev_inodes and prev_inodes[key] != curr_path:
-                        continue
+                    if curr_stat.st_ino != 0:
+                        key = (curr_stat.st_ino, curr_stat.st_dev)
+                        if key in prev_inodes and prev_inodes[key] != curr_path:
+                            continue
                     deltas.append(DeltaChange(
                         kind=ChangeKind.ADDED,
                         path=curr_path,
@@ -274,7 +277,8 @@ class FilesystemWatcher:
                     norm_path = os.path.abspath(entry.path)
                     stat_meta = StatMetadata.from_stat(norm_path, st, is_dir=entry.is_dir(follow_symlinks=False))
                     out_stats[norm_path] = stat_meta
-                    out_inodes[(stat_meta.st_ino, stat_meta.st_dev)] = norm_path
+                    if stat_meta.st_ino != 0:
+                        out_inodes[(stat_meta.st_ino, stat_meta.st_dev)] = norm_path
 
                     if entry.is_dir(follow_symlinks=False):
                         self._walk_directory(entry.path, out_stats, out_inodes, depth + 1, max_depth)

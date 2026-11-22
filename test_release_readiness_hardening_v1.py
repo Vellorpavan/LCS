@@ -220,7 +220,7 @@ class TestProcessFailureAndCompensation:
             cmd = [
                 sys.executable,
                 "-c",
-                f"import subprocess, time; p = subprocess.Popen(['sleep', '30']); open('{pid_file}', 'w').write(str(p.pid)); p.wait()"
+                f"import subprocess, sys, time; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); open('{pid_file.replace(os.sep, '/')}', 'w').write(str(p.pid)); p.wait()"
             ]
 
             start_t = time.time()
@@ -235,9 +235,14 @@ class TestProcessFailureAndCompensation:
             with open(pid_file, "r") as f:
                 child_pid = int(f.read().strip())
 
-            # Verify the child sleep process is dead (kill with signal 0 raises OSError)
-            with pytest.raises(OSError):
-                os.kill(child_pid, 0)
+            # Verify the child sleep process is dead
+            if sys.platform == "win32":
+                import ctypes
+                h_proc = ctypes.windll.kernel32.OpenProcess(0x1000, False, child_pid)
+                assert not h_proc, f"Child process {child_pid} is still alive on Windows!"
+            else:
+                with pytest.raises(OSError):
+                    os.kill(child_pid, 0)
 
     def test_process_failure_step_cancellation_and_reverse_compensation(self, hardening_env):
         """
