@@ -57,8 +57,12 @@ def test_portable_clean_venv_installation(built_wheel):
         os.makedirs(fake_home, exist_ok=True)
 
         subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
-        venv_python = os.path.join(venv_dir, "bin", "python3")
-        venv_lcs = os.path.join(venv_dir, "bin", "lcs")
+        if sys.platform == "win32":
+            venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
+            venv_lcs = os.path.join(venv_dir, "Scripts", "lcs.exe")
+        else:
+            venv_python = os.path.join(venv_dir, "bin", "python3")
+            venv_lcs = os.path.join(venv_dir, "bin", "lcs")
 
         # Install wheel
         subprocess.run([venv_python, "-m", "pip", "install", built_wheel], check=True, capture_output=True)

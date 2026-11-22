@@ -125,17 +125,21 @@ def test_cross_process_exclusive_lock_contention(tmp_path):
     ready_file = str(tmp_path / "child_ready.flag")
     release_file = str(tmp_path / "release.flag")
 
+    lock_file_esc = json.dumps(lock_file)
+    ready_file_esc = json.dumps(ready_file)
+    release_file_esc = json.dumps(release_file)
+
     child_code = f"""
 import os, sys, time
 from lcs.locking import flock, LOCK_EX, LOCK_UN
 
-fd = os.open("{lock_file}", os.O_RDWR | os.O_CREAT, 0o600)
+fd = os.open({lock_file_esc}, os.O_RDWR | os.O_CREAT, 0o600)
 flock(fd, LOCK_EX)
-with open("{ready_file}", "w") as f:
+with open({ready_file_esc}, "w") as f:
     f.write("LOCKED")
 
 # Wait for release signal
-while not os.path.exists("{release_file}"):
+while not os.path.exists({release_file_esc}):
     time.sleep(0.05)
 
 flock(fd, LOCK_UN)
@@ -192,13 +196,16 @@ def test_crash_recovery_kernel_lock_cleanup(tmp_path):
     lock_file = str(tmp_path / "test_crash.lock")
     ready_file = str(tmp_path / "crash_ready.flag")
 
+    lock_file_esc = json.dumps(lock_file)
+    ready_file_esc = json.dumps(ready_file)
+
     child_code = f"""
 import os, sys, time
 from lcs.locking import flock, LOCK_EX
 
-fd = os.open("{lock_file}", os.O_RDWR | os.O_CREAT, 0o600)
+fd = os.open({lock_file_esc}, os.O_RDWR | os.O_CREAT, 0o600)
 flock(fd, LOCK_EX)
-with open("{ready_file}", "w") as f:
+with open({ready_file_esc}, "w") as f:
     f.write("LOCKED")
 
 # Sleep forever until abruptly killed

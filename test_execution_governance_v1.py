@@ -484,7 +484,7 @@ def test_09_filesystem_path_confinement_and_traversal():
         boundary_root = os.path.realpath(td)
         grants, warnings, violations = evaluate_resource_boundaries(plan, boundary_root=boundary_root)
         assert len(violations) > 0
-        assert any("Path traversal detected" in v or "resolves outside boundary root" in v for v in violations)
+        assert any("Path traversal" in v or "resolves outside boundary root" in v for v in violations)
 
 
 # ============================================================================

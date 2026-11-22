@@ -557,9 +557,14 @@ def test_10_clean_wheel_build_contents_audit_and_isolated_install(tmp_path):
     res_venv = subprocess.run([sys.executable, "-m", "venv", venv_dir], capture_output=True, text=True, timeout=60)
     assert res_venv.returncode == 0, f"venv creation failed: {res_venv.stderr}"
 
-    venv_python = os.path.join(venv_dir, "bin", "python3")
-    venv_pip = os.path.join(venv_dir, "bin", "pip")
-    venv_lcs = os.path.join(venv_dir, "bin", "lcs")
+    if sys.platform == "win32":
+        venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
+        venv_pip = os.path.join(venv_dir, "Scripts", "pip.exe")
+        venv_lcs = os.path.join(venv_dir, "Scripts", "lcs.exe")
+    else:
+        venv_python = os.path.join(venv_dir, "bin", "python3")
+        venv_pip = os.path.join(venv_dir, "bin", "pip")
+        venv_lcs = os.path.join(venv_dir, "bin", "lcs")
 
     res_install = subprocess.run([venv_pip, "install", str(whl_path)], capture_output=True, text=True, timeout=60)
     assert res_install.returncode == 0, f"Wheel install failed: {res_install.stderr}"

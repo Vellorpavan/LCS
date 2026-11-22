@@ -203,39 +203,83 @@ class LiveProbeEngine:
             proc.stdin.write(req_str)
             proc.stdin.flush()
 
-            import select
-            t_end = time.time() + timeout_seconds
             resp_line = None
 
-            while time.time() < t_end:
-                remaining = max(0.0, t_end - time.time())
-                rlist, _, _ = select.select([proc.stdout], [], [], min(0.05, remaining))
-                if rlist:
-                    line = proc.stdout.readline()
-                    if line:
-                        resp_line = line.strip()
-                        break
+            if sys.platform == "win32":
+                # Windows: select.select does not work on pipes; use thread-based readline with timeout
+                import threading
+                _resp_holder = [None]
+                _err_holder = [None]
 
-                if proc.poll() is not None:
-                    # Check if there was pending output
-                    rest = proc.stdout.read() if proc.stdout else ""
-                    if rest:
+                def _reader_thread():
+                    try:
+                        line = proc.stdout.readline()
+                        _resp_holder[0] = line.strip() if line else None
+                    except Exception:
+                        pass
+
+                t = threading.Thread(target=_reader_thread, daemon=True)
+                t.start()
+                t.join(timeout=timeout_seconds)
+                resp_line = _resp_holder[0]
+
+                if proc.poll() is not None and not resp_line:
+                    try:
+                        rest = proc.stdout.read() if proc.stdout else ""
                         for l in rest.splitlines():
                             if l.strip():
                                 resp_line = l.strip()
                                 break
-                    if resp_line:
-                        break
+                    except Exception:
+                        pass
 
-                    err_msg = proc.stderr.read() if proc.stderr else ""
-                    elapsed_ms = (time.perf_counter() - start) * 1000.0
-                    return ResourceProbeResult(
-                        resource_id=res_id,
-                        resource_kind="MCP_SERVER",
-                        status=OperationalStatus.DISCONNECTED,
-                        latency_ms=elapsed_ms,
-                        error_message=f"MCP server exited with code {proc.returncode}: {err_msg.strip()}"
-                    )
+                    if not resp_line:
+                        err_msg = ""
+                        try:
+                            err_msg = proc.stderr.read() if proc.stderr else ""
+                        except Exception:
+                            pass
+                        elapsed_ms = (time.perf_counter() - start) * 1000.0
+                        return ResourceProbeResult(
+                            resource_id=res_id,
+                            resource_kind="MCP_SERVER",
+                            status=OperationalStatus.DISCONNECTED,
+                            latency_ms=elapsed_ms,
+                            error_message=f"MCP server exited with code {proc.returncode}: {err_msg.strip()}"
+                        )
+            else:
+                import select
+                t_end = time.time() + timeout_seconds
+
+                while time.time() < t_end:
+                    remaining = max(0.0, t_end - time.time())
+                    rlist, _, _ = select.select([proc.stdout], [], [], min(0.05, remaining))
+                    if rlist:
+                        line = proc.stdout.readline()
+                        if line:
+                            resp_line = line.strip()
+                            break
+
+                    if proc.poll() is not None:
+                        # Check if there was pending output
+                        rest = proc.stdout.read() if proc.stdout else ""
+                        if rest:
+                            for l in rest.splitlines():
+                                if l.strip():
+                                    resp_line = l.strip()
+                                    break
+                        if resp_line:
+                            break
+
+                        err_msg = proc.stderr.read() if proc.stderr else ""
+                        elapsed_ms = (time.perf_counter() - start) * 1000.0
+                        return ResourceProbeResult(
+                            resource_id=res_id,
+                            resource_kind="MCP_SERVER",
+                            status=OperationalStatus.DISCONNECTED,
+                            latency_ms=elapsed_ms,
+                            error_message=f"MCP server exited with code {proc.returncode}: {err_msg.strip()}"
+                        )
 
             if not resp_line:
                 if proc and proc.poll() is None:

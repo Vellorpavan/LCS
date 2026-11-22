@@ -543,9 +543,14 @@ def test_clean_wheel_build_and_isolated_shell_invocation(workspace_env, tmp_path
     # 2. Create clean virtualenv
     import venv
     venv.create(clean_venv, with_pip=True)
-    venv_pip = os.path.join(clean_venv, "bin", "pip")
-    venv_python = os.path.join(clean_venv, "bin", "python")
-    venv_lcs = os.path.join(clean_venv, "bin", "lcs")
+    if sys.platform == "win32":
+        venv_pip = os.path.join(clean_venv, "Scripts", "pip.exe")
+        venv_python = os.path.join(clean_venv, "Scripts", "python.exe")
+        venv_lcs = os.path.join(clean_venv, "Scripts", "lcs.exe")
+    else:
+        venv_pip = os.path.join(clean_venv, "bin", "pip")
+        venv_python = os.path.join(clean_venv, "bin", "python")
+        venv_lcs = os.path.join(clean_venv, "bin", "lcs")
 
     # 3. Install built wheel into clean virtualenv
     install_cmd = [venv_pip, "install", "--no-deps", wheel_path]
@@ -553,11 +558,19 @@ def test_clean_wheel_build_and_isolated_shell_invocation(workspace_env, tmp_path
     assert inst_res.returncode == 0, f"Wheel installation failed: {inst_res.stderr}"
 
     # 4. Verify 'lcs --version' runs cleanly from installed clean environment
-    clean_env = {
-        "PATH": f"{os.path.join(clean_venv, 'bin')}:/usr/bin:/bin",
-        "HOME": workspace_env["home"],
-        "LCS_USER_HOME": workspace_env["home"]
-    }
+    if sys.platform == "win32":
+        clean_env = {
+            **os.environ,
+            "PATH": f"{os.path.join(clean_venv, 'Scripts')};{os.environ.get('PATH', '')}",
+            "HOME": workspace_env["home"],
+            "LCS_USER_HOME": workspace_env["home"]
+        }
+    else:
+        clean_env = {
+            "PATH": f"{os.path.join(clean_venv, 'bin')}:/usr/bin:/bin",
+            "HOME": workspace_env["home"],
+            "LCS_USER_HOME": workspace_env["home"]
+        }
     # Notice: PYTHONPATH is intentionally omitted!
 
     ver_res = subprocess.run([venv_lcs, "--help"], capture_output=True, text=True, env=clean_env)
