@@ -571,11 +571,12 @@ class PersistentReceiptKeyStore:
                 st = os.fstat(dir_fd)
                 if not stat.S_ISDIR(st.st_mode):
                     raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is not a directory")
-                if stat.S_IMODE(st.st_mode) != 0o700:
-                    try:
-                        os.fchmod(dir_fd, 0o700)
-                    except OSError:
-                        pass
+                if sys.platform != "win32" and stat.S_IMODE(st.st_mode) != 0o700:
+                    if hasattr(os, "fchmod"):
+                        try:
+                            os.fchmod(dir_fd, 0o700)
+                        except OSError:
+                            pass
                     st_after = os.fstat(dir_fd)
                     if stat.S_IMODE(st_after.st_mode) != 0o700:
                         raise CASSecurityViolationError(
@@ -1366,7 +1367,8 @@ class SecureCASStorageEngine:
                 )
                 
             # Apply read-only permissions descriptor-relative (0o444)
-            os.fchmod(staging_file_fd, 0o444)
+            if hasattr(os, "fchmod"):
+                os.fchmod(staging_file_fd, 0o444)
             
             # Durability flush
             durability_level = "FSYNC"

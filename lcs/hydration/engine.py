@@ -95,7 +95,12 @@ class HydrationEngine:
         if self.cas_engine and self.cas_engine.blob_exists(raw_digest):
             raw_bytes = self.cas_engine.read_blob(raw_digest)
         elif resolved_path and os.path.exists(resolved_path):
-            raw_bytes, _ = SafeFileReader.read_exact_bytes(resolved_path, MAX_INSTRUCTION_FILE_SIZE)
+            target_path = resolved_path
+            if os.path.isdir(target_path):
+                candidate = os.path.join(target_path, "SKILL.md")
+                if os.path.isfile(candidate):
+                    target_path = candidate
+            raw_bytes, _ = SafeFileReader.read_exact_bytes(target_path, MAX_INSTRUCTION_FILE_SIZE)
             source_location = "DISK"
             # Verify digest
             computed_digest = hashlib.sha256(raw_bytes).hexdigest()

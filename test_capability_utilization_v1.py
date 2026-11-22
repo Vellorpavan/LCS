@@ -105,7 +105,7 @@ dependencies:
 # Deployer Playbook
 Execute deployment using [script](scripts/deploy.py) and [template](templates/config.j2).
 """
-    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8", newline="") as f:
         f.write(instruction_text)
 
     with open(os.path.join(skill_dir, "scripts", "deploy.py"), "w", encoding="utf-8") as f:
@@ -225,7 +225,7 @@ def test_05_merkle_bundle_invalidation_upon_leaf_modification(utilization_env):
     skill_dir = os.path.join(ws, ".agents", "skills", "builder")
     os.makedirs(os.path.join(skill_dir, "scripts"), exist_ok=True)
 
-    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8", newline="") as f:
         f.write("# Builder Skill\nRuns build script.\n")
 
     script_path = os.path.join(skill_dir, "scripts", "build.sh")
@@ -490,7 +490,7 @@ def test_13_core_bridge_execution_readiness_pipeline(utilization_env):
     # 1. Create a skill
     skill_dir = os.path.join(ws, ".agents", "skills", "validator")
     os.makedirs(skill_dir, exist_ok=True)
-    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8", newline="") as f:
         f.write("# Validator Skill\nValidates system health.\n")
 
     records = ctx.skill_service.run_full_pipeline()
