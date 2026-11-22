@@ -165,7 +165,7 @@ def cmd_discover(ctx: LCSContext, args: argparse.Namespace) -> int:
 
     # Resolve server command
     if args.server_command:
-        server_cmd = shlex.split(args.server_command)
+        server_cmd = shlex.split(args.server_command, posix=(sys.platform != "win32"))
     else:
         # Default to local MCP test fixture in project directory
         default_fixture = os.path.join(_PARENT, "mcp_test_server_fixture.py")

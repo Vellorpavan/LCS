@@ -69,6 +69,7 @@ def test_portable_clean_venv_installation(built_wheel):
 
         env = os.environ.copy()
         env["HOME"] = fake_home
+        env["USERPROFILE"] = fake_home
         if "PYTHONPATH" in env:
             del env["PYTHONPATH"]
 

@@ -413,6 +413,13 @@ class LocalCapabilityCache:
         stat_meta = StatMetadata.from_stat(path, st)
 
         with self.conn:
+            st_ino = st.st_ino
+            if st_ino >= (1 << 63):
+                st_ino -= (1 << 64)
+            st_dev = st.st_dev
+            if st_dev >= (1 << 63):
+                st_dev -= (1 << 64)
+
             self.conn.execute("""
                 INSERT OR REPLACE INTO artifact_discovery_records (
                     artifact_id, canonical_urn, name, display_name, taxonomy_kind,
@@ -421,7 +428,7 @@ class LocalCapabilityCache:
                     raw_content_digest, lifecycle_state
                 ) VALUES (?, ?, ?, ?, 'SKILL', 'WORKSPACE', 20, ?, ?, 0, NULL, ?, ?, ?, ?, ?, 'AVAILABLE');
             """, (f"art-{name}", urn, name, name.capitalize(), path, path,
-                  st.st_size, st.st_mtime, st.st_ino, st.st_dev, digest))
+                  st.st_size, st.st_mtime, st_ino, st_dev, digest))
 
             self.conn.execute("""
                 INSERT OR REPLACE INTO capability_fts (

@@ -199,7 +199,7 @@ class SafeFileReader:
         Returns (bytes, stat_result). Preserves exact bytes without normalization.
         """
         limit = max_bytes if max_bytes is not None else max_size
-        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0)
         # Apply O_NOFOLLOW if supported on the operating system
         if hasattr(os, "O_NOFOLLOW") and os.O_NOFOLLOW != 0:
             flags |= os.O_NOFOLLOW

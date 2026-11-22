@@ -295,7 +295,7 @@ class PathSecurityValidator:
         if os.path.exists(path) and os.path.islink(path):
             # Check descriptor-level safety
             try:
-                fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
+                fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0))
                 os.close(fd)
             except OSError as e:
                 if e.errno in (errno.ELOOP, 62):
@@ -594,7 +594,7 @@ class MCPToolHandler:
             if s_id in capability_urn:
                 if cmd_line:
                     import shlex
-                    return shlex.split(cmd_line)
+                    return shlex.split(cmd_line, posix=(sys.platform != "win32"))
         return None
 
     def execute_tool(

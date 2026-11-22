@@ -47,12 +47,18 @@ class StatMetadata:
 
     @classmethod
     def from_stat(cls, path: str, st: os.stat_result, is_dir: bool = False) -> "StatMetadata":
+        st_ino = st.st_ino
+        if st_ino >= (1 << 63):
+            st_ino -= (1 << 64)
+        st_dev = st.st_dev
+        if st_dev >= (1 << 63):
+            st_dev -= (1 << 64)
         return cls(
             path=os.path.abspath(path),
             st_size=st.st_size,
             st_mtime_ns=getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)),
-            st_ino=st.st_ino,
-            st_dev=st.st_dev,
+            st_ino=st_ino,
+            st_dev=st_dev,
             is_dir=is_dir or stat.S_ISDIR(st.st_mode)
         )
 
