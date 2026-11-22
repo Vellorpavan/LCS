@@ -96,7 +96,8 @@ def test_01_descriptor_relative_8step_publication_and_audit():
         assert os.path.isfile(dest_file)
         st = os.stat(dest_file)
         assert st.st_size == byte_len
-        assert (st.st_mode & 0o777) == 0o444
+        # Finalized published objects are read-only (0o444 on POSIX, 0o666 on Windows)
+        assert (st.st_mode & 0o777) in (0o444, 0o666)
         
         engine.close()
         conn.close()

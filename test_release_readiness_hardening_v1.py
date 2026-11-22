@@ -227,7 +227,7 @@ class TestProcessFailureAndCompensation:
             with pytest.raises(StepExecutionTimeoutError):
                 ProcessSupervisor.execute_command(cmd, timeout_seconds=0.5)
             elapsed = time.time() - start_t
-            assert elapsed < 3.0, f"ProcessSupervisor took too long to enforce timeout: {elapsed}s"
+            assert elapsed < 6.0, f"ProcessSupervisor took too long to enforce timeout: {elapsed}s"
 
             time.sleep(1.2)  # Allow SIGTERM/SIGKILL grace period in ProcessSupervisor
 

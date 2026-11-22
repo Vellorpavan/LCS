@@ -411,7 +411,7 @@ def test_01_foreign_key_fresh_default_connection():
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "fk_fresh.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=real_anchor)
 
         # Fresh default connection without explicit foreign_keys pragma
@@ -438,7 +438,7 @@ def test_02_foreign_key_already_enabled_connection():
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "fk_enabled.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=real_anchor)
 
         # Pre-enabled connection
@@ -460,7 +460,7 @@ def test_03_foreign_key_initialization_during_active_transaction():
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "fk_trans.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=real_anchor)
 
         # Open connection with FK disabled
@@ -492,7 +492,7 @@ def test_04_actual_foreign_key_violation_rejection():
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "fk_violation.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=real_anchor)
 
         conn = sqlite3.connect(db_path)
@@ -555,14 +555,15 @@ def test_05_concurrent_identical_registrations_multiprocess():
 
         p1.start()
         p2.start()
-        p1.join()
-        p2.join()
 
-        assert p1.exitcode == 0, f"Worker 1 failed with exit code {p1.exitcode}"
-        assert p2.exitcode == 0, f"Worker 2 failed with exit code {p2.exitcode}"
+        res1 = out_q.get(timeout=15)
+        res2 = out_q.get(timeout=15)
 
-        res1 = out_q.get(timeout=5)
-        res2 = out_q.get(timeout=5)
+        p1.join(timeout=5)
+        p2.join(timeout=5)
+
+        assert p1.exitcode == 0, f"Worker 1 failed with exit code {p1.exitcode}: {res1}"
+        assert p2.exitcode == 0, f"Worker 2 failed with exit code {p2.exitcode}: {res2}"
 
         assert res1[0] is True, f"Worker 1 returned error: {res1}"
         assert res2[0] is True, f"Worker 2 returned error: {res2}"
@@ -638,14 +639,15 @@ def test_06_concurrent_conflicting_registrations_multiprocess():
 
         p1.start()
         p2.start()
-        p1.join()
-        p2.join()
 
-        assert p1.exitcode == 0
-        assert p2.exitcode == 0
+        res1 = out_q.get(timeout=15)
+        res2 = out_q.get(timeout=15)
 
-        res1 = out_q.get(timeout=5)
-        res2 = out_q.get(timeout=5)
+        p1.join(timeout=5)
+        p2.join(timeout=5)
+
+        assert p1.exitcode == 0, f"Worker 1 failed with exit code {p1.exitcode}: {res1}"
+        assert p2.exitcode == 0, f"Worker 2 failed with exit code {p2.exitcode}: {res2}"
 
         successes = [r for r in (res1, res2) if r[0] is True]
         conflicts = [r for r in (res1, res2) if r[0] is False and r[1] == "CapabilityRegistrationConflictError"]
@@ -691,14 +693,15 @@ def test_07_registration_racing_with_garbage_collection():
 
         p_reg.start()
         p_gc.start()
-        p_gc.join()
-        p_reg.join()
 
-        assert p_reg.exitcode == 0
-        assert p_gc.exitcode == 0
+        res_reg = out_q_reg.get(timeout=15)
+        res_gc = out_q_gc.get(timeout=15)
 
-        res_reg = out_q_reg.get(timeout=5)
-        res_gc = out_q_gc.get(timeout=5)
+        p_gc.join(timeout=5)
+        p_reg.join(timeout=5)
+
+        assert p_reg.exitcode == 0, f"Registration worker failed with exit code {p_reg.exitcode}: {res_reg}"
+        assert p_gc.exitcode == 0, f"GC worker failed with exit code {p_gc.exitcode}: {res_gc}"
 
         # Registration must succeed
         assert res_reg[0] is True, f"Registration failed: {res_reg}"
@@ -734,7 +737,7 @@ def test_08_gc_reservation_before_registration_racing():
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "gc_before_reg.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=real_anchor)
 
         digest = EVAL_ADD_CAPABILITY_DEF.compute_sha256()
@@ -806,14 +809,15 @@ def test_09_publication_lease_heartbeat_renewal_blocks_gc():
 
         p_reg.start()
         p_gc.start()
-        p_gc.join()
-        p_reg.join()
 
-        assert p_reg.exitcode == 0
-        assert p_gc.exitcode == 0
+        res_reg = out_q_reg.get(timeout=15)
+        res_gc = out_q_gc.get(timeout=15)
 
-        res_reg = out_q_reg.get(timeout=5)
-        res_gc = out_q_gc.get(timeout=5)
+        p_gc.join(timeout=5)
+        p_reg.join(timeout=5)
+
+        assert p_reg.exitcode == 0, f"Registration worker failed with exit code {p_reg.exitcode}: {res_reg}"
+        assert p_gc.exitcode == 0, f"GC worker failed with exit code {p_gc.exitcode}: {res_gc}"
 
         # Registration must succeed
         assert res_reg[0] is True, f"Registration failed: {res_reg}"
@@ -963,9 +967,10 @@ def test_11_gc_fresh_default_connection_enforces_foreign_keys():
         assert engine.blob_exists(digest)
 
         # Expire publication lease so trigger does not preempt foreign key check
-        with sqlite3.connect(db_path) as exp_conn:
-            exp_conn.execute("UPDATE active_cas_publications SET lease_expires_at = datetime('now', '-10 seconds');")
-            exp_conn.commit()
+        exp_conn = sqlite3.connect(db_path)
+        exp_conn.execute("UPDATE active_cas_publications SET lease_expires_at = datetime('now', '-10 seconds');")
+        exp_conn.commit()
+        exp_conn.close()
 
         # 2. Open a FRESH DEFAULT connection without foreign keys (default PRAGMA foreign_keys == 0)
         fresh_gc_conn = sqlite3.connect(db_path)

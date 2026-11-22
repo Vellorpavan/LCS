@@ -6,10 +6,54 @@ and capability summary projections used by the LCS high-performance caching laye
 """
 
 import os
+import sys
 import stat
 from enum import Enum
 from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Tuple
+
+
+def _win32_get_file_id(path: str) -> Optional[Tuple[int, int]]:
+    """Returns (st_ino, st_dev) for Windows files using Win32 API."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.CreateFileW(
+            os.path.abspath(path),
+            0x80,  # FILE_READ_ATTRIBUTES
+            7,     # FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+            None,
+            3,     # OPEN_EXISTING
+            0x02000000 | 0x00200000,  # FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT
+            None
+        )
+        if handle == -1 or handle == 0:
+            return None
+        try:
+            class BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
+                _fields_ = [
+                    ("dwFileAttributes", wintypes.DWORD),
+                    ("ftCreationTime", wintypes.FILETIME),
+                    ("ftLastAccessTime", wintypes.FILETIME),
+                    ("ftLastWriteTime", wintypes.FILETIME),
+                    ("dwVolumeSerialNumber", wintypes.DWORD),
+                    ("nFileSizeHigh", wintypes.DWORD),
+                    ("nFileSizeLow", wintypes.DWORD),
+                    ("nNumberOfLinks", wintypes.DWORD),
+                    ("nFileIndexHigh", wintypes.DWORD),
+                    ("nFileIndexLow", wintypes.DWORD),
+                ]
+            info = BY_HANDLE_FILE_INFORMATION()
+            if kernel32.GetFileInformationByHandle(handle, ctypes.byref(info)):
+                ino = (int(info.nFileIndexHigh) << 32) | int(info.nFileIndexLow)
+                dev = int(info.dwVolumeSerialNumber)
+                return ino, dev
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        pass
+    return None
 
 
 class ChangeKind(str, Enum):
@@ -48,9 +92,14 @@ class StatMetadata:
     @classmethod
     def from_stat(cls, path: str, st: os.stat_result, is_dir: bool = False) -> "StatMetadata":
         st_ino = st.st_ino
+        st_dev = st.st_dev
+        if st_ino == 0 and sys.platform == "win32":
+            win_id = _win32_get_file_id(path)
+            if win_id is not None:
+                st_ino, st_dev = win_id
+
         if st_ino >= (1 << 63):
             st_ino -= (1 << 64)
-        st_dev = st.st_dev
         if st_dev >= (1 << 63):
             st_dev -= (1 << 64)
         return cls(

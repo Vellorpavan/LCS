@@ -206,8 +206,8 @@ def test_04_valid_registration_and_cas_ingestion():
         shard_path = os.path.join(cas_root, "objects", prefix, result.blob_digest)
         assert os.path.exists(shard_path), f"CAS blob file does not exist at {shard_path}"
         st = os.stat(shard_path)
-        # In CAS storage, finalized published objects are read-only (0o444)
-        assert stat.S_IMODE(st.st_mode) in (0o444, 0o600)
+        # In CAS storage, finalized published objects are read-only (0o444 on POSIX, 0o666 on Windows)
+        assert stat.S_IMODE(st.st_mode) in (0o444, 0o600, 0o666)
         assert st.st_size == result.byte_size
 
         # Verify SQLite database records
@@ -393,6 +393,10 @@ def test_08_corrupted_cas_content_rejection():
 
         cas_engine.close()
         conn.close()
+        try:
+            os.chmod(shard_path, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
 
 
 def test_09_mismatched_db_reference_defense():

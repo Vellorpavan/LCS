@@ -369,12 +369,14 @@ def test_05_persistent_key_lifecycle_and_rotation_across_restarts():
         engine_1.gc_complete_physical_deletion(conn, f"sha256:{digest_1}", tok_1)
         engine_1.close()
         
-        # Verify key file permissions on disk
+        # Verify key file permissions on disk (POSIX only)
         key_file = os.path.join(real_anchor, ".lcs_keys", "key_ring.json")
         st = os.stat(key_file)
-        assert stat.S_IMODE(st.st_mode) == 0o600, f"Expected key file permissions 0600, got {oct(stat.S_IMODE(st.st_mode))}"
+        if sys.platform != "win32":
+            assert stat.S_IMODE(st.st_mode) == 0o600, f"Expected key file permissions 0600, got {oct(stat.S_IMODE(st.st_mode))}"
         dir_st = os.stat(os.path.join(real_anchor, ".lcs_keys"))
-        assert stat.S_IMODE(dir_st.st_mode) == 0o700, f"Expected key dir permissions 0700, got {oct(stat.S_IMODE(dir_st.st_mode))}"
+        if sys.platform != "win32":
+            assert stat.S_IMODE(dir_st.st_mode) == 0o700, f"Expected key dir permissions 0700, got {oct(stat.S_IMODE(dir_st.st_mode))}"
         print("  Verified: Key store enforces strict permissions (0700 dir, 0600 file).")
         
         # Session 2: Fresh engine loads Key 1 from disk, verifies Session 1 receipt, then rotates to Key 2

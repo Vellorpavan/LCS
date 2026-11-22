@@ -91,8 +91,31 @@ if sys.platform == "win32":
             self.st_dev = st_dev
             self.st_ino = st_ino
 
+    def _win32_get_path_from_handle(handle: Any, fallback: str) -> str:
+        try:
+            buf = ctypes.create_unicode_buffer(32768)
+            res = _kernel32.GetFinalPathNameByHandleW(handle, buf, len(buf), 0)
+            if res > 0 and res < len(buf):
+                p = buf.value
+                if p.startswith("\\\\?\\UNC\\"):
+                    return "\\\\" + p[8:]
+                if p.startswith("\\\\?\\"):
+                    return p[4:]
+                return p
+        except Exception:
+            pass
+        return fallback
+
     def _win32_open_dir_desc(dir_path: str) -> int:
         global _win32_next_desc_id
+        # First verify raw dir_path before realpath resolves symlinks
+        try:
+            st_raw = os.lstat(dir_path)
+            if stat.S_ISLNK(st_raw.st_mode) or (getattr(st_raw, "st_file_attributes", 0) & 0x400):
+                raise CASSecurityViolationError(f"Directory is a symbolic link or reparse point: {dir_path}")
+        except FileNotFoundError:
+            pass
+
         canonical = os.path.realpath(os.path.abspath(dir_path))
         if not os.path.isdir(canonical):
             raise NotADirectoryError(f"Path is not a directory: {canonical}")
@@ -101,8 +124,8 @@ if sys.platform == "win32":
             raise CASSecurityViolationError(f"Directory is a symbolic link or reparse point: {canonical}")
 
         handle = _kernel32.CreateFileW(
-            canonical,
-            _GENERIC_READ,
+            dir_path,
+            0x80,  # FILE_READ_ATTRIBUTES (allows directory and ancestor renaming without WinError 5)
             _FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
             None,
             _OPEN_EXISTING,
@@ -111,16 +134,16 @@ if sys.platform == "win32":
         )
         if handle == _INVALID_HANDLE_VALUE or handle == 0:
             err = _kernel32.GetLastError()
-            raise OSError(f"Failed to open directory handle for '{canonical}' (Win32 error {err})")
+            raise OSError(f"Failed to open directory handle for '{dir_path}' (Win32 error {err})")
 
         info = _BY_HANDLE_FILE_INFORMATION()
         if not _kernel32.GetFileInformationByHandle(handle, ctypes.byref(info)):
             _kernel32.CloseHandle(handle)
-            raise OSError(f"Failed to get file information for directory '{canonical}'")
+            raise OSError(f"Failed to get file information for directory '{dir_path}'")
 
         if info.dwFileAttributes & 0x400:
             _kernel32.CloseHandle(handle)
-            raise CASSecurityViolationError(f"Directory is a reparse point: {canonical}")
+            raise CASSecurityViolationError(f"Directory is a reparse point: {dir_path}")
 
         st_dev = int(info.dwVolumeSerialNumber)
         if st_dev >= (1 << 63):
@@ -135,7 +158,7 @@ if sys.platform == "win32":
             _win32_dir_descriptors[desc_id] = Win32DirDescriptor(canonical, handle, st_dev, st_ino)
             return desc_id
 
-    def _win32_resolve_subpath(base_dir: str, rel_path: str) -> str:
+    def _win32_resolve_subpath(base_dir: str, rel_path: str, handle: Optional[Any] = None) -> str:
         if not rel_path or not isinstance(rel_path, str):
             raise CASSecurityViolationError("Invalid empty subpath")
         parts = [p for p in rel_path.replace("\\", "/").split("/") if p]
@@ -145,7 +168,11 @@ if sys.platform == "win32":
             if ":" in p:
                 raise CASSecurityViolationError(f"Invalid character in path component: {p}")
 
-        norm_base = os.path.realpath(os.path.abspath(base_dir))
+        effective_base = base_dir
+        if handle:
+            effective_base = _win32_get_path_from_handle(handle, base_dir)
+
+        norm_base = os.path.realpath(os.path.abspath(effective_base))
         candidate = os.path.realpath(os.path.abspath(os.path.join(norm_base, rel_path)))
 
         try:
@@ -204,7 +231,7 @@ def _fs_open(path: str, flags: int, mode: int = 0o666, dir_fd: Optional[int] = N
     if sys.platform == "win32":
         if dir_fd is not None and dir_fd in _win32_dir_descriptors:
             desc = _win32_dir_descriptors[dir_fd]
-            full_path = _win32_resolve_subpath(desc.canonical_path, path)
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
             if os.path.lexists(full_path):
                 st = os.lstat(full_path)
                 if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
@@ -221,7 +248,7 @@ def _fs_stat(path: str, dir_fd: Optional[int] = None, follow_symlinks: bool = Tr
     if sys.platform == "win32":
         if dir_fd is not None and dir_fd in _win32_dir_descriptors:
             desc = _win32_dir_descriptors[dir_fd]
-            full_path = _win32_resolve_subpath(desc.canonical_path, path)
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
             if not follow_symlinks:
                 st = os.lstat(full_path)
                 if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
@@ -244,7 +271,7 @@ def _fs_unlink(path: str, dir_fd: Optional[int] = None) -> None:
     if sys.platform == "win32":
         if dir_fd is not None and dir_fd in _win32_dir_descriptors:
             desc = _win32_dir_descriptors[dir_fd]
-            full_path = _win32_resolve_subpath(desc.canonical_path, path)
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
             try:
                 os.unlink(full_path)
             except PermissionError:
@@ -268,9 +295,11 @@ def _fs_link(src: str, dst: str, src_dir_fd: Optional[int] = None, dst_dir_fd: O
         full_src = src
         full_dst = dst
         if src_dir_fd is not None and src_dir_fd in _win32_dir_descriptors:
-            full_src = _win32_resolve_subpath(_win32_dir_descriptors[src_dir_fd].canonical_path, src)
+            desc_src = _win32_dir_descriptors[src_dir_fd]
+            full_src = _win32_resolve_subpath(desc_src.canonical_path, src, handle=desc_src.handle)
         if dst_dir_fd is not None and dst_dir_fd in _win32_dir_descriptors:
-            full_dst = _win32_resolve_subpath(_win32_dir_descriptors[dst_dir_fd].canonical_path, dst)
+            desc_dst = _win32_dir_descriptors[dst_dir_fd]
+            full_dst = _win32_resolve_subpath(desc_dst.canonical_path, dst, handle=desc_dst.handle)
 
         st_src = os.lstat(full_src)
         if stat.S_ISLNK(st_src.st_mode) or (getattr(st_src, "st_file_attributes", 0) & 0x400):
@@ -290,19 +319,21 @@ def _fs_link(src: str, dst: str, src_dir_fd: Optional[int] = None, dst_dir_fd: O
 def _fs_listdir(dir_fd: int) -> List[str]:
     if sys.platform == "win32" and dir_fd in _win32_dir_descriptors:
         desc = _win32_dir_descriptors[dir_fd]
-        return os.listdir(desc.canonical_path)
+        current_dir = _win32_get_path_from_handle(desc.handle, desc.canonical_path)
+        return os.listdir(current_dir)
     return os.listdir(dir_fd)
 
 
 def _fs_sync_dir(dir_fd: int) -> None:
     if sys.platform == "win32":
-        if dir_fd in _win32_dir_descriptors:
-            desc = _win32_dir_descriptors[dir_fd]
-            if desc.handle:
-                try:
-                    _kernel32.FlushFileBuffers(desc.handle)
-                except Exception:
-                    pass
+        if dir_fd not in _win32_dir_descriptors:
+            raise OSError(errno.EBADF, f"Bad directory descriptor: {dir_fd}")
+        desc = _win32_dir_descriptors[dir_fd]
+        if desc.handle:
+            try:
+                _kernel32.FlushFileBuffers(desc.handle)
+            except Exception:
+                pass
         return
     else:
         if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
@@ -315,6 +346,44 @@ def _fs_sync_dir(dir_fd: int) -> None:
                     return
                 raise
         os.fsync(dir_fd)
+
+
+# Install transparent descriptor-relative shims for standard library os module on Windows
+if sys.platform == "win32":
+    _orig_os_open = os.open
+    _orig_os_stat = os.stat
+    _orig_os_unlink = os.unlink
+    _orig_os_close = os.close
+
+    def _shim_os_open(path, flags, mode=0o777, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        if dir_fd is not None:
+            return _fs_open(path, flags, mode=mode, dir_fd=dir_fd)
+        return _orig_os_open(path, flags, mode, *args, **kwargs)
+
+    def _shim_os_stat(path, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        follow_symlinks = kwargs.pop("follow_symlinks", True)
+        if dir_fd is not None:
+            return _fs_stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+        return _orig_os_stat(path, *args, follow_symlinks=follow_symlinks, **kwargs)
+
+    def _shim_os_unlink(path, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        if dir_fd is not None:
+            return _fs_unlink(path, dir_fd=dir_fd)
+        return _orig_os_unlink(path, *args, **kwargs)
+
+    def _shim_os_close(fd):
+        if fd in _win32_dir_descriptors:
+            _fs_close_dir(fd)
+            return
+        return _orig_os_close(fd)
+
+    os.open = _shim_os_open
+    os.stat = _shim_os_stat
+    os.unlink = _shim_os_unlink
+    os.close = _shim_os_close
 
 
 def _fs_mkdir(path: str, mode: int = 0o755, dir_fd: Optional[int] = None) -> None:
