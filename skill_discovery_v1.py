@@ -201,7 +201,7 @@ class SafeFileReader:
         limit = max_bytes if max_bytes is not None else max_size
         flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
         # Apply O_NOFOLLOW if supported on the operating system
-        if hasattr(os, "O_NOFOLLOW"):
+        if hasattr(os, "O_NOFOLLOW") and os.O_NOFOLLOW != 0:
             flags |= os.O_NOFOLLOW
         else:
             if os.path.islink(path):

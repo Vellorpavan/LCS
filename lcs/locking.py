@@ -214,6 +214,7 @@ if sys.platform == "win32":
     _orig_os_open = os.open
     _orig_os_fsync = os.fsync
     _orig_os_close = os.close
+    _orig_os_fstat = os.fstat
 
     def _win32_shim_os_open(path, flags, mode=0o777, *args, **kwargs):
         try:
@@ -241,6 +242,18 @@ if sys.platform == "win32":
                         return desc_id
             raise
 
+    def _win32_shim_os_fstat(fd):
+        if fd in _win32_dir_descriptors:
+            import stat
+            class _FakeDirStat:
+                st_mode = stat.S_IFDIR | 0o755
+                st_size = 0
+                st_mtime = 0
+                st_ino = 0
+                st_dev = 0
+            return _FakeDirStat()
+        return _orig_os_fstat(fd)
+
     def _win32_shim_os_fsync(fd):
         if fd in _win32_dir_descriptors:
             handle = _win32_dir_descriptors[fd]
@@ -260,6 +273,7 @@ if sys.platform == "win32":
         return _orig_os_close(fd)
 
     os.open = _win32_shim_os_open
+    os.fstat = _win32_shim_os_fstat
     os.fsync = _win32_shim_os_fsync
     os.close = _win32_shim_os_close
 

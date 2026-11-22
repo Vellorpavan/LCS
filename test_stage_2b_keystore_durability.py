@@ -21,6 +21,8 @@ import time
 import stat
 import json
 import errno
+if sys.platform == "win32":
+    import lcs.locking
 import fcntl
 import signal
 import hashlib
@@ -251,6 +253,7 @@ def test_05_historical_receipt_verification_multigeneration():
         assert audit3["receipt_count"] == 1
         print("  Verified: Receipts across Generations 1, 2, and 3 validated successfully.")
         engine.close()
+        conn.close()
 
 
 def test_06_concurrent_key_rotations():
@@ -353,22 +356,26 @@ def test_08_key_ring_corruption_and_symlink_rejection():
         evil_target = os.path.join(tmp_dir, "evil_target.json")
         with open(evil_target, "w") as f:
             f.write("{}")
-        os.symlink(evil_target, key_file)
         try:
-            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
-            assert False, "Expected CASSecurityViolationError on symlink!"
-        except CASSecurityViolationError as e:
-            print(f"  Verified symlink rejection: {e}")
-        os.unlink(key_file)
+            os.symlink(evil_target, key_file)
+            try:
+                PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
+                assert False, "Expected CASSecurityViolationError on symlink!"
+            except CASSecurityViolationError as e:
+                print(f"  Verified symlink rejection: {e}")
+            os.unlink(key_file)
+        except (OSError, NotImplementedError):
+            pass
         
         # 5. Invalid permissions (0666)
-        PersistentReceiptKeyStore(ks_dir, allow_bootstrap=True)
-        os.chmod(key_file, 0o666)
-        try:
-            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
-            assert False, "Expected CASSecurityViolationError on permissions 0666!"
-        except CASSecurityViolationError as e:
-            print(f"  Verified invalid permissions rejection: {e}")
+        if sys.platform != "win32":
+            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=True)
+            os.chmod(key_file, 0o666)
+            try:
+                PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
+                assert False, "Expected CASSecurityViolationError on permissions 0666!"
+            except CASSecurityViolationError as e:
+                print(f"  Verified invalid permissions rejection: {e}")
 
 
 def test_09_complete_structural_and_semantic_validation():

@@ -123,7 +123,11 @@ if sys.platform == "win32":
             raise CASSecurityViolationError(f"Directory is a reparse point: {canonical}")
 
         st_dev = int(info.dwVolumeSerialNumber)
+        if st_dev >= (1 << 63):
+            st_dev -= (1 << 64)
         st_ino = (int(info.nFileIndexHigh) << 32) | int(info.nFileIndexLow)
+        if st_ino >= (1 << 63):
+            st_ino -= (1 << 64)
 
         with _win32_desc_lock:
             _win32_next_desc_id += 1
@@ -241,9 +245,17 @@ def _fs_unlink(path: str, dir_fd: Optional[int] = None) -> None:
         if dir_fd is not None and dir_fd in _win32_dir_descriptors:
             desc = _win32_dir_descriptors[dir_fd]
             full_path = _win32_resolve_subpath(desc.canonical_path, path)
-            os.unlink(full_path)
+            try:
+                os.unlink(full_path)
+            except PermissionError:
+                os.chmod(full_path, stat.S_IWRITE | stat.S_IREAD)
+                os.unlink(full_path)
             return
-        os.unlink(path)
+        try:
+            os.unlink(path)
+        except PermissionError:
+            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+            os.unlink(path)
     else:
         if dir_fd is not None:
             os.unlink(path, dir_fd=dir_fd)
@@ -729,7 +741,7 @@ class PersistentReceiptKeyStore:
             st = os.fstat(fd)
             if not stat.S_ISREG(st.st_mode):
                 raise CASSecurityViolationError(f"Key ring file '{self.key_file_path}' is not a regular file")
-            if stat.S_IMODE(st.st_mode) != 0o600:
+            if sys.platform != "win32" and stat.S_IMODE(st.st_mode) != 0o600:
                 raise CASSecurityViolationError(
                     f"Key ring file '{self.key_file_path}' permissions {oct(stat.S_IMODE(st.st_mode))} != 0600"
                 )
