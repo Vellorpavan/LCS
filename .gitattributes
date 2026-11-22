@@ -1,0 +1,7 @@
+# Enforce LF line endings across all platforms to prevent CRLF checksum corruption on Windows
+* text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.toml text eol=lf

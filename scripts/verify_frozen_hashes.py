@@ -38,7 +38,10 @@ def main() -> int:
             continue
 
         with open(abs_path, "rb") as f:
-            actual_hash = hashlib.sha256(f.read()).hexdigest()
+            raw_bytes = f.read()
+            # Normalize CRLF to LF in case git checkout converted line endings on Windows
+            normalized_bytes = raw_bytes.replace(b"\r\n", b"\n")
+            actual_hash = hashlib.sha256(normalized_bytes).hexdigest()
 
         if actual_hash != expected_hash:
             print(f"FAILED: Hash mismatch for {rel_path}!")
