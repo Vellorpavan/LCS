@@ -122,10 +122,14 @@ def test_04_detect_file_rename(temp_workspace):
 
     # Rename
     os.rename(old_file, new_file)
-    time.sleep(0.1)
-    events = watcher.drain_events()
+    rename_events = []
+    for _ in range(30):
+        time.sleep(0.05)
+        events = watcher.drain_events()
+        rename_events.extend([e for e in events if e.kind == ChangeKind.RENAMED])
+        if rename_events:
+            break
 
-    rename_events = [e for e in events if e.kind == ChangeKind.RENAMED]
     assert len(rename_events) >= 1
     assert rename_events[0].path == new_file
     assert rename_events[0].old_path == old_file
@@ -150,18 +154,22 @@ def test_05_detect_atomic_file_replacement(temp_workspace):
     time.sleep(0.05)
     watcher.drain_events()
 
-    # Atomic replacement: create temp file and atomically rename over target
+    # Atomic replacement: create temp file and atomically replace target
     tmp_file = os.path.join(skills_dir, "SKILL.md.tmp")
     with open(tmp_file, "w", encoding="utf-8") as f:
         f.write("# Version 2 with new inode\n")
-    os.rename(tmp_file, target_file)
+    os.replace(tmp_file, target_file)
 
     new_st = os.stat(target_file)
     assert new_st.st_ino != orig_st.st_ino or new_st.st_mtime_ns != orig_st.st_mtime_ns
 
-    time.sleep(0.1)
-    events = watcher.drain_events()
-    mod_events = [e for e in events if e.kind == ChangeKind.MODIFIED and e.path == target_file]
+    mod_events = []
+    for _ in range(30):
+        time.sleep(0.05)
+        events = watcher.drain_events()
+        mod_events.extend([e for e in events if e.kind == ChangeKind.MODIFIED and e.path == target_file])
+        if mod_events:
+            break
     assert len(mod_events) >= 1
 
     watcher.stop()
