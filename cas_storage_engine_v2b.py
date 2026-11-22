@@ -1295,7 +1295,7 @@ class SecureCASStorageEngine:
         Returns: (tmp_filename, total_bytes, durability_level)
         """
         tmp_filename = f"tmp_{pub_id}_{token}_{expected_digest[:16]}.part"
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
         
         try:
             staging_file_fd = _fs_open(tmp_filename, flags, mode=0o600, dir_fd=self.staging_dir_fd)

@@ -104,7 +104,7 @@ def test_01_crash_before_atomic_replacement():
         initial_secret = ks_initial.get_active_key()[1]
         
         # Spawn child process to crash before os.replace()
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         p = ctx.Process(target=_worker_crash_before_replace, args=(ks_dir,))
         p.start()
         p.join()
@@ -126,7 +126,7 @@ def test_02_crash_after_replacement_before_directory_sync():
         assert ks_initial.active_key_id == "k1"
         
         # Spawn child process to crash after os.replace() before directory sync
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         p = ctx.Process(target=_worker_crash_after_replace, args=(ks_dir,))
         p.start()
         p.join()
@@ -259,7 +259,7 @@ def test_06_concurrent_key_rotations():
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         procs = []
         for i in range(5):
             p = ctx.Process(target=_worker_concurrent_rotate, args=(ks_dir, i + 1))

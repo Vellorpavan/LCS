@@ -200,6 +200,70 @@ def flock(fd_or_file: Union[int, Any], op: int) -> None:
         fcntl.flock(fd, op)
 
 
+_win32_dir_descriptors: dict = {}
+_win32_dir_lock = None
+
+if sys.platform == "win32":
+    import threading
+    _win32_dir_lock = threading.Lock()
+    _win32_dir_next_id = 200000
+
+    if not hasattr(os, "O_NOFOLLOW"):
+        os.O_NOFOLLOW = 0
+
+    _orig_os_open = os.open
+    _orig_os_fsync = os.fsync
+    _orig_os_close = os.close
+
+    def _win32_shim_os_open(path, flags, mode=0o777, *args, **kwargs):
+        try:
+            return _orig_os_open(path, flags, mode, *args, **kwargs)
+        except OSError as e:
+            if os.path.isdir(path):
+                import ctypes
+                from ctypes import wintypes
+                canonical = os.path.realpath(os.path.abspath(path))
+                handle = ctypes.windll.kernel32.CreateFileW(
+                    canonical,
+                    0x80000000,  # GENERIC_READ
+                    0x00000007,  # FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+                    None,
+                    3,           # OPEN_EXISTING
+                    0x02000000 | 0x00200000,  # FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT
+                    None
+                )
+                if handle != -1 and handle != 0:
+                    global _win32_dir_next_id
+                    with _win32_dir_lock:
+                        _win32_dir_next_id += 1
+                        desc_id = _win32_dir_next_id
+                        _win32_dir_descriptors[desc_id] = handle
+                        return desc_id
+            raise
+
+    def _win32_shim_os_fsync(fd):
+        if fd in _win32_dir_descriptors:
+            handle = _win32_dir_descriptors[fd]
+            import ctypes
+            ctypes.windll.kernel32.FlushFileBuffers(handle)
+            return
+        return _orig_os_fsync(fd)
+
+    def _win32_shim_os_close(fd):
+        if fd in _win32_dir_descriptors:
+            with _win32_dir_lock:
+                handle = _win32_dir_descriptors.pop(fd, None)
+            if handle:
+                import ctypes
+                ctypes.windll.kernel32.CloseHandle(handle)
+            return
+        return _orig_os_close(fd)
+
+    os.open = _win32_shim_os_open
+    os.fsync = _win32_shim_os_fsync
+    os.close = _win32_shim_os_close
+
+
 def install_windows_fcntl_shim() -> None:
     """
     Installs a genuine kernel-level locking shim into sys.modules['fcntl'] on Windows.

@@ -192,11 +192,15 @@ def test_06_detect_directory_move(temp_workspace):
 
     # Move directory
     shutil.move(old_bundle, new_bundle)
-    time.sleep(0.1)
-    events = watcher.drain_events()
+    paths_in_events = []
+    for _ in range(30):
+        time.sleep(0.05)
+        events = watcher.drain_events()
+        paths_in_events.extend([e.path for e in events])
+        if any("bundle_new" in p for p in paths_in_events):
+            break
 
     # Events must reflect either directory rename or deletion of old + addition of new
-    paths_in_events = [e.path for e in events]
     assert any("bundle_new" in p for p in paths_in_events)
 
     watcher.stop()
