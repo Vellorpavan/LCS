@@ -326,15 +326,23 @@ def _fs_listdir(dir_fd: int) -> List[str]:
 
 def _fs_sync_dir(dir_fd: int) -> None:
     if sys.platform == "win32":
-        if dir_fd not in _win32_dir_descriptors:
-            raise OSError(errno.EBADF, f"Bad directory descriptor: {dir_fd}")
-        desc = _win32_dir_descriptors[dir_fd]
-        if desc.handle:
-            try:
-                _kernel32.FlushFileBuffers(desc.handle)
-            except Exception:
-                pass
-        return
+        if dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            if desc.handle:
+                try:
+                    _kernel32.FlushFileBuffers(desc.handle)
+                except Exception:
+                    pass
+            return
+        try:
+            import msvcrt
+            h = msvcrt.get_osfhandle(dir_fd)
+            if h and h != -1:
+                _kernel32.FlushFileBuffers(h)
+                return
+        except Exception:
+            pass
+        raise OSError(errno.EBADF, f"Bad directory descriptor: {dir_fd}")
     else:
         if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
             try:

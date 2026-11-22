@@ -120,12 +120,14 @@ class TestCleanEnvironmentInstallationAndImports:
                 venv_pip = os.path.join(venv_dir, "bin", "pip")
 
             # Install standalone wheel package
-            install_cmd = [venv_pip, "install", actual_wheel]
-            res = subprocess.run(install_cmd, capture_output=True, text=True)
+            clean_pip_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+            install_cmd = [venv_pip, "install", "--force-reinstall", actual_wheel]
+            res = subprocess.run(install_cmd, capture_output=True, text=True, env=clean_pip_env)
             assert res.returncode == 0, f"pip install failed:\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}"
 
             # Verify package import and __version__
-            expected_ver = "3.1.0" if "3.1.0-py3" in WHEEL_PATH else "3.1.0rc1"
+            import lcs as _host_lcs
+            expected_ver = _host_lcs.__version__
             check_script = "import lcs; print('VERSION:' + lcs.__version__)"
             res = subprocess.run([venv_python, "-c", check_script], capture_output=True, text=True, cwd=td)
             assert res.returncode == 0, f"Import failed in clean venv: {res.stderr}"

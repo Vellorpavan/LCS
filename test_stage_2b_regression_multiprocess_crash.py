@@ -10,6 +10,14 @@ and ensures no in-process exception catching masks crash boundary defects.
 
 import os
 import sys
+
+repo_root = os.path.abspath(os.path.dirname(__file__))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+cur_pp = os.environ.get("PYTHONPATH", "")
+if repo_root not in cur_pp:
+    os.environ["PYTHONPATH"] = f"{repo_root}{os.pathsep}{cur_pp}" if cur_pp else repo_root
+
 import time
 import stat
 import signal

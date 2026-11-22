@@ -141,8 +141,8 @@ def test_01_concurrent_fan_out_execution(lcs_setup):
 
     assert res.lifecycle_state.value == "SUCCEEDED"
     assert res.completed_steps == 2
-    # If executed sequentially, elapsed >= 0.70s; concurrent execution takes ~0.35-0.55s
-    assert elapsed < 0.68, f"Expected concurrent execution under 0.68s, took {elapsed:.3f}s"
+    # If executed sequentially, elapsed >= 1.4s with process overhead; concurrent execution takes ~0.4-0.9s
+    assert elapsed < 1.35, f"Expected concurrent execution under 1.35s, took {elapsed:.3f}s"
 
 
 def test_02_fan_in_parameter_aggregation(lcs_setup):

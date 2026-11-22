@@ -460,19 +460,29 @@ def test_fresh_shell_executable_resolution_regression(test_workspace, monkeypatc
     # Create an isolated bin directory containing ONLY python3 (no 'lcs' binary)
     tmp_bin = str(test_workspace["tmp_path"] / "clean_bin")
     os.makedirs(tmp_bin, exist_ok=True)
-    py_link = os.path.join(tmp_bin, "python3")
-    if not os.path.exists(py_link):
-        os.symlink(sys.executable, py_link)
+    if sys.platform == "win32":
+        for p_name in ("python.exe", "python3.exe"):
+            py_target = os.path.join(tmp_bin, p_name)
+            if not os.path.exists(py_target):
+                shutil.copyfile(sys.executable, py_target)
+        sys_root = os.environ.get("SystemRoot", "C:\\Windows")
+        clean_path = f"{tmp_bin};{os.path.join(sys_root, 'System32')}"
+        python_cmd = "python3.exe"
+    else:
+        py_link = os.path.join(tmp_bin, "python3")
+        if not os.path.exists(py_link):
+            os.symlink(sys.executable, py_link)
+        clean_path = f"{tmp_bin}:/usr/bin:/bin"
+        python_cmd = "python3"
 
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-    clean_path = f"{tmp_bin}:/usr/bin:/bin"
     env_clean = os.environ.copy()
     env_clean["PATH"] = clean_path
     existing_pp = env_clean.get("PYTHONPATH", "")
-    env_clean["PYTHONPATH"] = f"{repo_root}:{existing_pp}" if existing_pp else repo_root
+    env_clean["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else repo_root
 
     # Verify python3 is found but 'lcs' is NOT in this PATH
-    assert shutil.which("python3", path=clean_path) is not None
+    assert shutil.which(python_cmd, path=clean_path) is not None
     assert shutil.which("lcs", path=clean_path) is None
 
     # Seed a minimal test skill so call-me matches in the isolated workspace
@@ -483,7 +493,10 @@ def test_fresh_shell_executable_resolution_regression(test_workspace, monkeypatc
 
     # The shell snippet from the generated slash command
     task_arg = "Test task query"
-    cmd_to_run = f'command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "{task_arg}" || python3 -m lcs.cli call-me --handoff -- "{task_arg}"'
+    if sys.platform == "win32":
+        cmd_to_run = f'where lcs >nul 2>nul && lcs call-me --handoff -- "{task_arg}" || python3 -m lcs.cli call-me --handoff -- "{task_arg}"'
+    else:
+        cmd_to_run = f'command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "{task_arg}" || python3 -m lcs.cli call-me --handoff -- "{task_arg}"'
 
     proc = subprocess.run(
         cmd_to_run,

@@ -374,7 +374,20 @@ class ProcessSupervisor:
     def _kill_process_group(cls, proc: subprocess.Popen) -> None:
         """Sends SIGTERM then SIGKILL to the entire process group."""
         pid = proc.pid
-        if hasattr(os, "killpg") and sys.platform != "win32":
+        if sys.platform == "win32":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=5.0
+                )
+            except Exception:
+                pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        elif hasattr(os, "killpg"):
             try:
                 os.killpg(pid, signal.SIGTERM)
                 time.sleep(1.0)

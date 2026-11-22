@@ -553,8 +553,9 @@ def test_clean_wheel_build_and_isolated_shell_invocation(workspace_env, tmp_path
         venv_lcs = os.path.join(clean_venv, "bin", "lcs")
 
     # 3. Install built wheel into clean virtualenv
-    install_cmd = [venv_pip, "install", "--no-deps", wheel_path]
-    inst_res = subprocess.run(install_cmd, capture_output=True, text=True)
+    clean_pip_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    install_cmd = [venv_pip, "install", "--force-reinstall", "--no-deps", wheel_path]
+    inst_res = subprocess.run(install_cmd, capture_output=True, text=True, env=clean_pip_env)
     assert inst_res.returncode == 0, f"Wheel installation failed: {inst_res.stderr}"
 
     # 4. Verify 'lcs --version' runs cleanly from installed clean environment

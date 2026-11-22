@@ -196,12 +196,13 @@ def test_03_end_to_end_full_lifecycle_workflow(stage5_env):
     ws = stage5_env["ws"]
 
     deliverable_path = os.path.join(ws, "final_release_manifest.json")
+    clean_deliverable_path = deliverable_path.replace("\\", "/")
     script_step = os.path.join(ws, "create_manifest.py")
     with open(script_step, "w") as f:
         f.write(
             f"import json\n"
             f"data = {{'release': 'v3.2.0rc1', 'status': 'STABLE', 'deliverable': True}}\n"
-            f"with open('{deliverable_path}', 'w') as f:\n"
+            f"with open('{clean_deliverable_path}', 'w') as f:\n"
             f"    json.dump(data, f)\n"
             f"print('MANIFEST_CREATED_SUCCESS')\n"
         )
@@ -455,14 +456,19 @@ def test_07_clean_wheel_build_and_simulated_cross_platform_install(tmp_path):
     res_venv = subprocess.run([sys.executable, "-m", "venv", venv_dir], capture_output=True, text=True, timeout=60)
     assert res_venv.returncode == 0
 
-    venv_pip = os.path.join(venv_dir, "bin", "pip")
-    venv_lcs = os.path.join(venv_dir, "bin", "lcs")
+    if sys.platform == "win32":
+        venv_pip = os.path.join(venv_dir, "Scripts", "pip.exe")
+        venv_lcs = os.path.join(venv_dir, "Scripts", "lcs.exe")
+    else:
+        venv_pip = os.path.join(venv_dir, "bin", "pip")
+        venv_lcs = os.path.join(venv_dir, "bin", "lcs")
 
-    res_inst = subprocess.run([venv_pip, "install", str(whl_path)], capture_output=True, text=True, timeout=60)
+    clean_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    res_inst = subprocess.run([venv_pip, "install", "--force-reinstall", str(whl_path)], capture_output=True, text=True, timeout=60, env=clean_env)
     assert res_inst.returncode == 0, f"pip install failed: {res_inst.stderr}"
 
     # 4. Verify executable runs
-    res_ver = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10)
+    res_ver = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10, env=clean_env)
     assert res_ver.returncode == 0
     assert "3.2.0rc1" in res_ver.stdout
 

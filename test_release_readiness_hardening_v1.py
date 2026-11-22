@@ -238,8 +238,13 @@ class TestProcessFailureAndCompensation:
             # Verify the child sleep process is dead
             if sys.platform == "win32":
                 import ctypes
+                from ctypes import wintypes
                 h_proc = ctypes.windll.kernel32.OpenProcess(0x1000, False, child_pid)
-                assert not h_proc, f"Child process {child_pid} is still alive on Windows!"
+                if h_proc:
+                    exit_code = wintypes.DWORD()
+                    ctypes.windll.kernel32.GetExitCodeProcess(h_proc, ctypes.byref(exit_code))
+                    ctypes.windll.kernel32.CloseHandle(h_proc)
+                    assert exit_code.value != 259, f"Child process {child_pid} is still alive on Windows! (exit_code={exit_code.value})"
             else:
                 with pytest.raises(OSError):
                     os.kill(child_pid, 0)

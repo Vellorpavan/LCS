@@ -188,9 +188,10 @@ def test_03_multistep_execution_dag_deliverables_compensation_and_cryptographic_
     ws = stage4_env["ws"]
 
     report_path = os.path.join(ws, "deliverable_report.json")
+    clean_report_path = report_path.replace("\\", "/")
     script_step1 = os.path.join(ws, "step1_gen.py")
     with open(script_step1, "w") as f:
-        f.write(f"import json\nwith open('{report_path}', 'w') as f:\n    json.dump({{'status': 'generated', 'step': 1}}, f)\nprint('STEP_1_DONE')\n")
+        f.write(f"import json\nwith open('{clean_report_path}', 'w') as f:\n    json.dump({{'status': 'generated', 'step': 1}}, f)\nprint('STEP_1_DONE')\n")
 
     script_step1_comp = os.path.join(ws, "step1_comp.py")
     with open(script_step1_comp, "w") as f:
@@ -566,10 +567,11 @@ def test_10_clean_wheel_build_contents_audit_and_isolated_install(tmp_path):
         venv_pip = os.path.join(venv_dir, "bin", "pip")
         venv_lcs = os.path.join(venv_dir, "bin", "lcs")
 
-    res_install = subprocess.run([venv_pip, "install", str(whl_path)], capture_output=True, text=True, timeout=60)
+    clean_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    res_install = subprocess.run([venv_pip, "install", "--force-reinstall", str(whl_path)], capture_output=True, text=True, timeout=60, env=clean_env)
     assert res_install.returncode == 0, f"Wheel install failed: {res_install.stderr}"
 
     # Verify lcs executable runs in fresh venv
-    res_lcs = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10)
+    res_lcs = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10, env=clean_env)
     assert res_lcs.returncode == 0
     assert "3.2.0rc1" in res_lcs.stdout

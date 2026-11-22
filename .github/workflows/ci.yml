@@ -33,10 +33,14 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Cryptographic Checksum Invariance Verification
+        env:
+          PYTHONPATH: .
         run: |
           python scripts/verify_frozen_hashes.py
 
       - name: Execute Full Authoritative Test Suite
+        env:
+          PYTHONPATH: .
         run: |
           pytest -v -q --tb=short
 

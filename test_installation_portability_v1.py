@@ -65,7 +65,8 @@ def test_portable_clean_venv_installation(built_wheel):
             venv_lcs = os.path.join(venv_dir, "bin", "lcs")
 
         # Install wheel
-        subprocess.run([venv_python, "-m", "pip", "install", built_wheel], check=True, capture_output=True)
+        clean_pip_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        subprocess.run([venv_python, "-m", "pip", "install", "--force-reinstall", built_wheel], check=True, capture_output=True, env=clean_pip_env)
 
         env = os.environ.copy()
         env["HOME"] = fake_home
