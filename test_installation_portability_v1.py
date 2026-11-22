@@ -31,7 +31,12 @@ def built_wheel(tmp_path_factory):
         isolated_repo,
         ignore=shutil.ignore_patterns(".git", "build", "dist", "*.egg-info", "__pycache__", ".pytest_cache", ".venv", "*.pyc")
     )
-    cmd = [sys.executable, "-m", "build", "--wheel", "--no-isolation", "-o", str(dist_dir)]
+    import importlib.util
+    spec = importlib.util.find_spec("build")
+    if spec is not None and spec.origin is not None:
+        cmd = [sys.executable, "-m", "build", "--wheel", "--no-isolation", "-o", str(dist_dir)]
+    else:
+        cmd = [sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", str(dist_dir), "."]
     res = subprocess.run(cmd, cwd=str(isolated_repo), capture_output=True, text=True)
     assert res.returncode == 0, f"Failed building wheel in isolated directory: {res.stderr}"
 
