@@ -54,7 +54,7 @@ from contextlib import contextmanager
 
 _win32_dir_descriptors: Dict[int, Any] = {}
 _win32_desc_lock = threading.Lock()
-_win32_next_desc_id = -1000
+_win32_next_desc_id = 100000
 
 if sys.platform == "win32":
     import ctypes
@@ -126,7 +126,7 @@ if sys.platform == "win32":
         st_ino = (int(info.nFileIndexHigh) << 32) | int(info.nFileIndexLow)
 
         with _win32_desc_lock:
-            _win32_next_desc_id -= 1
+            _win32_next_desc_id += 1
             desc_id = _win32_next_desc_id
             _win32_dir_descriptors[desc_id] = Win32DirDescriptor(canonical, handle, st_dev, st_ino)
             return desc_id
@@ -612,6 +612,10 @@ class PersistentReceiptKeyStore:
         Executes physical write-through flush on file or directory descriptor.
         Prefers Darwin F_FULLFSYNC when available, falling back to os.fsync on ENOTSUP/ENOTTY/EINVAL.
         """
+        if is_directory or (sys.platform == "win32" and fd in _win32_dir_descriptors):
+            _fs_sync_dir(fd)
+            return "FSYNC"
+
         if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
             try:
                 fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
@@ -621,6 +625,12 @@ class PersistentReceiptKeyStore:
                     os.fsync(fd)
                     return "FSYNC_FALLBACK"
                 raise
+        elif sys.platform == "win32":
+            try:
+                os.fsync(fd)
+            except OSError:
+                pass
+            return "FSYNC"
         else:
             os.fsync(fd)
             return "FSYNC"
@@ -1647,7 +1657,7 @@ class SecureCASStorageEngine:
                 raise CASInterruptionError(f"Simulated crash at Boundary B: after unlink, before shard directory sync of blob '{blob_digest}'")
 
             # Synchronize shard directory descriptor
-            sync_method = "FSYNC_WIN32" if sys.platform == "win32" else ("F_FULLFSYNC" if hasattr(fcntl, "F_FULLFSYNC") and self.strict_fullfsync else "FSYNC")
+            sync_method = "F_FULLFSYNC" if (sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC") and self.strict_fullfsync) else "FSYNC"
             sync_timestamp_ns = time.time_ns()
             try:
                 _fs_sync_dir(shard_fd)

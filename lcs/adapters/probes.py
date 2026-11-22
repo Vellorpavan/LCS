@@ -223,6 +223,12 @@ class LiveProbeEngine:
                 t.join(timeout=timeout_seconds)
                 resp_line = _resp_holder[0]
 
+                if proc:
+                    try:
+                        proc.wait(timeout=0.2)
+                    except Exception:
+                        pass
+
                 if proc.poll() is not None and not resp_line:
                     try:
                         rest = proc.stdout.read() if proc.stdout else ""
