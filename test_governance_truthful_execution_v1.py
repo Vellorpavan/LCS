@@ -328,7 +328,8 @@ def test_06_mid_plan_failure_marks_subsequent_steps_skipped(gov_env):
         sub_goal="Goal 2",
         selection_reason="Test",
         input_bindings={"deliverable_file": StepInputBinding("deliverable_file", "string", False, bound_value=missing_file)},
-        output_definitions={"result": StepOutputDefinition("result", "string")}
+        output_definitions={"result": StepOutputDefinition("result", "string")},
+        dependencies=["step-1"]
     )
 
     # Step 3: Subsequent step that must be skipped
@@ -340,7 +341,8 @@ def test_06_mid_plan_failure_marks_subsequent_steps_skipped(gov_env):
         sub_goal="Goal 3",
         selection_reason="Test",
         input_bindings={},
-        output_definitions={"result": StepOutputDefinition("result", "string")}
+        output_definitions={"result": StepOutputDefinition("result", "string")},
+        dependencies=["step-2"]
     )
 
     plan = ExecutionPlan(

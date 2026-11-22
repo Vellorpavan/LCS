@@ -1012,6 +1012,14 @@ class ExecutionEngineV1:
                     prereqs.add(src_step)
             step_prereqs[s.step_id] = prereqs
 
+        # Incorporate explicit DAG edges
+        if hasattr(plan, "dag_edges") and plan.dag_edges:
+            for edge in plan.dag_edges:
+                if isinstance(edge, (list, tuple)) and len(edge) == 2:
+                    src, dst = edge
+                    if dst in step_prereqs and src in step_map:
+                        step_prereqs[dst].add(src)
+
         pending_step_ids = set(step_map.keys())
         completed_step_ids: Set[str] = set()
         dispatched_step_ids: Set[str] = set()
