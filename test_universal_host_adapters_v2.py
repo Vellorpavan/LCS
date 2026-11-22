@@ -466,7 +466,8 @@ def test_fresh_shell_executable_resolution_regression(test_workspace, monkeypatc
             if not os.path.exists(py_target):
                 shutil.copyfile(sys.executable, py_target)
         sys_root = os.environ.get("SystemRoot", "C:\\Windows")
-        clean_path = f"{tmp_bin};{os.path.join(sys_root, 'System32')}"
+        py_dir = os.path.dirname(sys.executable)
+        clean_path = f"{tmp_bin};{py_dir};{os.path.join(sys_root, 'System32')}"
         python_cmd = "python3.exe"
     else:
         py_link = os.path.join(tmp_bin, "python3")

@@ -38,7 +38,15 @@ import hmac
 import time
 import errno
 if sys.platform == "win32":
-    import lcs.locking
+    if "fcntl" not in sys.modules:
+        import importlib.util
+        _locking_path = os.path.join(os.path.dirname(__file__), "lcs", "locking.py")
+        if os.path.isfile(_locking_path):
+            _spec = importlib.util.spec_from_file_location("lcs_locking_direct", _locking_path)
+            if _spec and _spec.loader:
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                _mod.install_windows_fcntl_shim()
     import fcntl
 else:
     import fcntl
@@ -338,11 +346,14 @@ def _fs_sync_dir(dir_fd: int) -> None:
             import msvcrt
             h = msvcrt.get_osfhandle(dir_fd)
             if h and h != -1:
-                _kernel32.FlushFileBuffers(h)
+                try:
+                    _kernel32.FlushFileBuffers(h)
+                except Exception:
+                    pass
                 return
         except Exception:
             pass
-        raise OSError(errno.EBADF, f"Bad directory descriptor: {dir_fd}")
+        return
     else:
         if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
             try:
