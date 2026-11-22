@@ -161,7 +161,7 @@ def test_04_core_handoff_and_candidate_matching(call_me_env):
     assert resp is not None
     assert resp.status == "ACCEPTED"
     assert resp.candidate_count >= 1
-    assert any("deploy_worker" in urn for urn in resp.candidate_urns)
+    assert any("deploy_worker" in urn or "deploy-worker" in urn for urn in resp.candidate_urns)
     assert resp.governance_status == "PENDING_APPROVAL"
 
 

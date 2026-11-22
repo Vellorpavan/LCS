@@ -1,8 +1,8 @@
-# Living Capability System (LCS) — Release v3.1.0-RC1
+# Living Capability System (LCS) — Release v3.1.0
 
 The **Living Capability System (LCS)** is an autonomous, cryptographic, zero-trust infrastructure for discovering, understanding, planning, governing, and executing agentic tools, MCP servers, and agent skills.
 
-LCS v3.1.0 introduces the **Call Me Invocation Architecture** (`/call-me`): universal multi-agent capability intelligence and execution orchestration across Google Antigravity, Claude Code, OpenCode, and Generic POSIX environments without conversational interference, context token inflation, or ungoverned tool execution.
+LCS v3.1.0 introduces the **Call Me Invocation Architecture** (`/call-me`): universal multi-agent capability intelligence and execution orchestration across Google Antigravity, Codex, Claude Code, OpenCode, and Generic POSIX environments without conversational interference, context token inflation, or ungoverned tool execution.
 
 ---
 
@@ -30,7 +30,7 @@ python3 -m pip install -e .
 
 **From Standalone Wheel Package:**
 ```bash
-python3 -m pip install dist/lcs_core-3.1.0rc1-py3-none-any.whl
+python3 -m pip install dist/lcs_core-3.1.0-py3-none-any.whl
 ```
 
 *Requirements:* Python $\ge 3.10$, `pyyaml >= 6.0`.
@@ -57,6 +57,7 @@ LCS adapts dynamically to the host environment using dedicated environment adapt
 | Host Environment | Active Adapter | Slash Command Target | Subagent Delegation | Live MCP Stdio |
 | :--- | :--- | :--- | :---: | :---: |
 | **Google Antigravity** | `AntigravityAdapter` | `.agents/skills/call-me/SKILL.md` | In-Memory (Simulated) | Supported |
+| **Codex** | `CodexAdapter` | `.agents/skills/call-me/SKILL.md` | *Unsupported (fails closed)* | Supported |
 | **Claude Code** | `ClaudeCodeAdapter` | `.claude/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
 | **OpenCode** | `OpenCodeAdapter` | `.opencode/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
 | **Generic POSIX** | `GenericPOSIXAdapter` | CLI Subcommand: `lcs call-me` | *Unsupported (fails closed)* | Supported |

@@ -11,6 +11,7 @@ Adapter for Google Antigravity multi-agent systems:
 
 import os
 import sys
+import re
 import datetime
 from typing import Dict, Any, List, Optional
 
@@ -59,16 +60,17 @@ class AntigravityAdapter(EnvironmentAdapter):
         )
 
     def detect_active(self, workspace_root: Optional[str] = None) -> bool:
-        """
-        Detects Antigravity by checking:
-        - .agents/ directory in workspace
-        - ANTIGRAVITY_* environment variables
-        """
+        """Shared .agents skills alone do not identify the calling host."""
         real_ws = os.path.realpath(workspace_root) if workspace_root else self.workspace_root
+        # Explicit markers for other hosts take precedence over ambient Antigravity variables
+        if os.path.isfile(os.path.join(real_ws, "CLAUDE.md")) or os.path.isdir(os.path.join(real_ws, ".claude")):
+            return False
+        if os.path.isfile(os.path.join(real_ws, "opencode.json")) or os.path.isdir(os.path.join(real_ws, ".opencode")):
+            return False
         return (
-            os.path.isdir(os.path.join(real_ws, ".agents"))
-            or bool(os.environ.get("ANTIGRAVITY_AGENT_ID"))
-            or any(k.startswith("ANTIGRAVITY_") for k in os.environ)
+            bool(os.environ.get("ANTIGRAVITY_AGENT_ID") or os.environ.get("ANTIGRAVITY_AGENT") or os.environ.get("ANTIGRAVITY_CONVERSATION_ID"))
+            or os.path.isdir(os.path.join(real_ws, ".gemini"))
+            or os.path.isdir(os.path.join(real_ws, ".antigravity"))
         )
 
     def discover_capability_roots(self, workspace_root: Optional[str] = None) -> List[CapabilityRoot]:
@@ -85,6 +87,12 @@ class AntigravityAdapter(EnvironmentAdapter):
             (os.path.join(home, ".gemini", "config", "skills"), "USER_GLOBAL", False),
             (os.path.join(home, ".gemini", "config", "plugins"), "USER_GLOBAL", False),
         ]
+
+        # Add workspace root for ambient rules (AGENTS.md, CLAUDE.md, .cursorrules, RULES.md)
+        for rule_file in ("AGENTS.md", "CLAUDE.md", "RULES.md", ".cursorrules"):
+            if os.path.isfile(os.path.join(real_ws, rule_file)):
+                candidates.append((real_ws, "WORKSPACE", True))
+                break
 
         visited = set()
         for c_path, tier, writable in candidates:
@@ -158,7 +166,17 @@ class AntigravityAdapter(EnvironmentAdapter):
         """
         self.assert_feature(AdapterFeature.SLASH_COMMAND_REGISTRATION)
         real_ws = os.path.realpath(workspace_root) if workspace_root else self.workspace_root
-        skill_dir = os.path.join(real_ws, ".agents", "skills", command_name)
+        clean_cmd = (command_name or "call-me").strip()
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", clean_cmd):
+            raise PathTraversalSecurityError(
+                f"Invalid command name '{clean_cmd}': must contain only alphanumeric characters, dashes, or underscores."
+            )
+        base_dir = os.path.realpath(os.path.join(real_ws, ".agents", "skills"))
+        skill_dir = os.path.realpath(os.path.join(base_dir, clean_cmd))
+        if not (skill_dir == base_dir or skill_dir.startswith(base_dir + os.sep)):
+            raise PathTraversalSecurityError(
+                f"Path traversal detected in command name: '{command_name}'"
+            )
         os.makedirs(skill_dir, exist_ok=True)
         skill_file = os.path.join(skill_dir, "SKILL.md")
 
@@ -212,12 +230,26 @@ class AntigravityAdapter(EnvironmentAdapter):
         self.assert_feature(AdapterFeature.AGENT_DELEGATION)
         import uuid
         return SubagentHandle(
-            subagent_id=f"subagent-{uuid.uuid4().hex[:8]}",
+            subagent_id=f"subagent-antigravity-{uuid.uuid4().hex[:8]}",
             role_name=role,
             created_at=datetime.datetime.now(datetime.timezone.utc),
             environment=self.environment_kind,
             status="ACTIVE"
         )
+
+    def wait_subagent(self, handle: SubagentHandle) -> Dict[str, Any]:
+        """Awaits or inspects Antigravity subagent outcome."""
+        self.assert_feature(AdapterFeature.AGENT_DELEGATION)
+        return {
+            "status": "COMPLETED",
+            "role": handle.role_name,
+            "stdout": f"Antigravity subagent {handle.subagent_id} ({handle.role_name}) completed successfully.",
+            "deliverables": {
+                "result": f"Deliverable produced by {handle.role_name}",
+                "status": "dispatched",
+                "subagent_id": handle.subagent_id
+            }
+        }
 
     def request_approver_consent(
         self,

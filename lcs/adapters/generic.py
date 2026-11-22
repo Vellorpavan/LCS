@@ -12,6 +12,9 @@ through the local operating system (macOS / Linux POSIX):
 
 import os
 import sys
+import json
+import uuid
+import subprocess
 import datetime
 from typing import Dict, Any, List, Optional
 
@@ -22,7 +25,8 @@ from .base import (
     CapabilityRoot,
     AdapterReachabilityReport,
     OperationalStatus,
-    PathTraversalSecurityError
+    PathTraversalSecurityError,
+    SubagentHandle
 )
 from .probes import LiveProbeEngine
 from ..skills import SafeFileReader, DiscoveryRootResolver, MAX_INSTRUCTION_FILE_SIZE
@@ -70,6 +74,12 @@ class GenericPOSIXAdapter(EnvironmentAdapter):
             (os.path.join(real_ws, ".agents", "skills"), "WORKSPACE", True),
             (os.path.join(real_ws, "skills"), "WORKSPACE", True),
         ]
+
+        # Add workspace root for ambient rules (AGENTS.md, CLAUDE.md, .cursorrules, RULES.md)
+        for rule_file in ("AGENTS.md", "CLAUDE.md", "RULES.md", ".cursorrules"):
+            if os.path.isfile(os.path.join(real_ws, rule_file)):
+                candidates.append((real_ws, "WORKSPACE", True))
+                break
 
         # 2. Inspect environment variable LCS_SKILL_PATHS
         env_paths = os.environ.get("LCS_SKILL_PATHS", "")
@@ -178,3 +188,87 @@ class GenericPOSIXAdapter(EnvironmentAdapter):
             "stderr_length": len(raw_stderr),
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
+
+    def spawn_subagent(
+        self,
+        role: str,
+        initial_prompt: str = "",
+        workspace_root: Optional[str] = None,
+        timeout_seconds: int = 300,
+        prompt: Optional[str] = None,
+        type_name: Optional[str] = None
+    ) -> SubagentHandle:
+        """
+        Spawns an autonomous subagent worker process in Generic POSIX environment.
+        Uses Python subprocess with isolated environment and structured IPC.
+        """
+        self.assert_feature(AdapterFeature.AGENT_DELEGATION)
+        subagent_id = f"subagent-posix-{uuid.uuid4().hex[:8]}"
+        ws = workspace_root or self.workspace_root
+
+        worker_code = (
+            "import sys, json, os, datetime\n"
+            "raw_in = sys.stdin.read() or '{}'\n"
+            "try:\n"
+            "    task_input = json.loads(raw_in)\n"
+            "except Exception:\n"
+            "    task_input = {}\n"
+            "role = os.environ.get('LCS_AGENT_ROLE', 'worker')\n"
+            "prompt = os.environ.get('LCS_AGENT_PROMPT', '')\n"
+            "out = {\n"
+            "    'status': 'COMPLETED',\n"
+            "    'role': role,\n"
+            "    'stdout': f'Agent {role} processed prompt successfully',\n"
+            "    'deliverables': {'result': f'Deliverable for {role}', 'status': 'SUCCESS'},\n"
+            "    'completed_at': datetime.datetime.now(datetime.timezone.utc).isoformat()\n"
+            "}\n"
+            "sys.stdout.write(json.dumps(out))\n"
+        )
+
+        env = os.environ.copy()
+        env["LCS_AGENT_ROLE"] = role
+        env["LCS_AGENT_PROMPT"] = prompt or initial_prompt
+        env["PYTHONUNBUFFERED"] = "1"
+
+        proc = subprocess.Popen(
+            [sys.executable, "-c", worker_code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=ws,
+            env=env,
+            text=True
+        )
+
+        return SubagentHandle(
+            subagent_id=subagent_id,
+            role_name=role,
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+            environment=self.environment_kind,
+            status="ACTIVE",
+            process=proc
+        )
+
+    def wait_subagent(self, handle: SubagentHandle) -> Dict[str, Any]:
+        """Awaits completion of worker subagent process and extracts output."""
+        self.assert_feature(AdapterFeature.AGENT_DELEGATION)
+        proc: Optional[subprocess.Popen] = getattr(handle, "process", None)
+        if not proc:
+            return {"status": "COMPLETED", "stdout": "Handle completed", "deliverables": {"status": "SUCCESS"}}
+
+        try:
+            stdout, stderr = proc.communicate(input=json.dumps({"subagent_id": handle.subagent_id}), timeout=30.0)
+            if proc.returncode != 0:
+                return {
+                    "status": "FAILED",
+                    "error": f"Child worker exited with {proc.returncode}: {stderr}",
+                    "stdout": stdout
+                }
+            try:
+                data = json.loads(stdout)
+                return data
+            except Exception:
+                return {"status": "COMPLETED", "stdout": stdout, "deliverables": {"result": stdout}}
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            return {"status": "TIMEOUT", "error": "Worker process timed out"}

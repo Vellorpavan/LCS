@@ -13,6 +13,7 @@ import os
 import sys
 import json
 import argparse
+import getpass
 import shlex
 from typing import List, Optional
 
@@ -23,7 +24,9 @@ if _PARENT not in sys.path:
 
 from lcs.config import LCSConfig
 from lcs.context import LCSContext
+from lcs.setup import SetupEngine, HostDetector, SetupDiagnostics
 from lcs.policy import InterfaceTrustPolicy
+from lcs import __version__
 from lcs.registry import CanonicalCapabilityURN, parse_canonical_urn, InvalidCapabilityURNError, CapabilityNotFoundError
 from lcs.governance import ApproverConsent, ApproverRole, GovernanceStatus, GovernanceError
 from lcs.skills import ArtifactTaxonomyKind, EnvironmentOrigin, PrecedenceTier, SkillLifecycleState
@@ -897,15 +900,26 @@ def cmd_dashboard(ctx: LCSContext, args: argparse.Namespace) -> int:
 
 
 def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
+    if getattr(args, "handoff", False):
+        args.raw_json = True
+        return cmd_inventory_context(ctx, args)
     """Invokes the thin /call-me entry point with a natural-language task."""
     raw_instruction = args.task
     if not raw_instruction or not raw_instruction.strip():
         print("Error: Task description cannot be empty.", file=sys.stderr)
         return 1
 
+    do_execute = getattr(args, "execute", False)
+    out_file = getattr(args, "output", None)
+    call_inputs = {"output_file": out_file, "deliverable": out_file} if out_file else None
     resp = ctx.call_me.execute_call_me(
         f"/call-me {raw_instruction}",
-        session_id=getattr(args, "session_id", None)
+        session_id=getattr(args, "session_id", None),
+        execute=do_execute,
+        inputs=call_inputs,
+        approver_consent=(ApproverConsent(principal=getpass.getuser(),
+                             role=ApproverRole.HUMAN_OPERATOR, method="CLI_EXECUTE_FLAG")
+                            if do_execute else None)
     )
 
     if not resp:
@@ -913,8 +927,37 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
         return 1
 
     if getattr(args, "raw_json", False):
-        print(json.dumps(resp.to_dict(), indent=2))
-        return 0 if resp.status == "ACCEPTED" else 1
+        if hasattr(resp, "to_dict"):
+            print(json.dumps(resp.to_dict(), indent=2))
+            return 0 if resp.status == "ACCEPTED" else 1
+        print(json.dumps(resp, indent=2))
+        return 0 if resp.get("status") in ("ACCEPTED", "SUCCEEDED") else 1
+
+    if do_execute and isinstance(resp, dict):
+        print("=" * 72)
+        print(" LIVING CAPABILITY SYSTEM (LCS) — /call-me MULTI-STEP EXECUTION")
+        print("=" * 72)
+        print(f"  Execution Status:   {resp.get('status')}")
+        print(f"  Run ID:             {resp.get('run_id')}")
+        print(f"  Plan ID:            {resp.get('plan_id')}")
+        print(f"  Lifecycle State:    {resp.get('lifecycle_state')}")
+        print(f"  Steps Completed:    {resp.get('completed_steps')} / {resp.get('total_steps')}")
+        print(f"  Trace CAS Digest:   {resp.get('trace_cas_digest')}")
+
+        if resp.get("capabilities_used"):
+            print("\nCapabilities Used in Execution:")
+            for cap in resp["capabilities_used"]:
+                print(f"  * {cap}")
+
+        if resp.get("step_records"):
+            print("\nExecution Step Records:")
+            for s in resp["step_records"]:
+                print(f"  [{s.get('status')}] {s.get('step_id')} ({s.get('duration_ms', 0):.1f}ms) -> {s.get('capability_urn')}")
+
+        if resp.get("error_message"):
+            print(f"\nExecution Error: {resp['error_message']}", file=sys.stderr)
+
+        return 0 if resp.get("status") == "SUCCEEDED" else 1
 
     print("=" * 72)
     print(" LIVING CAPABILITY SYSTEM (LCS) — /call-me INVOCATION")
@@ -942,7 +985,7 @@ def cmd_install_command(ctx: LCSContext, args: argparse.Namespace) -> int:
     env = getattr(args, "environment", "all").lower()
     is_global = getattr(args, "is_global", False)
     overwrite = getattr(args, "overwrite", False)
-    workspace = ctx.config.root_dir
+    workspace = ctx.inventory.workspace_root
 
     print("=" * 72)
     print(" LCS SLASH-COMMAND INSTALLER")
@@ -950,6 +993,12 @@ def cmd_install_command(ctx: LCSContext, args: argparse.Namespace) -> int:
 
     installed = {}
     try:
+        if env in ("codex", "all") and is_global:
+            root = os.path.expanduser("~")
+            installed["Codex ($call-me)"] = ctx.command_generator.install_antigravity(root, overwrite=overwrite)
+        elif env == "codex":
+            installed["Codex ($call-me)"] = ctx.command_generator.install_antigravity(workspace, overwrite=overwrite)
+
         if env in ("antigravity", "all"):
             p = ctx.command_generator.install_antigravity(workspace, is_global=is_global, overwrite=overwrite)
             installed["Antigravity (.agents/skills/call-me/SKILL.md)"] = p
@@ -973,13 +1022,16 @@ def cmd_uninstall_command(ctx: LCSContext, args: argparse.Namespace) -> int:
     """Uninstalls host-specific /call-me slash-command artifacts."""
     env = getattr(args, "environment", "all").lower()
     is_global = getattr(args, "is_global", False)
-    workspace = ctx.config.root_dir
+    workspace = ctx.inventory.workspace_root
 
     print("=" * 72)
     print(" LCS SLASH-COMMAND UNINSTALLER")
     print("=" * 72)
 
-    targets = ["antigravity", "claude_code", "opencode"] if env == "all" else [env]
+    if env == "all":
+        targets = ["antigravity", "claude_code", "opencode", "codex"] if is_global else ["antigravity", "claude_code", "opencode"]
+    else:
+        targets = [env]
     for target in targets:
         success = ctx.command_generator.uninstall(workspace, target, is_global=is_global)
         status = "REMOVED" if success else "NOT FOUND / SKIPPED"
@@ -988,10 +1040,308 @@ def cmd_uninstall_command(ctx: LCSContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_setup(args: argparse.Namespace) -> int:
+    """Handles 'lcs setup' command for local-first setup, doctor check, and repair."""
+    is_project = getattr(args, "is_project", False)
+    is_global = not is_project
+    check_only = getattr(args, "check", False) or getattr(args, "doctor", False)
+    repair_mode = getattr(args, "repair", False)
+    overwrite = getattr(args, "force", False) or getattr(args, "overwrite", False)
+    env_str = getattr(args, "environment", "all")
+    envs = [env_str] if env_str != "all" else ["all"]
+    as_json = getattr(args, "raw_json", False)
+    root_override = getattr(args, "root", None)
+
+    if check_only:
+        res = SetupEngine.run_check(
+            is_global=is_global,
+            workspace_root=os.getcwd(),
+            root_override=root_override
+        )
+    elif repair_mode:
+        res = SetupEngine.run_repair(
+            is_global=is_global,
+            workspace_root=os.getcwd(),
+            environments=envs,
+            overwrite=overwrite,
+            root_override=root_override
+        )
+    else:
+        res = SetupEngine.run_setup(
+            is_global=is_global,
+            workspace_root=os.getcwd(),
+            environments=envs,
+            overwrite=overwrite,
+            root_override=root_override
+        )
+
+    if as_json:
+        print(json.dumps(res, indent=2))
+        return 0 if res["status"] in ("SUCCESS", "WARNING") else 1
+
+    # Formatted terminal output
+    print("=" * 72)
+    if check_only:
+        print(" LIVING CAPABILITY SYSTEM (LCS) — SETUP DIAGNOSTICS & DOCTOR")
+    elif repair_mode:
+        print(" LIVING CAPABILITY SYSTEM (LCS) — SYSTEM REPAIR")
+    else:
+        print(" LIVING CAPABILITY SYSTEM (LCS) — LOCAL INSTALLATION & SETUP")
+    print("=" * 72)
+
+    scope = "User-Global (~/.lcs)" if is_global else "Project-Local (./.lcs)"
+    print(f"\n[Target Configuration]")
+    print(f"  Scope:             {scope}")
+    print(f"  State Directory:   {res['root_dir']}")
+    print(f"  Database Path:     {res['db_path']}")
+    print(f"  Overall Health:    {res['overall_health']}")
+
+    if "repaired_items" in res and res["repaired_items"]:
+        print("\n[Repairs Executed]")
+        for item in res["repaired_items"]:
+            print(f"  [+] {item}")
+
+    if "installed_integrations" in res:
+        print("\n[Agent Integrations]")
+        for ag_name, info in res["installed_integrations"].items():
+            st = info.get("status")
+            p = info.get("path") or "(none)"
+            if st == "INSTALLED":
+                print(f"  [+] {ag_name.upper()}: INSTALLED -> {p}")
+            elif st == "CONFLICT_SKIPPED":
+                print(f"  [!] {ag_name.upper()}: CONFLICT PRESERVED -> {p} (use --force to overwrite)")
+            else:
+                msg = info.get("message", "")
+                print(f"  [-] {ag_name.upper()}: {st} -> {msg}")
+
+    print("\n[Health Diagnostics]")
+    for d in res.get("diagnostics", []):
+        icon = "[+]" if d["status"] == "PASS" else ("[?]" if d["status"] == "WARN" else "[!]")
+        print(f"  {icon} [{d['category']}] {d['name']}: {d['message']}")
+        if d.get("remediation") and d["status"] != "PASS":
+            print(f"      Remediation: {d['remediation']}")
+
+    print("=" * 72)
+    return 0 if res["status"] in ("SUCCESS", "WARNING") else 1
+
+
+def cmd_inventory_scan(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Scans and synchronizes capabilities across all active environment adapters."""
+    print("=" * 72)
+    print(" LIVING CAPABILITY SYSTEM — UNIFIED CAPABILITY INVENTORY SCAN")
+    print("=" * 72)
+    adapters = ctx.adapter_registry.list_all() if hasattr(ctx, "adapter_registry") else []
+    summary = ctx.inventory.initialize_environment(adapters=adapters)
+    print(f"Total Discovered Resources: {ctx.inventory.total_count}")
+    print("\nBreakdown by Resource Type:")
+    for k, v in sorted(summary.items()):
+        print(f"  * {k:<20}: {v}")
+
+    conflicts = ctx.inventory.get_conflicts()
+    if conflicts:
+        print(f"\nResolved Precedence Conflicts: {len(conflicts)}")
+        for c in conflicts[:5]:
+            print(f"  - {c.name}: {c.resolution_reason}")
+    print("=" * 72)
+    return 0
+
+
+def cmd_inventory_list(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Lists registered capabilities in the Unified Inventory."""
+    rtype = None
+    if getattr(args, "type", None):
+        try:
+            from .inventory import ResourceType
+            rtype = ResourceType(args.type.upper())
+        except Exception:
+            print(f"Error: Unknown resource type '{args.type}'", file=sys.stderr)
+            return 1
+
+    records = ctx.inventory.list_all(resource_type=rtype)
+    if not records:
+        adapters = ctx.adapter_registry.list_all() if hasattr(ctx, "adapter_registry") else []
+        ctx.inventory.initialize_environment(adapters=adapters)
+        records = ctx.inventory.list_all(resource_type=rtype)
+
+    limit = getattr(args, "limit", 50)
+    print("=" * 72)
+    print(f" UNIFIED CAPABILITY INVENTORY ({len(records)} resources found)")
+    print("=" * 72)
+    print(f"{'Type':<12} | {'State':<12} | {'Name':<24} | {'URN'}")
+    print("-" * 72)
+    for r in records[:limit]:
+        print(f"{r.resource_type.value:<12} | {r.lifecycle_state.value:<12} | {r.name[:24]:<24} | {r.urn}")
+    if len(records) > limit:
+        print(f"... and {len(records) - limit} more (use --limit to expand)")
+    print("=" * 72)
+    return 0
+
+
+def cmd_inventory_inspect(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Inspects a unified capability resource and its deep retrieval details."""
+    urn = args.urn.strip()
+    rec = ctx.inventory.get_by_urn(urn)
+    if not rec:
+        matches = ctx.inventory.search(urn, limit=1)
+        if matches:
+            rec = matches[0]
+
+    if not rec:
+        adapters = ctx.adapter_registry.list_all() if hasattr(ctx, "adapter_registry") else []
+        ctx.inventory.initialize_environment(adapters=adapters)
+        rec = ctx.inventory.get_by_urn(urn)
+        if not rec:
+            matches = ctx.inventory.search(urn, limit=1)
+            if matches:
+                rec = matches[0]
+
+    if not rec:
+        print(f"Error: Resource '{urn}' not found in unified inventory.", file=sys.stderr)
+        return 1
+
+    try:
+        retrieval = ctx.deep_retriever.retrieve_deep(rec.urn)
+    except Exception as e:
+        print(f"Error retrieving deep resource '{urn}': {e}", file=sys.stderr)
+        return 1
+
+    print("=" * 72)
+    print(" UNIFIED CAPABILITY RECORD INSPECTION")
+    print("=" * 72)
+    print(f"  URN:                 {rec.urn}")
+    print(f"  Name:                {rec.name}")
+    print(f"  Type:                {rec.resource_type.value}")
+    print(f"  Lifecycle State:     {rec.lifecycle_state.value}")
+    print(f"  Origin Host:         {rec.provenance.origin_host}")
+    print(f"  Precedence Tier:     {rec.provenance.precedence_tier}")
+    print(f"  Content Digest:      {rec.raw_content_digest}")
+    print(f"  Resolved Path:       {rec.provenance.resolved_path}")
+    print(f"  Runtime Env:         {rec.execution_requirements.runtime_environment}")
+    print(f"  Required Binaries:   {', '.join(rec.execution_requirements.required_binaries) or 'None'}")
+    print(f"  Host Compatible:     {retrieval.compatibility_passed}")
+    print(f"  Executable:          {retrieval.is_executable}")
+
+    if retrieval.resolved_dependencies:
+        print("\n[Resolved Dependencies]")
+        for d in retrieval.resolved_dependencies:
+            print(f"  * {d.name} ({d.resource_type.value}) -> {d.urn}")
+
+    if retrieval.missing_dependencies:
+        print("\n[Missing Dependencies]")
+        for m in retrieval.missing_dependencies:
+            print(f"  ! {m}")
+
+    if rec.security_flags:
+        print(f"\n[Security Audit Flags]: {', '.join(rec.security_flags)}")
+
+    print("=" * 72)
+    return 0
+
+
+def cmd_inventory_context(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Builds a token-optimized context transfer payload for model or subagent delegation."""
+    task = args.task.strip()
+    budget = getattr(args, "budget", None)
+
+    if ctx.inventory.total_count == 0:
+        adapters = ctx.adapter_registry.list_all() if hasattr(ctx, "adapter_registry") else []
+        ctx.inventory.initialize_environment(adapters=adapters)
+
+    from .inventory.models import ResourceType
+    handoff = getattr(args, "handoff", False)
+    matches = (record for record in ctx.inventory.search(
+        task, limit=2 if handoff else 1, resource_types=[ResourceType.SKILL] if handoff else None
+    ) if not handoff or record.name != "call-me")
+    primary = next(matches, None)
+    if primary is None:
+        print(f"Error: Zero registered capabilities matched task '{task}'.", file=sys.stderr)
+        return 1
+
+    host = ctx.get_active_adapter().kind.value
+    retrieval = ctx.deep_retriever.retrieve_deep(primary.urn, active_environment=host)
+    payload = ctx.deep_retriever.optimize_context_transfer(
+        task_query=task,
+        retrieval_result=retrieval,
+        token_budget=budget
+    )
+
+    required = {primary.urn}
+    stack = [primary]
+    by_identity = {
+        identity: record
+        for record in retrieval.resolved_dependencies
+        for identity in (record.name, record.urn)
+    }
+    while stack:
+        for edge in stack.pop().declared_dependencies:
+            dependency = by_identity.get(edge.get("name"))
+            if edge.get("mandatory", True) and dependency and dependency.urn not in required:
+                required.add(dependency.urn)
+                stack.append(dependency)
+    missing = [record.name for record in retrieval.resolved_dependencies
+               if record.urn in required and record.name not in payload.dependency_snippets]
+    all_missing = sorted(set(retrieval.missing_dependencies + missing))
+    ready = retrieval.is_executable and not all_missing and not payload.budget_exceeded
+
+    block_reason = None
+    if not ready:
+        if not retrieval.is_executable or all_missing:
+            block_reason = f"Missing or inaccessible required resources: {all_missing}"
+        elif payload.budget_exceeded:
+            block_reason = f"Token budget exceeded: estimated {payload.estimated_tokens} tokens exceeds budget limit of {payload.token_budget_limit}"
+
+    if getattr(args, "raw_json", False):
+        print(json.dumps({
+            "ready": ready,
+            "host": host,
+            "block_reason": block_reason,
+            "missing_required": all_missing,
+            "instructions": payload.instructions_text if ready else "",
+            "dependencies": payload.dependency_snippets if ready else {},
+            "task_query": payload.task_query,
+            "primary_urn": payload.primary_urn,
+            "estimated_tokens": payload.estimated_tokens,
+            "token_metric": "ESTIMATE",
+            "budget_limit": payload.token_budget_limit,
+            "budget_exceeded": payload.budget_exceeded,
+            "omitted_references": payload.omitted_references,
+            "provenance_hashes": payload.provenance_hashes
+        }, indent=2))
+        return 0 if ready else 1
+
+    if not ready:
+        print("Required skill context is unavailable or exceeds the budget.", file=sys.stderr)
+        return 1
+    print("=" * 72)
+    print(" TOKEN-OPTIMIZED CONTEXT TRANSFER PAYLOAD")
+    print("=" * 72)
+    print(f"  Task Query:          {payload.task_query}")
+    print(f"  Primary URN:         {payload.primary_urn}")
+    print(f"  Estimated Tokens:    {payload.estimated_tokens}")
+    if payload.token_budget_limit:
+        print(f"  Token Budget Limit:  {payload.token_budget_limit}")
+        print(f"  Budget Exceeded:     {payload.budget_exceeded}")
+    if payload.omitted_references:
+        print(f"  Omitted References:  {len(payload.omitted_references)}")
+        for o in payload.omitted_references:
+            print(f"    - {o}")
+    print("\n--- Guidance Preview ---")
+    print(payload.execution_guidance)
+    print("\n--- Raw Instructions (First 300 chars) ---")
+    print(payload.instructions_text[:300] + ("..." if len(payload.instructions_text) > 300 else ""))
+    print("=" * 72)
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lcs",
         description="Living Capability System (LCS) Command-Line Interface"
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
         "--root",
@@ -1142,27 +1492,74 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_call_me = subparsers.add_parser("call-me", help="Explicit /call-me invocation entry point")
     sub_call_me.add_argument("task", help="Natural language task description")
     sub_call_me.add_argument("--session-id", help="Optional persistent session identifier")
+    call_mode = sub_call_me.add_mutually_exclusive_group()
+    call_mode.add_argument("--execute", action="store_true", help="Authorize and execute multi-capability pipeline")
+    call_mode.add_argument("--handoff", action="store_true", help="Return selected skill instructions for the host")
+    sub_call_me.add_argument("--output", help="Optional path to output deliverable artifact")
+    sub_call_me.add_argument("--budget", type=int, help="Estimated token budget for the skill handoff")
     sub_call_me.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
     sub_call_me.set_defaults(func=cmd_call_me)
 
     # lcs install-command (Phase 2A)
     sub_inst_cmd = subparsers.add_parser("install-command", help="Install /call-me slash command artifacts into host environments")
-    sub_inst_cmd.add_argument("--environment", choices=["antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
-    sub_inst_cmd.add_argument("--global", dest="is_global", action="store_true", help="Install to user home directory instead of workspace")
+    sub_inst_cmd.add_argument("--environment", choices=["codex", "antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
+    sub_inst_cmd.add_argument("--global", "--is-global", dest="is_global", action="store_true", help="Install to user home directory instead of workspace")
     sub_inst_cmd.add_argument("--overwrite", action="store_true", help="Overwrite existing non-LCS files")
     sub_inst_cmd.set_defaults(func=cmd_install_command)
 
     # lcs uninstall-command (Phase 2A)
     sub_uninst_cmd = subparsers.add_parser("uninstall-command", help="Remove /call-me slash command artifacts from host environments")
-    sub_uninst_cmd.add_argument("--environment", choices=["antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
-    sub_uninst_cmd.add_argument("--global", dest="is_global", action="store_true", help="Remove from user home directory instead of workspace")
+    sub_uninst_cmd.add_argument("--environment", choices=["codex", "antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
+    sub_uninst_cmd.add_argument("--global", "--is-global", dest="is_global", action="store_true", help="Remove from user home directory instead of workspace")
     sub_uninst_cmd.set_defaults(func=cmd_uninstall_command)
+
+    # lcs inventory (Milestone 1)
+    sub_inv = subparsers.add_parser("inventory", help="Unified Capability Inventory & Token-Optimized Retrieval")
+    inv_sub = sub_inv.add_subparsers(dest="inventory_action", help="Inventory action")
+
+    # lcs inventory scan
+    sub_inv_scan = inv_sub.add_parser("scan", help="Scan and synchronize capabilities across all host environments")
+    sub_inv_scan.set_defaults(func=cmd_inventory_scan)
+
+    # lcs inventory list
+    sub_inv_list = inv_sub.add_parser("list", help="List registered capability resources in the unified inventory")
+    sub_inv_list.add_argument("--type", help="Filter by ResourceType (AGENT, SKILL, TOOL, MCP_SERVER, COMMAND, SCRIPT, etc.)")
+    sub_inv_list.add_argument("--limit", type=int, default=50, help="Maximum number of resources to display")
+    sub_inv_list.set_defaults(func=cmd_inventory_list)
+
+    # lcs inventory inspect
+    sub_inv_insp = inv_sub.add_parser("inspect", help="Inspect a capability record, dependencies, and execution readiness")
+    sub_inv_insp.add_argument("urn", help="Canonical URN or name")
+    sub_inv_insp.set_defaults(func=cmd_inventory_inspect)
+
+    # lcs inventory context
+    sub_inv_ctx = inv_sub.add_parser("context", help="Build token-budget-optimized context transfer payload for a task")
+    sub_inv_ctx.add_argument("task", help="Task description or query")
+    sub_inv_ctx.add_argument("--budget", type=int, help="Maximum token budget limit")
+    sub_inv_ctx.add_argument("--format-json", dest="raw_json", action="store_true", help="Output raw JSON payload")
+    sub_inv_ctx.set_defaults(func=cmd_inventory_context)
+
+    sub_inv.set_defaults(func=cmd_inventory_scan)
+
+    # lcs setup (Stage 1 Universal Local Setup)
+    sub_setup = subparsers.add_parser("setup", help="Universal local setup, diagnostics, and repairs")
+    sub_setup.add_argument("--global", "-g", dest="is_global", action="store_true", default=None, help="Set up user-level global LCS environment (default)")
+    sub_setup.add_argument("--project", "-p", dest="is_project", action="store_true", help="Set up project-local environment (./.lcs)")
+    sub_setup.add_argument("--check", "--doctor", dest="check", action="store_true", help="Run diagnostic health checks without writing changes")
+    sub_setup.add_argument("--repair", action="store_true", help="Repair damaged state directories, missing migrations, or broken commands")
+    sub_setup.add_argument("--force", "-f", "--overwrite", dest="force", action="store_true", help="Overwrite conflicting non-LCS command files")
+    sub_setup.add_argument("--environment", "-e", choices=["all", "antigravity", "claude_code", "opencode", "codex"], default="all", help="Target agent environment")
+    sub_setup.add_argument("--format-json", "--json", dest="raw_json", action="store_true", help="Output results in JSON format")
+    sub_setup.set_defaults(func=cmd_setup)
 
     parsed_args = parser.parse_args(argv)
 
     if not parsed_args.subcommand:
         parser.print_help()
         return 0
+
+    if parsed_args.subcommand == "setup":
+        return cmd_setup(parsed_args)
 
     cfg = LCSConfig.resolve(root_override=parsed_args.root)
     with LCSContext(config=cfg, auto_migrate=True) as ctx:

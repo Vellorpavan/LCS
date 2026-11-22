@@ -8,6 +8,7 @@ import os
 import sqlite3
 from typing import Optional
 from .config import LCSConfig
+from .adapters.codex import CodexAdapter
 from .migrations import MigrationManager
 from .storage import SecureCASStorageEngine
 from .registry import CapabilityRegistrationService
@@ -48,6 +49,7 @@ from .hydration import (
     HydrationEngine,
     HydratedCapability,
     ResourceUtilizationState,
+    ProjectContextHydrator,
 )
 from .dependencies import (
     DependencyResolver,
@@ -60,6 +62,10 @@ from .verification import (
 from .subagents import (
     AntigravitySubagentBridge,
     SubagentTask,
+)
+from .inventory import (
+    UnifiedCapabilityInventory,
+    DeepCapabilityRetriever,
 )
 
 
@@ -160,11 +166,23 @@ class LCSContext:
 
         # Environment Adapters & Live Verification
         self.activation_verifier = ActivationIntegrityVerifier(self.conn)
+        discovery_root = self.config.root_dir
+        if os.path.basename(discovery_root) == ".lcs":
+            discovery_root = os.path.dirname(discovery_root)
         self.adapter_registry = AdapterRegistry()
-        self.adapter_registry.register(AntigravityAdapter(workspace_root=self.config.root_dir))
-        self.adapter_registry.register(ClaudeCodeAdapter(workspace_root=self.config.root_dir))
-        self.adapter_registry.register(OpenCodeAdapter(workspace_root=self.config.root_dir))
-        self.adapter_registry.register(GenericPOSIXAdapter(workspace_root=self.config.root_dir))
+        self.adapter_registry.register(CodexAdapter(workspace_root=discovery_root))
+        self.adapter_registry.register(AntigravityAdapter(workspace_root=discovery_root))
+        self.adapter_registry.register(ClaudeCodeAdapter(workspace_root=discovery_root))
+        self.adapter_registry.register(OpenCodeAdapter(workspace_root=discovery_root))
+        self.adapter_registry.register(GenericPOSIXAdapter(workspace_root=discovery_root))
+
+        # Dynamically load custom agent adapters from .lcs/agents and ~/.lcs/agents
+        from .adapters.custom import DynamicAdapterLoader
+        DynamicAdapterLoader.load_all(
+            registry=self.adapter_registry,
+            config=self.config,
+            workspace_root=discovery_root
+        )
 
         # Execution Engine V1
         self.execution_engine = ExecutionEngineV1(
@@ -174,7 +192,7 @@ class LCSContext:
             profile_service=self.profile_service,
             key_store=self.cas_engine.key_store,
             audit_ledger=self.governance_engine.audit_ledger,
-            workspace_root=self.config.root_dir
+            workspace_root=discovery_root
         )
 
         # High-Performance Local Cache & Filesystem Watcher (Phase 1C)
@@ -201,9 +219,24 @@ class LCSContext:
             cas_engine=self.cas_engine,
             resolver=self.skill_service.resolver
         )
+        self.project_context_hydrator = ProjectContextHydrator(self)
         self.dependency_resolver = DependencyResolver
         self.resource_verifier = UnifiedResourceVerifier
         self.subagent_bridge = AntigravitySubagentBridge(self)
+        if hasattr(self, "execution_engine") and self.execution_engine:
+            self.execution_engine.subagent_bridge = self.subagent_bridge
+
+        # Unified Capability Inventory & Deep Capability Utilization (Milestone 1)
+        self.inventory = UnifiedCapabilityInventory(
+            conn=self.conn,
+            cas_engine=self.cas_engine,
+            workspace_root=discovery_root,
+            iface_service=self.iface_service
+        )
+        self.deep_retriever = DeepCapabilityRetriever(
+            inventory=self.inventory,
+            policy_service=self.iface_service
+        )
 
     def get_active_adapter(self):
         """Resolves the active environment adapter for current workspace."""
@@ -214,6 +247,11 @@ class LCSContext:
         if hasattr(self, "fs_watcher") and self.fs_watcher and self.fs_watcher.is_active:
             try:
                 self.fs_watcher.stop()
+            except Exception:
+                pass
+        if hasattr(self, "execution_engine") and self.execution_engine:
+            try:
+                self.execution_engine.close()
             except Exception:
                 pass
         if hasattr(self, "cas_engine") and self.cas_engine:

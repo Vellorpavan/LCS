@@ -355,7 +355,7 @@ def test_adapter_registry_fallback_to_generic():
 
 def test_adapter_registry_precedence():
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create markers for both Antigravity and Claude Code
+        # Shared skills also exist in Claude projects.
         (Path(tmpdir) / ".agents").mkdir()
         (Path(tmpdir) / "CLAUDE.md").write_text("# Claude")
 
@@ -364,9 +364,9 @@ def test_adapter_registry_precedence():
         registry.register(AntigravityAdapter(workspace_root=tmpdir))
         registry.register(GenericPOSIXAdapter(workspace_root=tmpdir))
 
-        # Antigravity takes precedence over Claude Code
+        # Only the Claude marker identifies a specific host.
         active = registry.detect_active()
-        assert active.kind == EnvironmentKind.ANTIGRAVITY
+        assert active.kind == EnvironmentKind.CLAUDE_CODE
 
 
 # =====================================================================

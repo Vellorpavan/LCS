@@ -20,6 +20,12 @@ from .engine import (
     HydrationEngine,
     HydrationError,
 )
+from .project_context import (
+    ProjectContextHydrator,
+    ProjectContextPayload,
+    ProjectContextError,
+    ProjectIsolationViolationError,
+)
 
 __all__ = [
     "ResourceUtilizationState",
@@ -28,4 +34,8 @@ __all__ = [
     "HydratedCapability",
     "HydrationEngine",
     "HydrationError",
+    "ProjectContextHydrator",
+    "ProjectContextPayload",
+    "ProjectContextError",
+    "ProjectIsolationViolationError",
 ]

@@ -143,14 +143,35 @@ class AntigravitySubagentBridge:
         stdout_summary = ""
         task_state = SubagentTaskState.RUNNING
 
+        iter_count = task.inputs.get("iteration_count", 1) if isinstance(task.inputs, dict) else 1
+        max_iters = task.inputs.get("max_iterations", 50) if isinstance(task.inputs, dict) else 50
+        if iter_count > max_iters:
+            res = SubagentExecutionResult(
+                child_task_id=task.child_task_id,
+                parent_request_id=task.parent_request_id,
+                state=SubagentTaskState.FAILED,
+                error_details=f"Transcript loop bounds exceeded: {iter_count} > {max_iters} turns",
+                is_verified=False
+            )
+            self.results[task.child_task_id] = res
+            return res
+
         try:
             if executor_fn:
                 exec_output = executor_fn(task)
                 deliverables = exec_output.get("deliverables", {})
                 stdout_summary = exec_output.get("stdout", "Completed successfully")
                 task_state = SubagentTaskState.COMPLETED
+            elif hasattr(adapter, "wait_subagent"):
+                wait_res = adapter.wait_subagent(handle)
+                if wait_res.get("status") in ("COMPLETED", "SUCCESS", "DONE"):
+                    task_state = SubagentTaskState.COMPLETED
+                    deliverables = wait_res.get("deliverables", {})
+                    stdout_summary = wait_res.get("stdout", "Completed successfully")
+                else:
+                    task_state = SubagentTaskState.FAILED
+                    stdout_summary = wait_res.get("error", "Subagent execution failed")
             else:
-                # Default handler: handle created, waiting for host dispatch
                 deliverables = {"status": "dispatched", "subagent_id": handle.subagent_id}
                 stdout_summary = f"Subagent {handle.subagent_id} dispatched with role {task.role}"
                 task_state = SubagentTaskState.COMPLETED
@@ -170,18 +191,22 @@ class AntigravitySubagentBridge:
 
         if task_state == SubagentTaskState.COMPLETED:
             # Check expected deliverables
-            missing_deliv = [d for d in task.expected_deliverables if d not in deliverables]
+            missing_deliv = [d for d in task.expected_deliverables if d not in deliverables and not os.path.exists(d)]
             if missing_deliv:
                 task_state = SubagentTaskState.FAILED
                 error_details = f"Missing declared deliverables from subagent: {missing_deliv}"
             else:
                 # Audit verification gate
-                v_res = self.verifier.verify({
+                v_ctx = {
                     "resource_id": task.child_task_id,
                     "status": "COMPLETED",
-                    "iteration_count": 1,
-                    "max_iterations": 50,
-                })
+                    "iteration_count": iter_count,
+                    "max_iterations": max_iters,
+                }
+                deliv_file = next((d for d in task.expected_deliverables if isinstance(d, str) and os.path.exists(d)), None)
+                if deliv_file:
+                    v_ctx["deliverable_file"] = deliv_file
+                v_res = self.verifier.verify(v_ctx)
                 is_verified = v_res.is_verified
                 if not is_verified:
                     error_details = v_res.error_details

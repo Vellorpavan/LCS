@@ -53,27 +53,27 @@ When the user invokes `/call-me <task>`, activate LCS to discover, evaluate, ret
 
 ## Execution Command
 ```bash
-lcs call-me "$*"
+command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "<task>" || python3 -m lcs.cli call-me --handoff -- "<task>"
 ```
 """
 
     CLAUDE_CODE_COMMAND_TEMPLATE = """<!-- LCS-MANAGED-COMMAND-ARTIFACT -->
 # /call-me — LCS Capability Orchestration
 
-Execute capability discovery, planning, and governed execution via the Living Capability System.
+Pass the user's task as one literal argument. When the JSON response reports ready, apply the returned skill instructions and dependencies under the host's permissions. Report a blocked handoff to the user.
 
 Run the LCS entry point with the user's arguments:
 ```bash
-lcs call-me "$*"
+command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "<task>" || python3 -m lcs.cli call-me --handoff -- "<task>"
 ```
 """
 
     OPENCODE_COMMAND_TEMPLATE = """<!-- LCS-MANAGED-COMMAND-ARTIFACT -->
 # /call-me — OpenCode Capability Entry Point
 
-Invokes the Living Capability System orchestrator:
+Pass the task as one literal argument. Apply the returned instructions and dependencies only when ready, under the host's permissions.
 ```bash
-lcs call-me "$*"
+command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "<task>" || python3 -m lcs.cli call-me --handoff -- "<task>"
 ```
 """
 
@@ -199,21 +199,56 @@ lcs call-me "$*"
         return file_path
 
     @classmethod
-    def install_opencode(cls, workspace_root: str, overwrite: bool = False) -> str:
+    def install_opencode(
+        cls,
+        workspace_root: str,
+        is_global: bool = False,
+        home_dir: Optional[str] = None,
+        overwrite: bool = False
+    ) -> str:
         """Installs the OpenCode /call-me slash-command markdown."""
-        target_dir = os.path.join(workspace_root, ".opencode", "commands")
+        if is_global:
+            home = home_dir or os.path.expanduser("~")
+            target_dir = os.path.join(home, ".opencode", "commands")
+        else:
+            target_dir = os.path.join(workspace_root, ".opencode", "commands")
         os.makedirs(target_dir, exist_ok=True)
         file_path = os.path.join(target_dir, "call-me.md")
         cls._safe_write_artifact(file_path, cls.OPENCODE_COMMAND_TEMPLATE, overwrite=overwrite)
         return file_path
 
     @classmethod
-    def install_all(cls, workspace_root: str, overwrite: bool = False) -> Dict[str, str]:
+    def install_codex(
+        cls,
+        workspace_root: str,
+        is_global: bool = False,
+        home_dir: Optional[str] = None,
+        overwrite: bool = False
+    ) -> str:
+        """Installs the Codex /call-me skill manifest."""
+        if is_global:
+            home = home_dir or os.path.expanduser("~")
+            target_dir = os.path.join(home, ".agents", "skills", "call-me")
+        else:
+            target_dir = os.path.join(workspace_root, ".agents", "skills", "call-me")
+        os.makedirs(target_dir, exist_ok=True)
+        file_path = os.path.join(target_dir, "SKILL.md")
+        cls._safe_write_artifact(file_path, cls.ANTIGRAVITY_SKILL_TEMPLATE, overwrite=overwrite)
+        return file_path
+
+    @classmethod
+    def install_all(
+        cls,
+        workspace_root: str,
+        is_global: bool = False,
+        home_dir: Optional[str] = None,
+        overwrite: bool = False
+    ) -> Dict[str, str]:
         """Installs /call-me command artifacts across all genuinely supported host environments."""
         return {
-            "ANTIGRAVITY": cls.install_antigravity(workspace_root, overwrite=overwrite),
-            "CLAUDE_CODE": cls.install_claude_code(workspace_root, overwrite=overwrite),
-            "OPENCODE": cls.install_opencode(workspace_root, overwrite=overwrite),
+            "ANTIGRAVITY": cls.install_antigravity(workspace_root, is_global=is_global, home_dir=home_dir, overwrite=overwrite),
+            "CLAUDE_CODE": cls.install_claude_code(workspace_root, is_global=is_global, home_dir=home_dir, overwrite=overwrite),
+            "OPENCODE": cls.install_opencode(workspace_root, is_global=is_global, home_dir=home_dir, overwrite=overwrite),
         }
 
     @classmethod
@@ -226,8 +261,10 @@ lcs call-me "$*"
     ) -> bool:
         """Safely removes the generated command artifact without removing unrelated user files."""
         env_upper = environment.upper()
-        if env_upper in ("ANTIGRAVITY", "GOOGLE_ANTIGRAVITY"):
-            if is_global:
+        if env_upper in ("ANTIGRAVITY", "GOOGLE_ANTIGRAVITY", "CODEX"):
+            if is_global and env_upper == "CODEX":
+                target_dir = os.path.join(home_dir or os.path.expanduser("~"), ".agents", "skills", "call-me")
+            elif is_global:
                 home = home_dir or os.path.expanduser("~")
                 target_dir = os.path.join(home, ".gemini", "config", "skills", "call-me")
             else:
@@ -260,13 +297,29 @@ lcs call-me "$*"
             path = os.path.join(target_dir, "call-me.md")
             if os.path.exists(path) and cls._is_lcs_managed(path):
                 os.remove(path)
+                try:
+                    if os.path.exists(target_dir) and not os.listdir(target_dir):
+                        os.rmdir(target_dir)
+                except OSError:
+                    pass
                 return True
             return False
 
         elif env_upper == "OPENCODE":
-            path = os.path.join(workspace_root, ".opencode", "commands", "call-me.md")
+            if is_global:
+                home = home_dir or os.path.expanduser("~")
+                target_dir = os.path.join(home, ".opencode", "commands")
+            else:
+                target_dir = os.path.join(workspace_root, ".opencode", "commands")
+
+            path = os.path.join(target_dir, "call-me.md")
             if os.path.exists(path) and cls._is_lcs_managed(path):
                 os.remove(path)
+                try:
+                    if os.path.exists(target_dir) and not os.listdir(target_dir):
+                        os.rmdir(target_dir)
+                except OSError:
+                    pass
                 return True
             return False
 

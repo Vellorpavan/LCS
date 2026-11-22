@@ -4,7 +4,12 @@ Living Capability System (LCS)
 Canonical Stage 2B Implementation: Milestones 1–4 Integrated.
 """
 
-__version__ = "3.1.0"
+__version__ = "3.2.0rc1"
+
+import sys
+if sys.platform == "win32":
+    from .locking import install_windows_fcntl_shim
+    install_windows_fcntl_shim()
 
 from .config import LCSConfig
 from .context import LCSContext
@@ -129,6 +134,18 @@ from .execution import (
 from .migrations import MigrationManager
 from .mcp_server import LCSMCPServer, run_mcp_server
 from .dashboard import run_dashboard
+from .inventory import (
+    ResourceType as UnifiedResourceType,
+    OperationalLifecycleState,
+    ExecutionRequirement,
+    ProvenanceRecord,
+    UnifiedResourceRecord,
+    ConflictRecord,
+    DeepRetrievalResult,
+    ContextTransferPayload,
+    UnifiedCapabilityInventory,
+    DeepCapabilityRetriever,
+)
 
 __all__ = [
     "LCSConfig",
@@ -245,5 +262,15 @@ __all__ = [
     "SubagentBridgeError",
     "UnsupportedSubagentEnvironmentError",
     "SubagentTimeoutError",
+    "UnifiedResourceType",
+    "OperationalLifecycleState",
+    "ExecutionRequirement",
+    "ProvenanceRecord",
+    "UnifiedResourceRecord",
+    "ConflictRecord",
+    "DeepRetrievalResult",
+    "ContextTransferPayload",
+    "UnifiedCapabilityInventory",
+    "DeepCapabilityRetriever",
 ]
 

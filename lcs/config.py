@@ -3,6 +3,7 @@ LCS Configuration & Path Management
 """
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -14,25 +15,80 @@ class LCSConfig:
     cas_root: str
     key_store_dir: str
     schema_dir: str
+    user_state_dir: Optional[str] = None
 
     @classmethod
-    def resolve(cls, root_override: Optional[str] = None, schema_override: Optional[str] = None) -> "LCSConfig":
+    def get_user_state_dir(cls, home_override: Optional[str] = None) -> str:
+        """
+        Returns the persistent user-level LCS state directory across platforms.
+        Precedence:
+          1. LCS_USER_STATE_DIR environment variable (explicit directory path)
+          2. home_override/.lcs (if provided)
+          3. LCS_USER_HOME/.lcs environment variable
+          4. Windows: %APPDATA%/lcs or ~/.lcs
+          5. Unix/macOS: ~/.lcs
+        """
+        if os.environ.get("LCS_USER_STATE_DIR"):
+            return os.path.realpath(os.environ["LCS_USER_STATE_DIR"])
+        if home_override:
+            return os.path.realpath(os.path.join(home_override, ".lcs"))
+        if os.environ.get("LCS_USER_HOME"):
+            return os.path.realpath(os.path.join(os.environ["LCS_USER_HOME"], ".lcs"))
+
+        if sys.platform == "win32":
+            app_data = os.environ.get("APPDATA")
+            if app_data:
+                return os.path.realpath(os.path.join(app_data, "lcs"))
+            return os.path.realpath(os.path.expanduser("~/.lcs"))
+
+        return os.path.realpath(os.path.expanduser("~/.lcs"))
+
+    @property
+    def is_user_global(self) -> bool:
+        """True if this configuration points to the persistent user-level directory."""
+        expected = os.path.realpath(self.user_state_dir or self.get_user_state_dir())
+        return os.path.realpath(self.root_dir) == expected
+
+    @property
+    def is_project_local(self) -> bool:
+        """True if this configuration is project-local."""
+        return not self.is_user_global
+
+    @classmethod
+    def resolve(
+        cls,
+        root_override: Optional[str] = None,
+        schema_override: Optional[str] = None,
+        is_global: bool = False,
+        home_override: Optional[str] = None,
+        workspace_root: Optional[str] = None,
+    ) -> "LCSConfig":
         """
         Resolves LCS paths. Priority:
           1. root_override parameter
-          2. LCS_ROOT environment variable
-          3. .lcs in current working directory if exists
-          4. ~/.lcs
+          2. is_global=True -> persistent user state directory
+          3. LCS_ROOT environment variable
+          4. .lcs in workspace_root / current working directory if exists (project-local isolation)
+          5. Persistent user state directory if initialized (contains lcs.db)
+          6. Default to local .lcs in current working directory
         """
+        user_state_dir = cls.get_user_state_dir(home_override=home_override)
+        ws = workspace_root or os.getcwd()
+        local_candidate = os.path.join(ws, ".lcs")
+
         if root_override:
             root = os.path.realpath(root_override)
+        elif is_global:
+            root = user_state_dir
         elif os.environ.get("LCS_ROOT"):
             root = os.path.realpath(os.environ["LCS_ROOT"])
-        elif os.path.exists(os.path.join(os.getcwd(), ".lcs")):
-            root = os.path.realpath(os.path.join(os.getcwd(), ".lcs"))
+        elif os.path.exists(local_candidate):
+            root = os.path.realpath(local_candidate)
+        elif os.path.exists(os.path.join(user_state_dir, "lcs.db")):
+            root = user_state_dir
         else:
             # Default to local .lcs in current working directory for localized project isolation
-            root = os.path.realpath(os.path.join(os.getcwd(), ".lcs"))
+            root = os.path.realpath(local_candidate)
 
         if schema_override:
             s_dir = os.path.realpath(schema_override)
@@ -52,7 +108,8 @@ class LCSConfig:
             db_path=os.path.join(root, "lcs.db"),
             cas_root=os.path.join(root, "cas"),
             key_store_dir=os.path.join(root, "keys"),
-            schema_dir=s_dir
+            schema_dir=s_dir,
+            user_state_dir=user_state_dir,
         )
 
     def ensure_directories(self) -> None:

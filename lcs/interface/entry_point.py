@@ -36,7 +36,7 @@ class CallMeInterface:
     validation, and handoff to LCS Core.
     """
 
-    COMMAND_PREFIXES = ("/call-me", "call-me", "/call_me", "call_me")
+    COMMAND_PREFIXES = ("/call-me", "call-me", "/call_me", "call_me", "$call-me", "$call_me")
 
     def __init__(self, context: Any, environment: Optional[str] = None):
         self.ctx = context
@@ -47,7 +47,7 @@ class CallMeInterface:
         """Resolves active environment from context adapter registry if available."""
         if hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry:
             adapter = self.ctx.adapter_registry.detect_active()
-            return adapter.kind.value
+            return adapter.kind.value if hasattr(adapter.kind, "value") else str(adapter.kind)
         return EnvironmentKind.GENERIC_POSIX.value
 
     def is_call_me_command(self, raw_message: str) -> bool:
@@ -99,15 +99,18 @@ class CallMeInterface:
         session_id: Optional[str] = None,
         inputs: Optional[Dict[str, Any]] = None,
         constraints: Optional[List[str]] = None,
-        deliverables: Optional[List[str]] = None
-    ) -> Optional[InvocationResponse]:
+        deliverables: Optional[List[str]] = None,
+        execute: bool = False,
+        approver_consent: Optional[Any] = None,
+        active_policy: Optional[Any] = None
+    ) -> Optional[Any]:
         """
         Main entry point for conversational agent integration:
         1. Checks dormancy gate (returns None if message is ordinary conversation).
         2. Parses explicit task description.
         3. Constructs versioned TaskRequest.
-        4. Submits request to LCS Core bridge.
-        5. Returns structured InvocationResponse.
+        4. Submits request to LCS Core bridge (or executes if execute=True).
+        5. Returns structured InvocationResponse or execution result.
         """
         # 1. Dormancy Invariant Gate
         if not self.is_call_me_command(raw_message):
@@ -140,4 +143,12 @@ class CallMeInterface:
         )
 
         # 4. Handoff to LCS Core Bridge
+        if execute:
+            return self.bridge.execute_task_pipeline(
+                task_request,
+                approver_consent=approver_consent,
+                active_policy=active_policy,
+                initial_inputs=inputs
+            )
+
         return self.bridge.submit_task(task_request)

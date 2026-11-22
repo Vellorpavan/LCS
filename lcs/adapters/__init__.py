@@ -35,7 +35,21 @@ from .generic import GenericPOSIXAdapter
 from .claude_code import ClaudeCodeAdapter
 from .opencode import OpenCodeAdapter
 from .antigravity import AntigravityAdapter
+from .codex import CodexAdapter
 from .activation_verifier import ActivationIntegrityVerifier, ActivationIntegrityRecord
+from .custom import (
+    DeclarativeCustomAdapterSpec,
+    validate_custom_agent_spec,
+    DeclarativeHostAdapter,
+    DynamicAdapterLoader,
+    CustomAdapterSecurityError,
+)
+from .negotiation import (
+    NegotiatedChannel,
+    ConsentMechanism,
+    CapabilityNegotiationResult,
+    CapabilityNegotiator,
+)
 
 __all__ = [
     "AdapterFeature",
@@ -60,6 +74,16 @@ __all__ = [
     "ClaudeCodeAdapter",
     "OpenCodeAdapter",
     "AntigravityAdapter",
+    "CodexAdapter",
     "ActivationIntegrityVerifier",
     "ActivationIntegrityRecord",
+    "DeclarativeCustomAdapterSpec",
+    "validate_custom_agent_spec",
+    "DeclarativeHostAdapter",
+    "DynamicAdapterLoader",
+    "CustomAdapterSecurityError",
+    "NegotiatedChannel",
+    "ConsentMechanism",
+    "CapabilityNegotiationResult",
+    "CapabilityNegotiator",
 ]

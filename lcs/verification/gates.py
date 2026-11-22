@@ -44,43 +44,48 @@ class SkillVerificationGate(BaseVerificationGate):
             is_verified=True
         )
 
-        if not skill:
+        rendered = execution_context.get("rendered_instructions")
+        if not skill and not rendered:
             result.add_evidence(
                 EvidenceTier.TIER_1_IDENTITY_INTEGRITY,
                 "Hydrated capability present",
                 False,
-                details="No HydratedCapability found in context"
+                details="No HydratedCapability or rendered instructions found in context"
             )
             return result
 
+        raw_inst = skill.raw_instructions if skill else rendered
+
         # Tier 1: Instruction Digest
-        has_digest = bool(skill.instruction_digest and len(skill.instruction_digest) == 64)
+        digest_val = skill.instruction_digest if skill else (execution_context.get("digest") or execution_context.get("cas_trace_digest"))
+        has_digest = bool(digest_val and len(digest_val) == 64)
         result.add_evidence(
             EvidenceTier.TIER_1_IDENTITY_INTEGRITY,
             "Instruction SHA-256 digest valid",
             has_digest,
-            digest=skill.instruction_digest
+            digest=digest_val
         )
 
         # Tier 2: Instruction Completeness & Dependencies
-        has_content = bool(skill.raw_instructions and len(skill.raw_instructions.strip()) > 0)
+        has_content = bool(raw_inst and len(raw_inst.strip()) > 0)
         result.add_evidence(
             EvidenceTier.TIER_2_RETRIEVAL_ACTIVATION,
             "Authoritative instructions non-empty",
             has_content,
-            details=f"Length: {len(skill.raw_instructions)} chars"
+            details=f"Length: {len(raw_inst)} chars"
         )
 
-        no_missing_deps = len(skill.missing_dependencies) == 0
+        missing_deps = skill.missing_dependencies if skill else execution_context.get("missing_dependencies", [])
+        no_missing_deps = len(missing_deps) == 0
         result.add_evidence(
             EvidenceTier.TIER_2_RETRIEVAL_ACTIVATION,
             "Mandatory dependencies satisfied",
             no_missing_deps,
-            details=f"Missing: {skill.missing_dependencies}" if not no_missing_deps else "All present"
+            details=f"Missing: {missing_deps}" if not no_missing_deps else "All present"
         )
 
         # Tier 4: Not AI Summary
-        is_not_summary = not skill.raw_instructions.startswith("[AI Generated Summary]")
+        is_not_summary = not raw_inst.startswith("[AI Generated Summary]")
         result.add_evidence(
             EvidenceTier.TIER_4_CONTRACT_COMPLIANCE,
             "Authoritative instructions un-summarized",

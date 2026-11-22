@@ -590,9 +590,10 @@ def test_scenario_4_mid_plan_failure_and_reverse_compensation(call_me_env):
     step2_rec = [r for r in result.step_records if r.step_id == "step-2-fetch"][0]
     assert step2_rec.status == StepExecutionStatus.FAILED
 
-    # Step 3 was never executed
+    # Step 3 was never executed (marked as SKIPPED due to upstream failure)
     step3_recs = [r for r in result.step_records if r.step_id == "step-3-process"]
-    assert len(step3_recs) == 0
+    assert len(step3_recs) == 1
+    assert step3_recs[0].status == StepExecutionStatus.SKIPPED
 
     # Invariant: Scratch directory was deprovisioned by compensation
     assert not os.path.exists(scratch_dir)
@@ -697,9 +698,9 @@ def test_scenario_4_compensation_failure_honest_reporting(call_me_env):
 # Section 2: Live Host Integration (Antigravity Subagent Delegation)
 # ============================================================================
 
-def test_live_host_subagent_delegation_lifecycle(call_me_env):
+def test_antigravity_callback_delegation_lifecycle(call_me_env, monkeypatch):
     """
-    Verifies genuine subagent delegation through AntigravitySubagentBridge:
+    Exercises the supported adapter contract with a local executor callback:
     1. Parent-child task creation with ID tracking, instructions, and constraints
     2. Parameter handoff
     3. Execution lifecycle tracking (PENDING -> RUNNING -> COMPLETED)
@@ -708,6 +709,7 @@ def test_live_host_subagent_delegation_lifecycle(call_me_env):
     """
     ctx: LCSContext = call_me_env["ctx"]
     ws = call_me_env["workspace"]
+    monkeypatch.setattr(ctx, "get_active_adapter", lambda: AntigravityAdapter(ws))
     bridge = AntigravitySubagentBridge(context=ctx, feature_flag=True)
 
     deliverable_path = os.path.join(ws, "subagent_output_report.md")
@@ -737,13 +739,14 @@ def test_live_host_subagent_delegation_lifecycle(call_me_env):
     assert result.parent_request_id == "req-root-123"
 
 
-def test_live_host_subagent_missing_deliverable_failure(call_me_env):
+def test_antigravity_callback_missing_deliverable_failure(call_me_env, monkeypatch):
     """
     Verifies that when a child subagent finishes execution but fails to produce
     its declared deliverable artifact, the bridge marks the task as FAILED.
     """
     ctx: LCSContext = call_me_env["ctx"]
     ws = call_me_env["workspace"]
+    monkeypatch.setattr(ctx, "get_active_adapter", lambda: AntigravityAdapter(ctx.config.root_dir))
     bridge = AntigravitySubagentBridge(context=ctx, feature_flag=True)
 
     missing_deliverable = os.path.join(ws, "missing_artifact_report.md")

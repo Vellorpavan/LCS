@@ -12,6 +12,7 @@ Adapter for Anthropic's Claude Code CLI environment:
 
 import os
 import sys
+import re
 import json
 import datetime
 from typing import Dict, Any, List, Optional
@@ -201,13 +202,23 @@ class ClaudeCodeAdapter(EnvironmentAdapter):
             cmd = command_name or "call-me"
             desc = description or "Invoke the Living Capability System (LCS) to orchestrate capabilities"
 
-        cmds_dir = os.path.join(real_ws, ".claude", "commands")
+        clean_cmd = cmd.strip()
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", clean_cmd):
+            raise PathTraversalSecurityError(
+                f"Invalid command name '{clean_cmd}': must contain only alphanumeric characters, dashes, or underscores."
+            )
+
+        cmds_dir = os.path.realpath(os.path.join(real_ws, ".claude", "commands"))
+        cmd_file = os.path.realpath(os.path.join(cmds_dir, f"{clean_cmd}.md"))
+        if not (cmd_file.startswith(cmds_dir + os.sep)):
+            raise PathTraversalSecurityError(
+                f"Path traversal detected in command name: '{clean_cmd}'"
+            )
         os.makedirs(cmds_dir, exist_ok=True)
-        cmd_file = os.path.join(cmds_dir, f"{cmd}.md")
 
         content = (
             "---\n"
-            f"name: {cmd}\n"
+            f"name: {clean_cmd}\n"
             f"description: \"{desc}\"\n"
             "---\n"
             f"Please run LCS orchestration for the following task: $ARGUMENTS\n"

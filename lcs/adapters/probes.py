@@ -12,7 +12,7 @@ import json
 import shutil
 import subprocess
 import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 from .base import (
     OperationalStatus,

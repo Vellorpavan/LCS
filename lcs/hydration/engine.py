@@ -66,6 +66,18 @@ class HydrationEngine:
         row = cur.fetchone()
 
         if not row:
+            name_cand = capability_urn.split(":")[-1]
+            cur.execute("""
+                SELECT artifact_id, canonical_urn, name, display_name, taxonomy_kind,
+                       environment_origin, source_path, resolved_path, is_bundle,
+                       bundle_root_path, raw_content_digest, bundle_manifest_digest,
+                       lifecycle_state, provenance_json
+                FROM artifact_discovery_records
+                WHERE name = ? LIMIT 1;
+            """, (name_cand,))
+            row = cur.fetchone()
+
+        if not row:
             raise HydrationError(f"Capability URN not registered in catalog: '{capability_urn}'")
 
         (

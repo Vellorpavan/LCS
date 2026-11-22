@@ -42,6 +42,7 @@ class EnvironmentKind(str, Enum):
     CLAUDE_CODE   = "claude_code"
     OPENCODE      = "opencode"
     GENERIC_POSIX = "generic_posix"
+    CODEX = "codex"
 
 
 class OperationalStatus(str, Enum):
@@ -124,6 +125,7 @@ class SubagentHandle:
     created_at: datetime.datetime
     environment: EnvironmentKind
     status: str
+    process: Optional[Any] = None
 
     @property
     def role(self) -> str:
@@ -407,42 +409,91 @@ class EnvironmentAdapter(ABC):
 
 class AdapterRegistry:
     """
-    Central registry for managing and resolving Environment Adapters.
+    Central registry for managing, registering, and dynamically resolving Environment Adapters.
+    Supports built-in adapters (Codex, Antigravity, Claude Code, OpenCode, Generic POSIX)
+    as well as dynamically loaded custom adapters.
     """
 
+    DEFAULT_PRECEDENCE = {
+        EnvironmentKind.CODEX: 90,
+        "codex": 90,
+        EnvironmentKind.ANTIGRAVITY: 80,
+        "antigravity": 80,
+        EnvironmentKind.CLAUDE_CODE: 70,
+        "claude_code": 70,
+        EnvironmentKind.OPENCODE: 60,
+        "opencode": 60,
+        EnvironmentKind.GENERIC_POSIX: 0,
+        "generic_posix": 0,
+    }
+
     def __init__(self):
-        self._adapters: Dict[EnvironmentKind, EnvironmentAdapter] = {}
+        self._adapters: Dict[str, EnvironmentAdapter] = {}
+        self._precedence: Dict[str, int] = {}
 
-    def register(self, adapter: EnvironmentAdapter) -> None:
-        """Registers an adapter instance for its declared environment kind."""
-        self._adapters[adapter.environment_kind] = adapter
+    def _normalize_key(self, kind: Any) -> str:
+        if hasattr(kind, "value"):
+            return str(kind.value).lower()
+        return str(kind).lower()
 
-    def get(self, kind: EnvironmentKind) -> Optional[EnvironmentAdapter]:
-        """Retrieves registered adapter by environment kind."""
-        return self._adapters.get(kind)
+    def register(self, adapter: EnvironmentAdapter, precedence: Optional[int] = None) -> None:
+        """Registers an adapter instance for its declared environment kind with optional precedence score."""
+        key = self._normalize_key(adapter.environment_kind)
+        self._adapters[key] = adapter
+
+        if precedence is not None:
+            self._precedence[key] = precedence
+        elif hasattr(adapter, "precedence") and isinstance(getattr(adapter, "precedence"), int):
+            self._precedence[key] = getattr(adapter, "precedence")
+        elif key in self.DEFAULT_PRECEDENCE:
+            self._precedence[key] = self.DEFAULT_PRECEDENCE[key]
+        elif adapter.environment_kind in self.DEFAULT_PRECEDENCE:
+            self._precedence[key] = self.DEFAULT_PRECEDENCE[adapter.environment_kind]
+        else:
+            self._precedence[key] = 50
+
+    def get(self, kind: Any) -> Optional[EnvironmentAdapter]:
+        """Retrieves registered adapter by environment kind or string key."""
+        key = self._normalize_key(kind)
+        return self._adapters.get(key)
 
     def get_active_adapter(self, workspace_root: Optional[str] = None) -> EnvironmentAdapter:
         """
-        Iterates registered adapters in precedence order and returns the first active adapter.
-        Precedence: ANTIGRAVITY -> CLAUDE_CODE -> OPENCODE -> GENERIC_POSIX (fallback).
+        Determines the active environment adapter with deterministic precedence and safe fallback:
+        1. Resolves effective workspace root (explicit argument, or from registered adapter instances, or cwd).
+        2. Evaluates detect_active(ws) on all registered non-fallback adapters.
+        3. Selects active adapter with highest precedence score (breaking ties deterministically by adapter_id).
+        4. Safe fallback: returns GENERIC_POSIX if registered.
         """
-        order = [
-            EnvironmentKind.ANTIGRAVITY,
-            EnvironmentKind.CLAUDE_CODE,
-            EnvironmentKind.OPENCODE,
-            EnvironmentKind.GENERIC_POSIX,
-        ]
-        for kind in order:
-            adapter = self._adapters.get(kind)
-            if adapter and adapter.detect_active(workspace_root):
-                return adapter
+        ws = workspace_root
+        if not ws:
+            for ad in self._adapters.values():
+                if hasattr(ad, "workspace_root") and ad.workspace_root:
+                    ws = ad.workspace_root
+                    break
+        ws = ws or os.getcwd()
 
-        # Fallback to generic POSIX if registered
-        fallback = self._adapters.get(EnvironmentKind.GENERIC_POSIX)
+        active_candidates: List[Tuple[int, str, EnvironmentAdapter]] = []
+        generic_key = self._normalize_key(EnvironmentKind.GENERIC_POSIX)
+
+        for key, adapter in self._adapters.items():
+            if key == generic_key:
+                continue
+            if adapter.detect_active(ws):
+                p_score = self._precedence.get(key, 50)
+                active_candidates.append((p_score, adapter.adapter_id, adapter))
+
+        if active_candidates:
+            active_candidates.sort(key=lambda item: (-item[0], item[1]))
+            return active_candidates[0][2]
+
+        # Step 2: Fallback to generic POSIX
+        fallback = self._adapters.get(generic_key)
         if fallback:
             return fallback
 
         raise EnvironmentUnreachableError(
+            "registry",
             "No active environment adapter found and generic POSIX fallback is not registered."
         )
 
@@ -450,11 +501,10 @@ class AdapterRegistry:
         """Convenience alias for get_active_adapter."""
         return self.get_active_adapter(workspace_root)
 
-        raise EnvironmentUnreachableError(
-            "registry",
-            f"No active adapter detected for workspace '{workspace_root}' and no fallback registered."
-        )
-
     def list_all(self) -> List[EnvironmentAdapter]:
-        """Lists all registered adapters."""
-        return list(self._adapters.values())
+        """Lists all registered adapters sorted by precedence descending."""
+        sorted_keys = sorted(
+            self._adapters.keys(),
+            key=lambda k: (-self._precedence.get(k, 0), self._adapters[k].adapter_id)
+        )
+        return [self._adapters[k] for k in sorted_keys]

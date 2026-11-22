@@ -11,6 +11,7 @@ Adapter for the open-source OpenCode manifest-driven agent harness:
 
 import os
 import sys
+import re
 import json
 import datetime
 from typing import Dict, Any, List, Optional
@@ -124,7 +125,10 @@ class OpenCodeAdapter(EnvironmentAdapter):
         try:
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            mcp_section = data.get("mcpServers") or {}
+            mcp_section = data.get("mcpServers")
+            if not mcp_section and isinstance(data.get("mcp"), dict):
+                mcp_section = data.get("mcp", {}).get("servers")
+            mcp_section = mcp_section or {}
             if isinstance(mcp_section, dict):
                 for s_id, s_conf in mcp_section.items():
                     if not isinstance(s_conf, dict):
@@ -132,11 +136,17 @@ class OpenCodeAdapter(EnvironmentAdapter):
                     cmd = s_conf.get("command")
                     if not cmd:
                         continue
+                    if isinstance(cmd, list):
+                        exec_cmd = cmd[0] if cmd else ""
+                        exec_args = cmd[1:] + s_conf.get("args", [])
+                    else:
+                        exec_cmd = cmd
+                        exec_args = s_conf.get("args", [])
                     servers.append(MCPConfigEntry(
                         server_id=f"opencode:{s_id}",
                         server_name=s_id,
-                        command=cmd,
-                        args=s_conf.get("args", []),
+                        command=exec_cmd,
+                        args=exec_args,
                         env=s_conf.get("env", {}),
                         cwd=s_conf.get("cwd") or real_ws,
                         source_file=manifest_path
@@ -181,10 +191,19 @@ class OpenCodeAdapter(EnvironmentAdapter):
             real_ws = os.path.realpath(workspace_root) if workspace_root else self.workspace_root
             cmd = command_name or "call-me"
 
-        clean_cmd = cmd.lstrip("/")
-        cmds_dir = os.path.join(real_ws, ".opencode", "commands")
+        clean_cmd = cmd.lstrip("/").strip()
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", clean_cmd):
+            raise PathTraversalSecurityError(
+                f"Invalid command name '{clean_cmd}': must contain only alphanumeric characters, dashes, or underscores."
+            )
+
+        cmds_dir = os.path.realpath(os.path.join(real_ws, ".opencode", "commands"))
+        cmd_file = os.path.realpath(os.path.join(cmds_dir, f"{clean_cmd}.md"))
+        if not (cmd_file.startswith(cmds_dir + os.sep)):
+            raise PathTraversalSecurityError(
+                f"Path traversal detected in command name: '{clean_cmd}'"
+            )
         os.makedirs(cmds_dir, exist_ok=True)
-        cmd_file = os.path.join(cmds_dir, f"{clean_cmd}.md")
 
         with open(cmd_file, "w", encoding="utf-8") as f:
             f.write(f"# Command: {clean_cmd}\nExecute LCS capability orchestration.\n")
