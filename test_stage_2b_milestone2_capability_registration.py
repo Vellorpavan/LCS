@@ -29,6 +29,8 @@ import sqlite3
 import tempfile
 from typing import Dict, Any
 
+SAFE_TMP_DIR = "/private/tmp" if os.path.isdir("/private/tmp") else tempfile.gettempdir()
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
@@ -183,7 +185,7 @@ def test_03_deterministic_serialization():
 
 def test_04_valid_registration_and_cas_ingestion():
     print("--- Test 04: Valid Registration and CAS Ingestion ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -233,7 +235,7 @@ def test_04_valid_registration_and_cas_ingestion():
 
 def test_05_duplicate_registration_behavior():
     print("--- Test 05: Duplicate Registration Behavior ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -291,7 +293,7 @@ def test_05_duplicate_registration_behavior():
 
 def test_06_retrieval_and_byte_equality():
     print("--- Test 06: Retrieval and Byte-for-Byte Equality ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -331,7 +333,7 @@ def test_06_retrieval_and_byte_equality():
 
 def test_07_missing_cas_content_rejection():
     print("--- Test 07: Missing CAS Content Rejection (No Silent Repair) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -360,7 +362,7 @@ def test_07_missing_cas_content_rejection():
 
 def test_08_corrupted_cas_content_rejection():
     print("--- Test 08: Corrupted CAS Content Rejection (No Silent Corruption) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -395,7 +397,7 @@ def test_08_corrupted_cas_content_rejection():
 
 def test_09_mismatched_db_reference_defense():
     print("--- Test 09: Mismatched Database Reference Defense ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")
@@ -431,7 +433,7 @@ def test_09_mismatched_db_reference_defense():
 
 def test_10_persistence_across_engine_restart():
     print("--- Test 10: Persistence Across Engine Restart ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs.db")

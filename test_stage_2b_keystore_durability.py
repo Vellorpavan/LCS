@@ -29,6 +29,8 @@ import tempfile
 import multiprocessing
 from typing import Dict, Any
 
+SAFE_TMP_DIR = "/private/tmp" if os.path.isdir("/private/tmp") else tempfile.gettempdir()
+
 # Ensure local stage_2b modules are imported
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -95,7 +97,7 @@ def _worker_concurrent_rotate(key_store_dir: str, worker_id: int):
 
 def test_01_crash_before_atomic_replacement():
     print("--- Test 01: Crash Before Atomic Replacement ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks_initial = PersistentReceiptKeyStore(ks_dir)
         assert ks_initial.active_key_id == "k1"
@@ -118,7 +120,7 @@ def test_01_crash_before_atomic_replacement():
 
 def test_02_crash_after_replacement_before_directory_sync():
     print("--- Test 02: Crash After Replacement Before Directory Sync ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks_initial = PersistentReceiptKeyStore(ks_dir)
         assert ks_initial.active_key_id == "k1"
@@ -142,7 +144,7 @@ def test_02_crash_after_replacement_before_directory_sync():
 
 def test_03_injected_directory_sync_failure_and_fail_closed():
     print("--- Test 03: Injected Directory Sync Failure & Fail-Closed Behavior ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         assert ks.active_key_id == "k1"
@@ -175,7 +177,7 @@ def test_03_injected_directory_sync_failure_and_fail_closed():
 
 def test_04_signing_suspension_recovery():
     print("--- Test 04: Signing Suspension Recovery ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         
@@ -201,7 +203,7 @@ def test_04_signing_suspension_recovery():
 
 def test_05_historical_receipt_verification_multigeneration():
     print("--- Test 05: Multi-Generation Historical Receipt Verification ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "receipts.db")
@@ -253,7 +255,7 @@ def test_05_historical_receipt_verification_multigeneration():
 
 def test_06_concurrent_key_rotations():
     print("--- Test 06: Concurrent Key Rotations Serialized via flock ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         
@@ -278,7 +280,7 @@ def test_06_concurrent_key_rotations():
 
 def test_07_safe_stale_temporary_file_cleanup():
     print("--- Test 07: Safe Stale Temporary-File Cleanup ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         
@@ -316,7 +318,7 @@ def test_07_safe_stale_temporary_file_cleanup():
 
 def test_08_key_ring_corruption_and_symlink_rejection():
     print("--- Test 08: Key Ring Corruption & Symlink Rejection ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         key_file = os.path.join(ks_dir, "key_ring.json")
@@ -371,7 +373,7 @@ def test_08_key_ring_corruption_and_symlink_rejection():
 
 def test_09_complete_structural_and_semantic_validation():
     print("--- Test 09: Complete Structural and Semantic Validation ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         key_file = os.path.join(ks_dir, "key_ring.json")
@@ -400,7 +402,7 @@ def test_09_complete_structural_and_semantic_validation():
 
 def test_10_darwin_fullfsync_and_fallback():
     print("--- Test 10: Darwin F_FULLFSYNC and Fallback Hierarchy ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         

@@ -19,6 +19,8 @@ import tempfile
 import multiprocessing
 from typing import Dict, Any
 
+SAFE_TMP_DIR = "/private/tmp" if os.path.isdir("/private/tmp") else tempfile.gettempdir()
+
 from cas_storage_engine_v2b import (
     SecureCASStorageEngine,
     CASSecurityViolationError,
@@ -87,7 +89,7 @@ def worker_boundary_d_crash(
 
 def test_01_multiprocess_boundary_a_crash():
     print("--- Test 01: Real Multi-Process Crash at Boundary A (Before Physical Unlink) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_a.db")
@@ -153,7 +155,7 @@ def test_01_multiprocess_boundary_a_crash():
 
 def test_02_multiprocess_boundary_b_crash():
     print("--- Test 02: Real Multi-Process Crash at Boundary B (After Unlink, Before Dir Sync) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_b.db")
@@ -215,7 +217,7 @@ def test_02_multiprocess_boundary_b_crash():
 
 def test_03_multiprocess_boundary_c_crash():
     print("--- Test 03: Real Multi-Process Crash at Boundary C (After Sync, Before DB Commit) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_c.db")
@@ -285,7 +287,7 @@ def test_03_multiprocess_boundary_c_crash():
 
 def test_04_multiprocess_boundary_d_batch_crash():
     print("--- Test 04: Real Multi-Process Crash at Boundary D (During Batch Recovery) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_d.db")
@@ -347,7 +349,7 @@ def test_04_multiprocess_boundary_d_batch_crash():
 
 def test_05_persistent_key_lifecycle_and_rotation_across_restarts():
     print("--- Test 05: Persistent Key Lifecycle & Rotation Across Restarts ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_keys.db")
