@@ -152,8 +152,8 @@ def test_02_truthful_live_vs_protocol_agent_execution_audit(stage5_env):
     ws = stage5_env["ws"]
 
     # 1. OpenCode check
-    opencode_bin = "/Users/pavan/.opencode/bin/opencode"
-    if os.path.isfile(opencode_bin) and os.access(opencode_bin, os.X_OK):
+    opencode_bin = shutil.which("opencode") or os.path.expanduser("~/.opencode/bin/opencode")
+    if opencode_bin and os.path.isfile(opencode_bin) and os.access(opencode_bin, os.X_OK):
         # OpenCode is live installed
         res = subprocess.run([opencode_bin, "--version"], capture_output=True, text=True, timeout=5)
         assert res.returncode == 0

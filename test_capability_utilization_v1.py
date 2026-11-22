@@ -61,8 +61,9 @@ from lcs.adapters import ContentIntegrityMismatchError
 
 
 @pytest.fixture
-def utilization_env():
+def utilization_env(monkeypatch):
     """Sets up an isolated LCSContext in a real temporary workspace."""
+    monkeypatch.setenv("ANTIGRAVITY_AGENT", "1")
     raw_dir = tempfile.mkdtemp(prefix="lcs_utilization_test_")
     real_dir = os.path.realpath(raw_dir)
 

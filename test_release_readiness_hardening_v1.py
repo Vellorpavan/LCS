@@ -57,8 +57,9 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.fixture
-def hardening_env():
+def hardening_env(monkeypatch):
     """Sets up an isolated LCSContext in a temporary directory."""
+    monkeypatch.setenv("ANTIGRAVITY_AGENT", "1")
     raw_dir = tempfile.mkdtemp(prefix="lcs_task012_hardening_")
     real_dir = os.path.realpath(raw_dir)
     ws_dir = os.path.join(real_dir, "workspace")

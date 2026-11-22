@@ -475,6 +475,12 @@ def test_fresh_shell_executable_resolution_regression(test_workspace, monkeypatc
     assert shutil.which("python3", path=clean_path) is not None
     assert shutil.which("lcs", path=clean_path) is None
 
+    # Seed a minimal test skill so call-me matches in the isolated workspace
+    skill_dir = os.path.join(ws, ".agents", "skills", "test_query_skill")
+    os.makedirs(skill_dir, exist_ok=True)
+    with open(os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8") as f:
+        f.write("---\nname: test_query_skill\ndescription: Test task query execution handler\n---\n# Test Query Skill\n")
+
     # The shell snippet from the generated slash command
     task_arg = "Test task query"
     cmd_to_run = f'command -v lcs >/dev/null 2>&1 && lcs call-me --handoff -- "{task_arg}" || python3 -m lcs.cli call-me --handoff -- "{task_arg}"'
