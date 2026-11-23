@@ -164,8 +164,8 @@ def test_multibranch_fan_out_and_fan_in_orchestration(clean_context):
 
     assert res.lifecycle_state.value == "SUCCEEDED"
     assert res.completed_steps == 3
-    # Step 1 and Step 2 run in parallel; total time is far less than sequential
-    assert duration < 1.35
+    # Step 1 and Step 2 run in parallel; total execution bounded reasonably across platforms
+    assert duration < 30.0
 
     # Artifact handoff verification
     assert os.path.exists(path_c)
@@ -173,7 +173,7 @@ def test_multibranch_fan_out_and_fan_in_orchestration(clean_context):
         content = f.read().strip()
     assert content == "PAYLOAD_A+PAYLOAD_B"
 
-    # SQLite persistence verification
+    # SQLite persistence and deterministic concurrency verification
     cur = ctx.execution_engine.conn.cursor()
     cur.execute("SELECT lifecycle_state, completed_steps FROM execution_runs WHERE run_id = ?", (res.run_id,))
     row = cur.fetchone()
@@ -181,11 +181,20 @@ def test_multibranch_fan_out_and_fan_in_orchestration(clean_context):
     assert row[0] == "SUCCEEDED"
     assert row[1] == 3
 
-    cur.execute("SELECT step_id, status FROM execution_step_records WHERE run_id = ? ORDER BY step_index", (res.run_id,))
+    cur.execute("SELECT step_id, status, start_time, end_time FROM execution_step_records WHERE run_id = ? ORDER BY step_index", (res.run_id,))
     step_rows = cur.fetchall()
     assert len(step_rows) == 3
-    for s_id, s_status in step_rows:
+    for s_id, s_status, _, _ in step_rows:
         assert s_status == "COMPLETED"
+
+    step_times = {r[0]: (r[2], r[3]) for r in step_rows}
+    s1_start, s1_end = step_times["step-1-worker-a"]
+    s2_start, s2_end = step_times["step-2-worker-b"]
+    s3_start, s3_end = step_times["step-3-worker-c"]
+    # Parallel branches execute concurrently (overlapping execution intervals)
+    assert s1_start < s2_end and s2_start < s1_end, f"Branches did not execute concurrently: s1=({s1_start}, {s1_end}), s2=({s2_start}, {s2_end})"
+    # Fan-in aggregation step starts only after BOTH upstream branches finish
+    assert s3_start >= max(s1_end, s2_end), f"Fan-in step started before dependencies finished: s3_start={s3_start}, max_end={max(s1_end, s2_end)}"
 
     # CAS trace verification
     assert res.trace_cas_digest is not None
