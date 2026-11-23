@@ -33,6 +33,8 @@ import datetime
 import subprocess
 import threading
 import queue
+import urllib.parse
+import urllib.request
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Tuple, Set, Union
@@ -261,22 +263,198 @@ def ensure_execution_engine_schema(conn: sqlite3.Connection) -> None:
 class PathSecurityValidator:
     """
     Validates filesystem parameters to prevent path traversal, symlink escapes,
-    and access outside authorized workspace / discovery roots.
+    and access outside authorized workspace / discovery roots across Windows, macOS, and Linux.
+
+    CRITICAL ARCHITECTURAL DISTINCTION:
+    Argument-level path validation enforces logical boundary confinement on capability
+    parameters at the governance and planning layer. It confirms that bound path arguments
+    and deliverable targets stay within explicitly authorized workspace roots.
+    Argument validation is NOT equivalent to operating-system kernel-level sandbox isolation
+    (e.g., Linux namespaces/seccomp, Windows AppContainer, or macOS sandbox-exec).
+    Host adapters and process supervisors should combine this validator with OS-level isolation
+    where untrusted arbitrary binaries are executed.
     """
 
+    EXCLUDED_PREFIXES = (
+        "http://", "https://", "ftp://", "ftps://", "ssh://",
+        "ws://", "wss://", "git://", "sftp://", "urn:", "mailto:", "tel:"
+    )
+
+    NON_PATH_PARAM_NAMES = (
+        "branch", "git_ref", "ref", "model", "model_name",
+        "content_type", "mime_type", "format", "query", "sql",
+        "command", "cmd", "url", "endpoint"
+    )
+
+    @classmethod
+    def is_path_parameter(cls, val: Any, param_name: str = "", param_type: str = "") -> bool:
+        """
+        Determines whether a parameter value should be validated as a filesystem path.
+        Prioritizes explicit parameter types from validated schemas (schema-first precedence),
+        with carefully constrained structural fallback to prevent false positives on URLs,
+        ordinary text, command arguments, JSON strings, and identifiers containing slashes.
+        """
+        if not isinstance(val, str):
+            return False
+        stripped = val.strip()
+        if not stripped:
+            return False
+
+        p_name_l = (param_name or "").lower()
+        p_type_l = (param_type or "").lower()
+
+        # Rule 1: Explicit parameter type (Primary / Schema-First Precedence, per LCS specification)
+        # If the capability schema explicitly declares this parameter to be a path/file/dir/workspace/folder,
+        # it MUST be evaluated as a path parameter. Heuristic guards (such as URL or JSON filters)
+        # must NOT allow bypassing validation on explicit path types.
+        if any(tok in p_type_l for tok in ("path", "file", "dir", "workspace", "folder")):
+            return True
+
+        # Guards for untyped, string-typed, or generic parameters:
+        # Guard 0: Exclude multiline strings from heuristic path matching
+        if "\n" in stripped:
+            return False
+
+        # Guard 1: Exclude known non-filesystem URI schemes and URNs
+        val_lower = stripped.lower()
+        if any(val_lower.startswith(prefix) for prefix in cls.EXCLUDED_PREFIXES):
+            return False
+
+        # Guard 2: Exclude JSON objects and arrays
+        if (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]")):
+            return False
+
+        # Guard 3: Explicitly non-path parameter names
+        if any(p_name_l == np or f"{np}_" in p_name_l or f"_{np}" in p_name_l for np in cls.NON_PATH_PARAM_NAMES):
+            return False
+
+        # Rule 2: Explicit parameter name indicating a filesystem destination/source
+        if any(tok in p_name_l for tok in (
+            "path", "file", "filepath", "dir", "directory", "folder", "deliverable", "script"
+        )):
+            return True
+        if any(tok in p_name_l for tok in ("target", "dest", "destination", "output", "source", "src", "input")):
+            # Ensure it is not a generic data/content/summary parameter like input_data, summary_data, output_format
+            if not any(dt in p_name_l for dt in ("data", "content", "format", "type", "value", "val", "text", "query", "json", "body", "summary")):
+                return True
+
+        # Rule 3: Constrained structural path syntax fallback (Heuristic / Anti-Bypass Protection)
+        # Windows drive-absolute or drive-relative (e.g. C:\... or C:...)
+        if len(stripped) >= 2 and stripped[1] == ":" and stripped[0].isalpha():
+            return True
+        # POSIX absolute path or Windows UNC/device namespace
+        if stripped.startswith(("/", "\\\\", "//")):
+            return True
+        # Relative traversal or explicit relative directory
+        if stripped.startswith(("./", ".\\", "../", "..\\")):
+            return True
+        if "/../" in stripped or "\\..\\" in stripped or stripped.endswith(("/..", "\\..")) or stripped == "..":
+            return True
+        # Home directory expansion
+        if stripped.startswith(("~/", "~\\")) or stripped == "~":
+            return True
+        # Relative file path with directory separator, extension, and no spaces
+        if ("/" in stripped or "\\" in stripped) and " " not in stripped and bool(os.path.splitext(stripped)[1]):
+            return True
+
+        return False
+
     @staticmethod
-    def validate_file_path(path: str, authorized_roots: List[str]) -> str:
+    def validate_file_path(path: str, authorized_roots: List[str], base_dir: Optional[str] = None) -> str:
         """
-        Confirms path is confined within one of authorized_roots and does not escape via symlink.
-        Returns the resolved realpath.
+        Confirms path is confined within one of authorized_roots and does not escape via symlink
+        or junction. Handles Windows drive-absolute, drive-relative, UNC, rooted, and mixed-separator
+        paths, as well as nonexistent output targets.
+        Returns the resolved canonical realpath.
         """
-        norm_roots = [os.path.realpath(r) for r in authorized_roots if os.path.exists(r)]
+        if not path or not isinstance(path, str):
+            raise PathTraversalExecutionError("Path must be a non-empty string.")
+
+        # 1. Reject forbidden control characters and newlines
+        if any(c in path for c in ("\n", "\r", "\0", "\t")):
+            raise PathTraversalExecutionError(f"Filesystem path contains forbidden newline or control characters: {path!r}")
+
+        # 2. Reject JSON formatted structures passed as paths
+        stripped_p = path.strip()
+        if (stripped_p.startswith("{") and stripped_p.endswith("}")) or (stripped_p.startswith("[") and stripped_p.endswith("]")):
+            raise PathTraversalExecutionError(f"JSON formatted string is not a valid filesystem path: {path!r}")
+
+        # 3. Handle file:// URIs or reject remote network/non-filesystem URI schemes
+        p_lower = stripped_p.lower()
+        if p_lower.startswith("file://"):
+            parsed = urllib.parse.urlparse(stripped_p)
+            extracted = urllib.request.url2pathname(parsed.path)
+            if sys.platform == "win32" and extracted.startswith("/") and len(extracted) >= 3 and extracted[2] == ":":
+                extracted = extracted[1:]
+            elif len(extracted) >= 4 and extracted.startswith(("/", "\\")) and extracted[2] == ":" and extracted[1].isalpha():
+                extracted = extracted[1:]
+            path = extracted
+            stripped_p = path.strip()
+            p_lower = stripped_p.lower()
+        elif any(p_lower.startswith(prefix) for prefix in (
+            "http://", "https://", "ftp://", "ftps://", "ssh://",
+            "ws://", "wss://", "git://", "sftp://", "urn:", "mailto:", "tel:"
+        )):
+            scheme = stripped_p.split(":", 1)[0]
+            raise PathTraversalExecutionError(f"URI scheme '{scheme}' is not an authorized local filesystem path: {path!r}")
+
+        # 4. Reject Windows raw device namespaces (\\.\, \\?\, //./, //?/)
+        if path.startswith(("\\\\.\\", "\\\\?\\", "//./", "//?/")):
+            raise PathTraversalExecutionError(f"Raw device namespace paths are rejected: {path!r}")
+
+        # 5. Reject Windows drive-relative paths (e.g. C:foo\bar) on any OS
+        if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+            rest = path[2:]
+            if not (rest.startswith("\\") or rest.startswith("/")):
+                raise PathTraversalExecutionError(f"Ambiguous drive-relative path rejected: {path!r}")
+
+        # 6. Reject Windows NTFS Alternate Data Streams (colon in path after drive letter)
+        colon_check = path[2:] if (len(path) >= 2 and path[1] == ":" and path[0].isalpha()) else path
+        if ":" in colon_check:
+            raise PathTraversalExecutionError(f"NTFS Alternate Data Stream (ADS) path syntax rejected: {path!r}")
+
+        # 7. Reject Windows reserved DOS device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        base_name = os.path.splitext(os.path.basename(path.replace("\\", "/")))[0].upper()
+        if base_name in ("CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"):
+            raise PathTraversalExecutionError(f"Windows reserved DOS device name rejected: {path!r}")
+
+        # 8. Reject UNC paths unless authorized roots explicitly include UNC roots
+        if path.startswith(("\\\\", "//")):
+            if not any(r.startswith(("\\\\", "//")) for r in (authorized_roots or [])):
+                raise PathTraversalExecutionError(f"UNC path outside authorized roots rejected: {path!r}")
+
+        # 9. Normalize authorized roots (strict fail-closed if empty or invalid)
+        norm_roots = [os.path.realpath(r) for r in (authorized_roots or []) if r and os.path.exists(r)]
         if not norm_roots:
-            norm_roots = [os.path.realpath(os.getcwd())]
+            raise PathTraversalExecutionError(f"No valid authorized roots provided: {authorized_roots}")
 
-        resolved = os.path.realpath(path)
+        # Normalize mixed separators on POSIX if backslashes are present
+        norm_input = path.replace("\\", "/") if sys.platform != "win32" and "\\" in path else path
 
-        # 1. Path confinement check
+        # 10. Resolve candidate path against base_dir if relative
+        drive = norm_input[:2] if (len(norm_input) >= 2 and norm_input[1] == ":" and norm_input[0].isalpha()) else ""
+        if drive or os.path.isabs(norm_input) or norm_input.startswith(("/", "\\")):
+            candidate = norm_input
+        else:
+            anchor = base_dir or norm_roots[0]
+            candidate = os.path.join(anchor, norm_input)
+
+        # 11. Symlink / Junction verification if candidate is a symlink (Symlink & TOCTOU Defense)
+        if os.path.islink(candidate):
+            nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
+            if nofollow_flag:
+                try:
+                    fd = os.open(candidate, os.O_RDONLY | nofollow_flag | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0))
+                    os.close(fd)
+                except OSError as e:
+                    if e.errno in (getattr(errno, "ELOOP", 62), 62):
+                        raise PathTraversalExecutionError(f"Symlink rejected by O_NOFOLLOW: '{path}'")
+                    raise
+            else:
+                raise PathTraversalExecutionError(f"Symlink or junction rejected: '{path}'")
+
+        # 12. Confinement check across authorized roots using canonical realpath
+        resolved = os.path.realpath(candidate)
         confined = False
         for root in norm_roots:
             try:
@@ -284,23 +462,19 @@ class PathSecurityValidator:
                     confined = True
                     break
             except ValueError:
-                continue
+                pass
+            if sys.platform == "win32":
+                try:
+                    if os.path.commonpath([os.path.normcase(resolved), os.path.normcase(root)]) == os.path.normcase(root):
+                        confined = True
+                        break
+                except ValueError:
+                    pass
 
         if not confined:
             raise PathTraversalExecutionError(
                 f"Path '{path}' (resolved: '{resolved}') escapes authorized roots: {norm_roots}"
             )
-
-        # 2. Symlink rejection if file exists
-        if os.path.exists(path) and os.path.islink(path):
-            # Check descriptor-level safety
-            try:
-                fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0))
-                os.close(fd)
-            except OSError as e:
-                if e.errno in (errno.ELOOP, 62):
-                    raise PathTraversalExecutionError(f"Symlink rejected by O_NOFOLLOW: '{path}'")
-                raise
 
         return resolved
 
@@ -1173,13 +1347,15 @@ class ExecutionEngineV1:
                             break
 
                         if val is not None:
-                            if isinstance(val, str) and (val.startswith("/") or val.startswith("./") or ".." in val):
-                                if os.path.exists(val) or val.startswith("/"):
-                                    try:
-                                        val = PathSecurityValidator.validate_file_path(val, [self.workspace_root])
-                                    except PathTraversalExecutionError as pe:
-                                        unresolved_err = str(pe)
-                                        break
+                            p_type = getattr(binding, "param_type", "") if not isinstance(binding, dict) else (binding.get("type") or binding.get("param_type") or "")
+                            if isinstance(val, str) and PathSecurityValidator.is_path_parameter(val, p_name, p_type):
+                                try:
+                                    validated_path = PathSecurityValidator.validate_file_path(val, [self.workspace_root], base_dir=self.workspace_root)
+                                    if os.path.isabs(val) or val.startswith(("/", "\\")) or (len(val) >= 2 and val[1] == ":" and val[0].isalpha()):
+                                        val = validated_path
+                                except PathTraversalExecutionError as pe:
+                                    unresolved_err = str(pe)
+                                    break
                             resolved_args[p_name] = val
 
                     if unresolved_err:
