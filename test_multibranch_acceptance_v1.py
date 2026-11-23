@@ -589,4 +589,100 @@ def test_genuine_antigravity_specialist_subagent_invocation(clean_context, monke
     assert res.provenance["subagent_id"].startswith("subagent-antigravity-")
 
 
+def test_semantic_phase_ordering_and_dependency_gating(clean_context):
+    """
+    Verifies that LCSCoreBridge enforces semantic phase ordering and dependency gating:
+    Phase 0 (components/services) -> Phase 1 (assembly/aggregation) -> Phase 2 (verification/testing),
+    even when candidates and instructions are provided in reverse or arbitrary order.
+    """
+    ctx = clean_context
+    ws = ctx.config.root_dir
+
+    script_telemetry = os.path.join(ws, "telemetry_svc.py")
+    script_health = os.path.join(ws, "health_svc.py")
+    script_assembly = os.path.join(ws, "app_assembly.py")
+    script_verify = os.path.join(ws, "verify_suite.py")
+
+    with open(script_telemetry, "w") as f:
+        f.write("import json\nprint(json.dumps({'result': 'TELEMETRY_READY'}))\n")
+    with open(script_health, "w") as f:
+        f.write("import json\nprint(json.dumps({'result': 'HEALTH_READY'}))\n")
+    with open(script_assembly, "w") as f:
+        f.write("import json\nprint(json.dumps({'result': 'APP_ASSEMBLED'}))\n")
+    with open(script_verify, "w") as f:
+        f.write("import json\nprint(json.dumps({'result': 'VERIFIED_OK'}))\n")
+
+    caps = [
+        ("urn:lcs:skill:test:verify-suite", "Run Verification Tests", script_verify),
+        ("urn:lcs:skill:test:app-assembly", "Assemble Application Runner", script_assembly),
+        ("urn:lcs:skill:test:telemetry-svc", "Scaffold Telemetry Service", script_telemetry),
+        ("urn:lcs:skill:test:health-svc", "Build Health Monitoring Service", script_health),
+    ]
+
+    for urn, name, scr in caps:
+        scr_hash = hashlib.sha256(open(scr, "rb").read()).hexdigest()
+        rec = UnifiedResourceRecord(
+            urn=urn,
+            name=name,
+            resource_type=ResourceType.SKILL,
+            display_name=name,
+            description=f"Performs {name}",
+            raw_content=open(scr).read(),
+            raw_content_digest=scr_hash,
+            provenance=ProvenanceRecord(
+                origin_host="generic_posix",
+                precedence_tier="WORKSPACE",
+                source_path=scr,
+                resolved_path=scr,
+                content_hash=scr_hash
+            )
+        )
+        ctx.inventory._persist_and_bind_capability(rec)
+
+    bridge = LCSCoreBridge(context=ctx)
+    req = TaskRequest(
+        request_id="req-phase-order-01",
+        session_id="sess-phase",
+        original_instruction="Run verification tests, assemble application runner, scaffold telemetry service, and build health monitoring service",
+        normalized_task_description="Run verification tests, assemble application runner, scaffold telemetry service, and build health monitoring service"
+    )
+
+    consent = ApproverConsent("operator@test", ApproverRole.SECURITY_OFFICER, "PHASE_TEST")
+    policy = InterfaceTrustPolicy("phase-policy", min_interface_version=1, require_attestation=False, require_all_capabilities_verified=False)
+
+    exec_res = bridge.execute_task_pipeline(
+        request=req,
+        candidate_urns=[c[0] for c in caps],
+        approver_consent=consent,
+        active_policy=policy
+    )
+
+    assert exec_res["status"] == "SUCCEEDED"
+    assert exec_res["total_steps"] == 4
+    assert exec_res["completed_steps"] == 4
+
+    step_records = exec_res["step_records"]
+    assert len(step_records) == 4
+
+    # Verify semantic phase order: components first, then assembly, then verification last
+    executed_urns = [s["capability_urn"] for s in step_records]
+    assert executed_urns[0] in ("urn:lcs:skill:test:telemetry-svc", "urn:lcs:skill:test:health-svc")
+    assert executed_urns[1] in ("urn:lcs:skill:test:telemetry-svc", "urn:lcs:skill:test:health-svc")
+    assert executed_urns[2] == "urn:lcs:skill:test:app-assembly"
+    assert executed_urns[3] == "urn:lcs:skill:test:verify-suite"
+
+    # Verify DAG edge wiring: assembly (step 3) depends on steps 1 and 2, verification (step 4) depends on step 3
+    dag_edges = exec_res["dag_edges"]
+    step_ids = [s["step_id"] for s in step_records]
+    s1_id, s2_id, s3_id, s4_id = step_ids[0], step_ids[1], step_ids[2], step_ids[3]
+
+    edge_sources_to_s3 = [src for src, dst, _, _ in dag_edges if dst == s3_id]
+    assert s1_id in edge_sources_to_s3
+    assert s2_id in edge_sources_to_s3
+
+    edge_sources_to_s4 = [src for src, dst, _, _ in dag_edges if dst == s4_id]
+    assert s3_id in edge_sources_to_s4
+
+
+
 

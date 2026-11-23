@@ -113,6 +113,17 @@ class UnifiedCapabilityInventory:
         # 1. Ingest existing records from SQLite catalog
         self._load_from_sqlite_catalog()
 
+        # 1b. Ingest packaged starter skills if available
+        starter_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "starter_skills"))
+        if os.path.isdir(starter_dir):
+            starter_root = CapabilityRoot(
+                root_path=starter_dir,
+                precedence_tier="SYSTEM",
+                origin="system",
+                is_writable=False
+            )
+            self._scan_capability_root(starter_root, "system")
+
         # 2. Ingest from Host Adapters if provided
         if adapters:
             for adapter in adapters:

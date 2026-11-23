@@ -39,6 +39,30 @@ from ..execution import ExecutionLifecycleState
 logger = logging.getLogger("lcs.interface.bridge")
 
 
+def _semantic_phase_rank(urn: str, cap: Any = None) -> int:
+    """
+    Ranks capabilities into architectural execution phases:
+      Phase 0: Components, Models, Scaffolding, Workers, Services (independent / fan-out)
+      Phase 1: Assembly, Integration, Pipeline, Composition, Runner (fan-in / aggregator)
+      Phase 2: Verification, Testing, QA, Audit, Linter, Security (validation gate)
+    """
+    ident = urn.split(":")[-1].lower() if ":" in urn else urn.lower()
+    text = (
+        ident + " " +
+        (getattr(cap, "name", "") or "") + " " +
+        (getattr(cap, "display_name", "") or "") + " " +
+        (getattr(cap, "description", "") or "")
+    ).lower()
+
+    if any(k in text for k in ("verify", "verification", "audit", "qa", "lint", "benchmark", "validate", "eval", "test-runner", "tests", "test_")):
+        return 2
+    if re.search(r'\btest\b', text) and not any(k in text for k in ("telemetry", "health", "scaffold", "service", "worker", "build", "create")):
+        return 2
+    if any(k in text for k in ("assemble", "assembly", "integrate", "integration", "gateway", "orchestrat", "compose", "join", "aggregate")):
+        return 1
+    return 0
+
+
 class LCSCoreBridge:
     """
     Coordinates the handoff of a TaskRequest into LCS Core intelligence subsystems.
@@ -395,6 +419,17 @@ class LCSCoreBridge:
         if not executable_order and candidate_urns:
             executable_order = [candidate_urns[0]]
 
+        # Check if dep_graph contains any explicit dependencies between executable capabilities
+        has_cross_cap_deps = any(
+            any(dep in executable_order for dep in deps)
+            for urn, deps in dep_graph.adjacency.items()
+            if urn in executable_order
+        ) if dep_graph else False
+
+        # Ensure semantic phase ordering when no explicit cross-capability graph dependencies are declared
+        if not has_cross_cap_deps:
+            executable_order.sort(key=lambda u: _semantic_phase_rank(u, next((c for c in hydrated_caps if c.capability_urn == u), None)))
+
         # Quota constraint: ensure total steps does not exceed governance quota ceiling (10)
         exec_order = executable_order[:8]
 
@@ -403,7 +438,7 @@ class LCSCoreBridge:
         dag_edges: List[Tuple[str, str, str, str]] = []
         clean_desc = (request.normalized_task_description or request.original_instruction or "").strip().lower()
         is_explicitly_sequential = bool(re.search(r'\b(?:and\s+then|then|followed\s+by|afterwards|and\s+finally)\b|[;]', clean_desc))
-        is_multi_branch = len(exec_order) >= 3 and (not is_explicitly_sequential) and (not dep_graph or not any(dep_graph.adjacency.values()))
+        is_multi_branch = len(exec_order) >= 3 and (not is_explicitly_sequential) and (not has_cross_cap_deps)
 
         for idx, urn in enumerate(exec_order, start=1):
             cap = next((c for c in hydrated_caps if c.capability_urn == urn), None)
@@ -427,7 +462,21 @@ class LCSCoreBridge:
 
             if not step_deps:
                 if is_multi_branch:
-                    if idx == 1:
+                    cur_rank = _semantic_phase_rank(urn, cap)
+                    if cur_rank == 0 and idx <= 2:
+                        step_deps = []
+                    elif cur_rank == 1:
+                        # Assembly step depends on all preceding phase 0 steps
+                        phase0_steps = [s.step_id for s in steps if _semantic_phase_rank(s.capability_urn, next((c for c in hydrated_caps if c.capability_urn == s.capability_urn), None)) == 0]
+                        step_deps = phase0_steps if phase0_steps else [steps[-1].step_id]
+                    elif cur_rank == 2:
+                        # Verification step depends on preceding step (e.g. assembly or join node)
+                        phase1_steps = [s.step_id for s in steps if _semantic_phase_rank(s.capability_urn, next((c for c in hydrated_caps if c.capability_urn == s.capability_urn), None)) == 1]
+                        if phase1_steps:
+                            step_deps = [phase1_steps[-1]]
+                        elif len(steps) > 0:
+                            step_deps = [s.step_id for s in steps]
+                    elif idx == 1:
                         step_deps = []
                     elif idx == 2:
                         step_deps = []
@@ -466,8 +515,8 @@ class LCSCoreBridge:
                 )
                 if len(step_deps) > 1:
                     secondary_dep = step_deps[1]
-                    input_bindings["secondary_input"] = StepInputBinding(
-                        param_name="secondary_input",
+                    input_bindings["secondary_input_data"] = StepInputBinding(
+                        param_name="secondary_input_data",
                         param_type="string",
                         required=False,
                         source_type=BindingSourceType.STEP_OUTPUT,
@@ -563,6 +612,7 @@ class LCSCoreBridge:
             "completed_steps": exec_result.completed_steps,
             "trace_cas_digest": exec_result.trace_cas_digest,
             "capabilities_used": [s.capability_urn for s in steps[:exec_result.completed_steps]],
+            "dag_edges": plan.dag_edges,
             "step_records": step_summary,
             "error_message": exec_result.error_message
         }

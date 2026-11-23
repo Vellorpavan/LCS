@@ -66,6 +66,12 @@ With **LCS v3.2.0**, developers can install LCS **once** on their computer and u
 5. **Native Cross-Platform Concurrency Parity**:
    - Genuine cross-process file locking on POSIX (`fcntl.flock`) and Windows (`kernel32.LockFileEx`).
    - Secure Windows-native filesystem descriptor emulation and process tree lifecycle termination.
+6. **Out-of-the-Box Starter Capability Catalog**:
+   - Packaged starter capabilities (`python-scaffold`, `telemetry-service`, `health-monitor`, `app-assembly`, `test-runner`) for immediate application generation, monitoring, assembly, and test verification without custom fixtures.
+7. **Semantic Phase Scheduling & Dependency Gating**:
+   - Deterministic topological ordering guaranteeing components/services (Phase 0) run prior to assembly/aggregation (Phase 1), which run prior to verification/testing (Phase 2), with full concurrent fan-out/fan-in parallelism.
+8. **Specialist Subagent Delegation & Verification Receipts**:
+   - Seamless dispatch of specialist subagents in supported host environments (e.g. Antigravity), capturing cryptographic task provenance, child conversation tracking, and output verification gates.
 
 ---
 
@@ -169,7 +175,14 @@ In supported agent interfaces (Antigravity, OpenCode, Claude Code):
 ### 2. Standalone CLI Execution
 Execute an explicit handoff from the terminal:
 ```bash
+# Hand off matched skill instructions to coding host
 lcs call-me --handoff -- "Ingest telemetry logs and export report"
+
+# Direct multi-capability DAG execution in clean terminal environment
+lcs call-me --execute "Scaffold SQLite telemetry service, build health check service, and run verification tests" --format-json
+
+# Slash command syntax supported directly from CLI
+lcs call-me "/call-me Scaffold SQLite telemetry service and run verification tests" --execute
 ```
 
 ### 3. Python API Integration
@@ -295,4 +308,4 @@ LCS runs automated CI testing across all supported operating systems and Python 
 - **Contributing**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, development setup, and PR requirements.
 - **Code of Conduct**: Community interaction guidelines are detailed in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 - **Security Policy**: For vulnerability reporting and security invariants, see [SECURITY.md](SECURITY.md).
-- **License**: Pending maintainer license finalization (see Stage 7 recommendation).
+- **License**: MIT License (see `pyproject.toml`). Copyright holder pending operator confirmation.
