@@ -21,6 +21,7 @@ Strict Invariants:
 
 import os
 import sys
+import re
 import time
 import json
 import uuid
@@ -265,14 +266,21 @@ class PathSecurityValidator:
     Validates filesystem parameters to prevent path traversal, symlink escapes,
     and access outside authorized workspace / discovery roots across Windows, macOS, and Linux.
 
-    CRITICAL ARCHITECTURAL DISTINCTION:
+    CRITICAL ARCHITECTURAL DISTINCTION & SECURITY BOUNDARY:
     Argument-level path validation enforces logical boundary confinement on capability
     parameters at the governance and planning layer. It confirms that bound path arguments
     and deliverable targets stay within explicitly authorized workspace roots.
-    Argument validation is NOT equivalent to operating-system kernel-level sandbox isolation
-    (e.g., Linux namespaces/seccomp, Windows AppContainer, or macOS sandbox-exec).
-    Host adapters and process supervisors should combine this validator with OS-level isolation
-    where untrusted arbitrary binaries are executed.
+
+    SECURITY BOUNDARY LIMITATION (UNTYPED COMMAND-LINE ARGUMENTS):
+    PathSecurityValidator validates filesystem path parameters and embedded path arguments
+    (--key=value) where a capability parameter is explicitly or structurally identifiable
+    as a filesystem target. It does NOT and CANNOT claim that arbitrary untyped shell,
+    CLI, or subprocess arguments (such as flags, subcommands, env vars, or shell pipelines)
+    are fully sandboxed. Arbitrary argument validation at the application layer is NOT
+    equivalent to operating-system kernel-level sandbox isolation (e.g., Linux namespaces/seccomp,
+    Windows AppContainer, or macOS sandbox-exec). Host adapters and process supervisors
+    must enforce OS-level sandboxing, process group containment, and argument allowlists
+    where untrusted arbitrary command binaries are executed.
     """
 
     EXCLUDED_PREFIXES = (
@@ -280,11 +288,29 @@ class PathSecurityValidator:
         "ws://", "wss://", "git://", "sftp://", "urn:", "mailto:", "tel:"
     )
 
-    NON_PATH_PARAM_NAMES = (
-        "branch", "git_ref", "ref", "model", "model_name",
-        "content_type", "mime_type", "format", "query", "sql",
-        "command", "cmd", "url", "endpoint"
-    )
+    NON_PATH_PARAM_TOKENS = {
+        "branch", "git_ref", "ref", "tag", "model", "model_name", "engine",
+        "content_type", "mime_type", "media_type", "format", "query", "sql",
+        "command", "cmd", "url", "endpoint", "repo", "repository", "description",
+        "desc", "prompt", "message", "text", "body", "title", "label", "id",
+        "identifier", "name", "type", "kind", "category", "status", "version",
+        "args", "cli_options", "flags", "options", "headers", "token", "payload"
+    }
+
+    PATH_NAME_TOKENS = {
+        "path", "file", "filepath", "dir", "directory", "folder",
+        "deliverable", "script", "workspace"
+    }
+
+    TARGET_NAME_TOKENS = {
+        "target", "dest", "destination", "output", "source", "src", "input"
+    }
+
+    DATA_FILTER_TOKENS = {
+        "data", "content", "format", "type", "value", "val", "text",
+        "query", "json", "body", "summary", "description", "id", "name",
+        "token", "payload", "message"
+    }
 
     @classmethod
     def is_path_parameter(cls, val: Any, param_name: str = "", param_type: str = "") -> bool:
@@ -300,7 +326,6 @@ class PathSecurityValidator:
         if not stripped:
             return False
 
-        p_name_l = (param_name or "").lower()
         p_type_l = (param_type or "").lower()
 
         # Rule 1: Explicit parameter type (Primary / Schema-First Precedence, per LCS specification)
@@ -312,30 +337,43 @@ class PathSecurityValidator:
 
         # Guards for untyped, string-typed, or generic parameters:
         # Guard 0: Exclude multiline strings from heuristic path matching
-        if "\n" in stripped:
+        if "\n" in stripped or "\r" in stripped:
             return False
 
-        # Guard 1: Exclude known non-filesystem URI schemes and URNs
+        # Guard 1: Exclude command line flags or arguments (e.g. --config=..., -f)
+        if stripped.startswith("-"):
+            return False
+
+        # Guard 2: Exclude known non-filesystem URI schemes, URNs, and SCP-style git URLs
         val_lower = stripped.lower()
-        if any(val_lower.startswith(prefix) for prefix in cls.EXCLUDED_PREFIXES):
+        if any(val_lower.startswith(prefix) for prefix in cls.EXCLUDED_PREFIXES) or val_lower.startswith("git@"):
             return False
 
-        # Guard 2: Exclude JSON objects and arrays
+        # Guard 3: Exclude JSON objects and arrays
         if (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]")):
             return False
 
-        # Guard 3: Explicitly non-path parameter names
-        if any(p_name_l == np or f"{np}_" in p_name_l or f"_{np}" in p_name_l for np in cls.NON_PATH_PARAM_NAMES):
+        # Tokenize parameter name (splitting camelCase, snake_case, and non-alphanumeric delimiters)
+        name_tokens = set(re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", param_name).lower()))
+
+        # Guard 4: Explicitly non-path parameter names (unless overridden by an explicit path token)
+        if (name_tokens & cls.NON_PATH_PARAM_TOKENS) and not (name_tokens & cls.PATH_NAME_TOKENS):
             return False
 
-        # Rule 2: Explicit parameter name indicating a filesystem destination/source
-        if any(tok in p_name_l for tok in (
-            "path", "file", "filepath", "dir", "directory", "folder", "deliverable", "script"
+        # Guard 5: Exclude well-known identifier namespaces containing slashes when not explicitly typed as path
+        if any(val_lower.startswith(prefix) for prefix in (
+            "application/", "text/", "image/", "audio/", "video/", "multipart/", "font/",
+            "refs/heads/", "refs/tags/", "refs/remotes/", "models/", "model/"
         )):
+            if not (name_tokens & cls.PATH_NAME_TOKENS):
+                return False
+
+        # Rule 2: Explicit parameter name indicating a filesystem destination/source
+        if name_tokens & cls.PATH_NAME_TOKENS:
             return True
-        if any(tok in p_name_l for tok in ("target", "dest", "destination", "output", "source", "src", "input")):
+        if name_tokens & cls.TARGET_NAME_TOKENS:
             # Ensure it is not a generic data/content/summary parameter like input_data, summary_data, output_format
-            if not any(dt in p_name_l for dt in ("data", "content", "format", "type", "value", "val", "text", "query", "json", "body", "summary")):
+            if not (name_tokens & cls.DATA_FILTER_TOKENS):
                 return True
 
         # Rule 3: Constrained structural path syntax fallback (Heuristic / Anti-Bypass Protection)
@@ -379,14 +417,35 @@ class PathSecurityValidator:
         if (stripped_p.startswith("{") and stripped_p.endswith("}")) or (stripped_p.startswith("[") and stripped_p.endswith("]")):
             raise PathTraversalExecutionError(f"JSON formatted string is not a valid filesystem path: {path!r}")
 
+        # 2b. Validate embedded paths in CLI argument syntax (e.g. --config=/etc/shadow, -o/etc/passwd)
+        if stripped_p.startswith("-"):
+            embedded_cand = None
+            if "=" in stripped_p:
+                embedded_cand = stripped_p.split("=", 1)[1].strip()
+            elif len(stripped_p) >= 3 and stripped_p[1].isalpha() and stripped_p[2] in ("/", "\\"):
+                embedded_cand = stripped_p[2:].strip()
+            if embedded_cand:
+                # Recursively validate embedded target against authorized roots
+                resolved_embedded = PathSecurityValidator.validate_file_path(embedded_cand, authorized_roots, base_dir=base_dir)
+                if "=" in stripped_p:
+                    flag_prefix = stripped_p.split("=", 1)[0]
+                    return f"{flag_prefix}={resolved_embedded}"
+                return f"-{stripped_p[1]}{resolved_embedded}"
+            raise PathTraversalExecutionError(f"CLI flag argument without valid path target is rejected: {path!r}")
+
         # 3. Handle file:// URIs or reject remote network/non-filesystem URI schemes
         p_lower = stripped_p.lower()
         if p_lower.startswith("file://"):
             parsed = urllib.parse.urlparse(stripped_p)
+            netloc = parsed.netloc.strip()
+            # Reject remote authority or malformed file URI
+            if netloc and netloc.lower() != "localhost":
+                raise PathTraversalExecutionError(f"Invalid or unauthorized file URI authority: {path!r}")
             extracted = urllib.request.url2pathname(parsed.path)
-            if sys.platform == "win32" and extracted.startswith("/") and len(extracted) >= 3 and extracted[2] == ":":
-                extracted = extracted[1:]
-            elif len(extracted) >= 4 and extracted.startswith(("/", "\\")) and extracted[2] == ":" and extracted[1].isalpha():
+            if not extracted or extracted in ("/", "\\"):
+                raise PathTraversalExecutionError(f"Malformed or root file URI path rejected: {path!r}")
+            # Normalize Windows drive letter: /C:/... or \C:\... -> C:/...
+            if len(extracted) >= 3 and extracted[0] in ("/", "\\") and extracted[2] == ":" and extracted[1].isalpha():
                 extracted = extracted[1:]
             path = extracted
             stripped_p = path.strip()

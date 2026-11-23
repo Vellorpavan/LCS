@@ -14,6 +14,7 @@ import sys
 import json
 import hashlib
 import tempfile
+import pathlib
 import pytest
 
 from lcs.config import LCSConfig
@@ -104,7 +105,8 @@ def test_symlink_escape_rejected(isolated_security_env):
     # Realpath resolves outside ws_a, must be rejected
     with pytest.raises(PathTraversalExecutionError) as exc_info:
         PathSecurityValidator.validate_file_path(link_inside_a, [ws_a])
-    assert "escapes authorized roots" in str(exc_info.value) or "Symlink rejected" in str(exc_info.value)
+    err = str(exc_info.value).lower()
+    assert "escapes authorized roots" in err or "symlink" in err or "junction" in err
 
 
 def test_directory_symlink_traversal_rejected(isolated_security_env):
@@ -323,11 +325,12 @@ def test_is_path_parameter_classification():
     assert PathSecurityValidator.is_path_parameter("something", "param", "filepath")
 
     # False positive protection (Definite non-paths)
-    # 1. URLs and endpoints
+    # 1. URLs, endpoints, and SCP-style clone URLs
     assert not PathSecurityValidator.is_path_parameter("https://api.github.com/v1/repos", "url", "string")
     assert not PathSecurityValidator.is_path_parameter("http://localhost:8080/metrics", "endpoint", "string")
     assert not PathSecurityValidator.is_path_parameter("ftp://files.example.com/pub", "download_url", "string")
     assert not PathSecurityValidator.is_path_parameter("ws://socket.example.com/v1", "socket", "string")
+    assert not PathSecurityValidator.is_path_parameter("git@github.com:owner/repo.git", "repo", "string")
 
     # 2. JSON data structures
     assert not PathSecurityValidator.is_path_parameter('{"key": "val/with/slash"}', "config", "string")
@@ -337,20 +340,35 @@ def test_is_path_parameter_classification():
     assert not PathSecurityValidator.is_path_parameter("urn:lcs:skill:test/run", "id", "string")
     assert not PathSecurityValidator.is_path_parameter("mailto:user/dept@example.com", "contact", "string")
 
-    # 4. MIME types and content formats
+    # 4. MIME types, media types, and content formats
     assert not PathSecurityValidator.is_path_parameter("application/json", "content_type", "string")
+    assert not PathSecurityValidator.is_path_parameter("application/vnd.api+json", "content_type", "string")
+    assert not PathSecurityValidator.is_path_parameter("application/vnd.api+json", "mime_type", "string")
+    assert not PathSecurityValidator.is_path_parameter("application/vnd.api+json", "media_type", "string")
+    assert not PathSecurityValidator.is_path_parameter("application/vnd.api+json", "type", "string")
     assert not PathSecurityValidator.is_path_parameter("text/html", "mime_type", "string")
 
-    # 5. Git branches, model names, and generic slash-separated identifiers
+    # 5. Git branches, tags, model names, and generic slash-separated identifiers
     assert not PathSecurityValidator.is_path_parameter("refs/heads/feature/login", "branch", "string")
+    assert not PathSecurityValidator.is_path_parameter("refs/tags/v1.0.0", "tag", "string")
     assert not PathSecurityValidator.is_path_parameter("google/gemini-1.5-pro", "model", "string")
+    assert not PathSecurityValidator.is_path_parameter("models/gemini-1.5-flash", "model_name", "string")
+    assert not PathSecurityValidator.is_path_parameter("models/gemini-1.5-flash", "engine", "string")
 
     # 6. Natural language prose and mathematical/query expressions
     assert not PathSecurityValidator.is_path_parameter("Pass/Fail decision needed", "comment", "string")
+    assert not PathSecurityValidator.is_path_parameter("This is ordinary text with a slash/like this.", "description", "string")
+    assert not PathSecurityValidator.is_path_parameter("Another sentence/with slash", "summary", "string")
+    assert not PathSecurityValidator.is_path_parameter("Some note/with/slashes", "notes", "string")
     assert not PathSecurityValidator.is_path_parameter("SELECT a/b FROM table", "query", "string")
     assert not PathSecurityValidator.is_path_parameter("line 1\nline 2/with/slash", "text", "string")
 
-    # 7. Generic non-path values
+    # 7. Command arguments and CLI options
+    assert not PathSecurityValidator.is_path_parameter("--config=/etc/nginx.conf", "args", "string")
+    assert not PathSecurityValidator.is_path_parameter("--filter=test/unit.py", "cli_options", "string")
+    assert not PathSecurityValidator.is_path_parameter("-o/tmp/out.txt", "flags", "string")
+
+    # 8. Generic non-path values
     assert not PathSecurityValidator.is_path_parameter("AUDIT", "role", "string")
     assert not PathSecurityValidator.is_path_parameter("hello world", "message", "string")
     assert not PathSecurityValidator.is_path_parameter("search query for users", "query", "string")
@@ -569,10 +587,14 @@ def test_explicit_path_type_with_multiline_value_rejected(isolated_security_env)
 
 
 def test_file_uri_scheme_handling_and_confinement(isolated_security_env):
-    """
+    r"""
     Tests handling of file:// URIs:
-    - In-workspace file:// URIs resolve to authorized canonical paths.
+    - In-workspace file:// URIs generated via pathlib.Path.as_uri() resolve to authorized canonical paths.
     - Out-of-workspace file:// URIs are rejected.
+    - Malformed or ambiguous file URIs (e.g. file://C:\... or file://C:/...) are rejected.
+    - Unauthorized remote authorities (e.g. file://remote-server/share/...) are rejected.
+    - Encoded traversal attempts (e.g. %2e%2e) cannot bypass confinement.
+    - Nonexistent output targets via file:// URI within workspace succeed.
     """
     ws_a = isolated_security_env["ws_a"]
     ws_b = isolated_security_env["ws_b"]
@@ -585,16 +607,40 @@ def test_file_uri_scheme_handling_and_confinement(isolated_security_env):
     with open(external_file, "w") as f:
         f.write("SECRET")
 
-    # In-workspace file:// URI succeeds
-    valid_uri = f"file://{local_file}"
+    # 1. In-workspace file:// URI succeeds via standard pathlib as_uri()
+    valid_uri = pathlib.Path(local_file).as_uri()
     resolved = PathSecurityValidator.validate_file_path(valid_uri, [ws_a], base_dir=ws_a)
     assert resolved == os.path.realpath(local_file)
 
-    # Out-of-workspace file:// URI fails
-    evil_uri = f"file://{external_file}"
+    # 2. Out-of-workspace file:// URI fails
+    evil_uri = pathlib.Path(external_file).as_uri()
     with pytest.raises(PathTraversalExecutionError) as exc_info:
         PathSecurityValidator.validate_file_path(evil_uri, [ws_a], base_dir=ws_a)
-    assert "escapes authorized roots" in str(exc_info.value)
+    assert "escapes authorized roots" in str(exc_info.value).lower()
+
+    # 3. Malformed/ambiguous file URIs (file://C:\... and file://C:/...)
+    for malformed in ["file://C:\\workspace\\doc.txt", "file://C:/workspace/doc.txt", "file://"]:
+        with pytest.raises(PathTraversalExecutionError) as exc_info:
+            PathSecurityValidator.validate_file_path(malformed, [ws_a], base_dir=ws_a)
+        assert any(t in str(exc_info.value).lower() for t in ("unauthorized file uri", "malformed", "escapes authorized roots"))
+
+    # 4. Unauthorized remote authority
+    remote_uri = "file://remote-server/share/file.txt"
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path(remote_uri, [ws_a], base_dir=ws_a)
+    assert any(t in str(exc_info.value).lower() for t in ("unauthorized file uri", "authority"))
+
+    # 5. Encoded traversal cannot bypass confinement (%2e%2e)
+    encoded_uri = f"{valid_uri}/%2e%2e/%2e%2e/stolen_secret.txt"
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path(encoded_uri, [ws_a], base_dir=ws_a)
+    assert "escapes authorized roots" in str(exc_info.value).lower()
+
+    # 6. Nonexistent output destination via file:// URI within workspace succeeds
+    nonexistent_file = os.path.join(ws_a, "nonexistent_output.txt")
+    nonexistent_uri = pathlib.Path(nonexistent_file).as_uri()
+    resolved_out = PathSecurityValidator.validate_file_path(nonexistent_uri, [ws_a], base_dir=ws_a)
+    assert resolved_out == os.path.realpath(nonexistent_file)
 
 
 def test_ntfs_alternate_data_streams_rejected(isolated_security_env):
@@ -643,6 +689,69 @@ def test_symlink_toctou_rejection_at_validator(isolated_security_env):
     # Symlink within workspace should be rejected by O_NOFOLLOW / symlink check
     with pytest.raises(PathTraversalExecutionError) as exc_info:
         PathSecurityValidator.validate_file_path(link_file, [ws_a], base_dir=ws_a)
-    assert "Symlink rejected" in str(exc_info.value) or "escapes authorized roots" in str(exc_info.value)
+    err = str(exc_info.value).lower()
+    assert "symlink" in err or "junction" in err or "escapes authorized roots" in err
+
+
+def test_camel_and_snake_case_parameter_name_classification():
+    """
+    Verifies accurate path classification for camelCase and snake_case parameter names:
+    - outputFile
+    - filePath
+    - destinationPath
+    - input_file
+    - output_target
+    """
+    case_tests = [
+        ("outputFile", "report.pdf"),
+        ("filePath", "docs/index.md"),
+        ("destinationPath", "dist/bundle.js"),
+        ("input_file", "src/main.py"),
+        ("output_target", "build/output.bin"),
+    ]
+    for param_name, sample_val in case_tests:
+        assert PathSecurityValidator.is_path_parameter(sample_val, param_name, "string") is True, f"Failed for {param_name}"
+
+
+def test_explicit_path_typed_embedded_cli_arguments_validation(isolated_security_env):
+    """
+    Verifies that explicit path-typed parameters cannot bypass validation by passing
+    embedded CLI arguments (--key=value or -o/path).
+    - Embedded paths targeting outside the workspace fail closed.
+    - Bare flags without valid paths fail closed.
+    - Embedded paths within the workspace resolve to canonical paths.
+    """
+    ws_a = isolated_security_env["ws_a"]
+
+    # 1. Classification check: Schema-first precedence treats explicit path type as path
+    assert PathSecurityValidator.is_path_parameter("--config=/etc/shadow", "config_file", "path") is True
+    assert PathSecurityValidator.is_path_parameter("-o/etc/passwd", "output_file", "filepath") is True
+
+    # 2. Out-of-workspace embedded target is rejected
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path("--config=/etc/shadow", [ws_a], base_dir=ws_a)
+    assert "escapes authorized roots" in str(exc_info.value).lower()
+
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path("--output=../../evil.txt", [ws_a], base_dir=ws_a)
+    assert "escapes authorized roots" in str(exc_info.value).lower()
+
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path("-o/etc/passwd", [ws_a], base_dir=ws_a)
+    assert "escapes authorized roots" in str(exc_info.value).lower()
+
+    # 3. Bare CLI flags without path target are rejected
+    with pytest.raises(PathTraversalExecutionError) as exc_info:
+        PathSecurityValidator.validate_file_path("--verbose", [ws_a], base_dir=ws_a)
+    assert "cli flag argument" in str(exc_info.value).lower()
+
+    # 4. In-workspace embedded target succeeds and returns sanitized flag with canonical path
+    local_doc = os.path.join(ws_a, "valid_config.json")
+    with open(local_doc, "w") as f:
+        f.write("{}")
+
+    res = PathSecurityValidator.validate_file_path(f"--config={local_doc}", [ws_a], base_dir=ws_a)
+    assert res == f"--config={os.path.realpath(local_doc)}"
+
 
 
