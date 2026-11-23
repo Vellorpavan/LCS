@@ -1268,10 +1268,33 @@ class ExecutionEngineV1:
         # Incorporate explicit DAG edges
         if hasattr(plan, "dag_edges") and plan.dag_edges:
             for edge in plan.dag_edges:
-                if isinstance(edge, (list, tuple)) and len(edge) == 2:
-                    src, dst = edge
-                    if dst in step_prereqs and src in step_map:
+                if isinstance(edge, (list, tuple)):
+                    if len(edge) not in (2, 4):
+                        raise PreflightVerificationError(f"Malformed DAG edge: expected 2-tuple or canonical 4-tuple, got {edge}")
+                    src, dst = edge[0], edge[1]
+                    if not isinstance(src, str) or not isinstance(dst, str):
+                        raise PreflightVerificationError(f"Malformed DAG edge: step identifiers must be strings, got ({src}, {dst})")
+                    if src not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge: upstream step '{src}' does not exist in plan")
+                    if dst not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge: downstream step '{dst}' does not exist in plan")
+                    if src == dst:
+                        raise PreflightVerificationError(f"Malformed DAG edge: circular self-dependency on step '{src}'")
+                    if dst in step_prereqs:
                         step_prereqs[dst].add(src)
+                elif isinstance(edge, dict):
+                    src = edge.get("upstream") or edge.get("src")
+                    dst = edge.get("downstream") or edge.get("dst")
+                    if not src or not dst or not isinstance(src, str) or not isinstance(dst, str):
+                        raise PreflightVerificationError(f"Malformed DAG edge dictionary: {edge}")
+                    if src not in step_map or dst not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge dictionary: unknown step in {edge}")
+                    if src == dst:
+                        raise PreflightVerificationError(f"Malformed DAG edge: circular self-dependency on step '{src}'")
+                    if dst in step_prereqs:
+                        step_prereqs[dst].add(src)
+                else:
+                    raise PreflightVerificationError(f"Malformed DAG edge: expected tuple, list, or dict, got {type(edge).__name__}")
 
         pending_step_ids = set(step_map.keys())
         completed_step_ids: Set[str] = set()

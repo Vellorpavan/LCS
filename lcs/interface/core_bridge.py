@@ -305,8 +305,33 @@ class LCSCoreBridge:
             query = request.normalized_task_description
             clean_q = query.strip().lower()
 
-            # Check if query has multiple sub-intents (e.g. 'and then', 'then', ';', 'followed by')
-            sub_queries = [p.strip() for p in re.split(r'\b(?:and\s+then|then|followed\s+by)\b|[;]', clean_q) if len(p.strip()) > 3]
+            # Multi-intent decomposition:
+            # 1. Split on explicit sequencing boundaries (e.g. 'and then', 'then', 'followed by', ';')
+            seq_splits = [p.strip() for p in re.split(r'\b(?:and\s+then|then|followed\s+by|afterwards|and\s+finally)\b|[;]', clean_q) if len(p.strip()) > 2]
+
+            action_verbs = {
+                'build', 'create', 'scaffold', 'setup', 'test', 'verify', 'fix', 'repair',
+                'lint', 'audit', 'deploy', 'run', 'execute', 'inspect', 'check', 'generate',
+                'compile', 'analyze', 'review', 'format', 'ship', 'benchmark', 'diagnose',
+                'validate', 'document', 'publish', 'resolve', 'clean', 'refactor'
+            }
+
+            sub_queries = []
+            for chunk in seq_splits:
+                comma_parts = [p.strip() for p in re.split(r',\s*(?:and\s+)?', chunk) if len(p.strip()) > 2]
+                if len(comma_parts) > 1:
+                    # Distinguish action clauses from noun lists like 'React, Vite, and Tailwind'
+                    action_parts = []
+                    for part in comma_parts:
+                        words = part.lower().split()
+                        has_action = any(w in action_verbs for w in words[:3])
+                        action_parts.append((part, has_action))
+                    if sum(1 for _, has in action_parts if has) >= 2:
+                        sub_queries.extend([p for p, _ in action_parts])
+                    else:
+                        sub_queries.append(chunk)
+                else:
+                    sub_queries.append(chunk)
 
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
                 if self.ctx.inventory.total_count == 0 and hasattr(self.ctx, "adapter_registry"):
@@ -322,8 +347,9 @@ class LCSCoreBridge:
                                 selected.append(m.urn)
                                 break
                     candidate_urns = selected
-                else:
-                    # Single intent: select the top matching capability
+
+                if not candidate_urns:
+                    # Single intent or fallback: select the top matching capability
                     matches = self.ctx.inventory.search(query, limit=10)
                     filtered = [m.urn for m in matches if not m.urn.endswith(":call-me") and self._is_capability_compatible_with_host(m.urn, active_host)]
                     candidate_urns = filtered[:1] if filtered else []
@@ -374,6 +400,11 @@ class LCSCoreBridge:
 
         # 4. Synthesize Multi-Step Execution Plan with Dynamic I/O Bindings
         steps: List[PlanStep] = []
+        dag_edges: List[Tuple[str, str, str, str]] = []
+        clean_desc = (request.normalized_task_description or request.original_instruction or "").strip().lower()
+        is_explicitly_sequential = bool(re.search(r'\b(?:and\s+then|then|followed\s+by|afterwards|and\s+finally)\b|[;]', clean_desc))
+        is_multi_branch = len(exec_order) >= 3 and (not is_explicitly_sequential) and (not dep_graph or not any(dep_graph.adjacency.values()))
+
         for idx, urn in enumerate(exec_order, start=1):
             cap = next((c for c in hydrated_caps if c.capability_urn == urn), None)
             step_id = f"step-{idx}-{cap.name if cap else 'task'}"
@@ -385,27 +416,8 @@ class LCSCoreBridge:
                     if k in ("deliverable", "deliverable_path", "deliverable_file", "output_file", "target_file", "expected_deliverable", "expected_deliverables"):
                         if is_primary_or_final:
                             input_bindings[k] = StepInputBinding(param_name=k, param_type="string", required=False, bound_value=v)
-                    elif idx == 1:
+                    elif idx == 1 or (is_multi_branch and idx == 2):
                         input_bindings[k] = StepInputBinding(param_name=k, param_type="string", required=False, bound_value=v)
-
-            if idx > 1:
-                prev_step_id = steps[-1].step_id
-                input_bindings["input_data"] = StepInputBinding(
-                    param_name="input_data",
-                    param_type="string",
-                    required=False,
-                    source_type=BindingSourceType.STEP_OUTPUT,
-                    source_step_id=prev_step_id,
-                    source_output_field="result"
-                )
-                input_bindings["previous_result"] = StepInputBinding(
-                    param_name="previous_result",
-                    param_type="string",
-                    required=False,
-                    source_type=BindingSourceType.STEP_OUTPUT,
-                    source_step_id=prev_step_id,
-                    source_output_field="result"
-                )
 
             # Resolve prerequisites for step
             step_deps: List[str] = []
@@ -413,8 +425,63 @@ class LCSCoreBridge:
                 dep_urns = dep_graph.adjacency[urn]
                 step_deps = [s.step_id for s in steps if s.capability_urn in dep_urns]
 
-            if not step_deps and idx > 1:
-                step_deps = [steps[-1].step_id]
+            if not step_deps:
+                if is_multi_branch:
+                    if idx == 1:
+                        step_deps = []
+                    elif idx == 2:
+                        step_deps = []
+                    elif idx == 3:
+                        if len(exec_order) == 3:
+                            step_deps = [steps[0].step_id, steps[1].step_id]
+                        else:
+                            step_deps = [steps[0].step_id]
+                    elif idx == 4:
+                        step_deps = [steps[1].step_id, steps[2].step_id]
+                    else:
+                        step_deps = [steps[-1].step_id]
+                elif idx > 1:
+                    step_deps = [steps[-1].step_id]
+
+            if step_deps:
+                for dep_id in step_deps:
+                    dag_edges.append((dep_id, step_id, "OUTPUT_TO_INPUT", f"Prerequisite {dep_id}"))
+
+                primary_dep = step_deps[0]
+                input_bindings["input_data"] = StepInputBinding(
+                    param_name="input_data",
+                    param_type="string",
+                    required=False,
+                    source_type=BindingSourceType.STEP_OUTPUT,
+                    source_step_id=primary_dep,
+                    source_output_field="result"
+                )
+                input_bindings["previous_result"] = StepInputBinding(
+                    param_name="previous_result",
+                    param_type="string",
+                    required=False,
+                    source_type=BindingSourceType.STEP_OUTPUT,
+                    source_step_id=primary_dep,
+                    source_output_field="result"
+                )
+                if len(step_deps) > 1:
+                    secondary_dep = step_deps[1]
+                    input_bindings["secondary_input"] = StepInputBinding(
+                        param_name="secondary_input",
+                        param_type="string",
+                        required=False,
+                        source_type=BindingSourceType.STEP_OUTPUT,
+                        source_step_id=secondary_dep,
+                        source_output_field="result"
+                    )
+                    input_bindings["branch_b_result"] = StepInputBinding(
+                        param_name="branch_b_result",
+                        param_type="string",
+                        required=False,
+                        source_type=BindingSourceType.STEP_OUTPUT,
+                        source_step_id=secondary_dep,
+                        source_output_field="result"
+                    )
 
             step = PlanStep(
                 step_id=step_id,
@@ -439,7 +506,7 @@ class LCSCoreBridge:
             plan_type="MULTI_CAPABILITY" if len(steps) > 1 else "SINGLE_CAPABILITY",
             status="PLAN_READY",
             steps=steps,
-            dag_edges=[],
+            dag_edges=dag_edges,
             execution_order=[s.step_id for s in steps],
             missing_inputs=[],
             clarifying_questions=[],
