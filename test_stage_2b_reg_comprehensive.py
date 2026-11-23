@@ -791,8 +791,12 @@ def test_04_digest_finalization_transaction_safety_and_locking():
         assert res[1] == canon_hash
         assert res[2] == src_hash
         
+        cur1.close()
+        cur2.close()
         conn1.close()
         conn2.close()
+        del cur1, cur2, conn1, conn2
+        import gc; gc.collect()
         print("PASS: Test 04 passed - Digest finalization transaction safety and locking verified.\n")
 
 def test_05_finalized_snapshot_immutability_attack_matrix():

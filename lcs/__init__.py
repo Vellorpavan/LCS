@@ -4,7 +4,12 @@ Living Capability System (LCS)
 Canonical Stage 2B Implementation: Milestones 1–4 Integrated.
 """
 
-__version__ = "3.0.1"
+__version__ = "3.2.0rc1"
+
+import sys
+if sys.platform == "win32":
+    from .locking import install_windows_fcntl_shim
+    install_windows_fcntl_shim()
 
 from .config import LCSConfig
 from .context import LCSContext
@@ -70,6 +75,41 @@ from .skills import (
     UnifiedRetrievalCandidate,
     SkillIntelligenceServiceV1
 )
+from .hydration import (
+    ResourceUtilizationState,
+    AuxiliaryFileRecord,
+    DependencyReference,
+    HydratedCapability,
+    HydrationEngine,
+    HydrationError,
+)
+from .dependencies import (
+    ResourceType,
+    DependencyType as ResourceDependencyType,
+    DependencyNode,
+    DependencyEdge,
+    DependencyGraph,
+    DependencyError,
+    CircularDependencyError,
+    MissingDependencyError,
+    DependencyResolver,
+)
+from .verification import (
+    VerificationState,
+    EvidenceTier,
+    EvidenceRecord,
+    VerificationResult,
+    UnifiedResourceVerifier,
+)
+from .subagents import (
+    SubagentTaskState,
+    SubagentTask,
+    SubagentExecutionResult,
+    AntigravitySubagentBridge,
+    SubagentBridgeError,
+    UnsupportedSubagentEnvironmentError,
+    SubagentTimeoutError,
+)
 from .execution import (
     ExecutionLifecycleState,
     StepExecutionStatus,
@@ -94,6 +134,18 @@ from .execution import (
 from .migrations import MigrationManager
 from .mcp_server import LCSMCPServer, run_mcp_server
 from .dashboard import run_dashboard
+from .inventory import (
+    ResourceType as UnifiedResourceType,
+    OperationalLifecycleState,
+    ExecutionRequirement,
+    ProvenanceRecord,
+    UnifiedResourceRecord,
+    ConflictRecord,
+    DeepRetrievalResult,
+    ContextTransferPayload,
+    UnifiedCapabilityInventory,
+    DeepCapabilityRetriever,
+)
 
 __all__ = [
     "LCSConfig",
@@ -183,5 +235,42 @@ __all__ = [
     "ExecutionEngineV1",
     "ensure_execution_engine_schema",
     "MigrationManager",
+    "ResourceUtilizationState",
+    "AuxiliaryFileRecord",
+    "DependencyReference",
+    "HydratedCapability",
+    "HydrationEngine",
+    "HydrationError",
+    "ResourceType",
+    "ResourceDependencyType",
+    "DependencyNode",
+    "DependencyEdge",
+    "DependencyGraph",
+    "DependencyError",
+    "CircularDependencyError",
+    "MissingDependencyError",
+    "DependencyResolver",
+    "VerificationState",
+    "EvidenceTier",
+    "EvidenceRecord",
+    "VerificationResult",
+    "UnifiedResourceVerifier",
+    "SubagentTaskState",
+    "SubagentTask",
+    "SubagentExecutionResult",
+    "AntigravitySubagentBridge",
+    "SubagentBridgeError",
+    "UnsupportedSubagentEnvironmentError",
+    "SubagentTimeoutError",
+    "UnifiedResourceType",
+    "OperationalLifecycleState",
+    "ExecutionRequirement",
+    "ProvenanceRecord",
+    "UnifiedResourceRecord",
+    "ConflictRecord",
+    "DeepRetrievalResult",
+    "ContextTransferPayload",
+    "UnifiedCapabilityInventory",
+    "DeepCapabilityRetriever",
 ]
 

@@ -46,7 +46,7 @@ def test_01_coordinated_multi_publisher_same_digest_barrier():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cas_root = os.path.join(tmp_dir, "cas")
         db_path = os.path.join(tmp_dir, "barrier.db")
-        init_db(db_path)
+        init_db(db_path).close()
         
         payload = b"Synchronized concurrent multi-publisher payload for Stage 2A.26"
         digest = hashlib.sha256(payload).hexdigest()
@@ -205,7 +205,7 @@ def test_03_paused_publisher_past_expiry_and_physical_deletion():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cas_root = os.path.join(tmp_dir, "cas")
         db_path = os.path.join(tmp_dir, "paused.db")
-        init_db(db_path)
+        init_db(db_path).close()
         
         payload = b"Orphaned payload from stalled publisher past lease expiry"
         digest = hashlib.sha256(payload).hexdigest()
@@ -454,7 +454,7 @@ def test_06_exact_gc_committed_unlink_interleaving_with_barrier():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cas_root = os.path.join(tmp_dir, "cas")
         db_path = os.path.join(tmp_dir, "gc_interleaving.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=os.path.realpath(tmp_dir))
         
         payload = b"Payload for exact GC committed-for-unlink race verification"
@@ -642,7 +642,7 @@ def test_07_gc_committed_for_unlink_unconditional_blocking_past_expiry():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cas_root = os.path.join(tmp_dir, "cas")
         db_path = os.path.join(tmp_dir, "gc_expiry_lock.db")
-        init_db(db_path)
+        init_db(db_path).close()
         engine = SecureCASStorageEngine(cas_root, trusted_anchor=os.path.realpath(tmp_dir))
         
         payload = b"Payload testing unconditional blocking past reservation expiry"

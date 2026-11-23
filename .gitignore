@@ -30,6 +30,11 @@ htmlcov/
 *.db
 *.sqlite
 audit/
+keys/
+.lcs_keys/
+*.key
+key_ring.json
+.key_ring.json.tmp.*
 
 # Environment / IDE
 .env

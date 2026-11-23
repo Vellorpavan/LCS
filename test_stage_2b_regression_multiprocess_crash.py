@@ -10,6 +10,14 @@ and ensures no in-process exception catching masks crash boundary defects.
 
 import os
 import sys
+
+repo_root = os.path.abspath(os.path.dirname(__file__))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+cur_pp = os.environ.get("PYTHONPATH", "")
+if repo_root not in cur_pp:
+    os.environ["PYTHONPATH"] = f"{repo_root}{os.pathsep}{cur_pp}" if cur_pp else repo_root
+
 import time
 import stat
 import signal
@@ -18,6 +26,8 @@ import sqlite3
 import tempfile
 import multiprocessing
 from typing import Dict, Any
+
+SAFE_TMP_DIR = "/private/tmp" if os.path.isdir("/private/tmp") else tempfile.gettempdir()
 
 from cas_storage_engine_v2b import (
     SecureCASStorageEngine,
@@ -87,7 +97,7 @@ def worker_boundary_d_crash(
 
 def test_01_multiprocess_boundary_a_crash():
     print("--- Test 01: Real Multi-Process Crash at Boundary A (Before Physical Unlink) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_a.db")
@@ -153,7 +163,7 @@ def test_01_multiprocess_boundary_a_crash():
 
 def test_02_multiprocess_boundary_b_crash():
     print("--- Test 02: Real Multi-Process Crash at Boundary B (After Unlink, Before Dir Sync) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_b.db")
@@ -215,7 +225,7 @@ def test_02_multiprocess_boundary_b_crash():
 
 def test_03_multiprocess_boundary_c_crash():
     print("--- Test 03: Real Multi-Process Crash at Boundary C (After Sync, Before DB Commit) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_c.db")
@@ -285,7 +295,7 @@ def test_03_multiprocess_boundary_c_crash():
 
 def test_04_multiprocess_boundary_d_batch_crash():
     print("--- Test 04: Real Multi-Process Crash at Boundary D (During Batch Recovery) ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_boundary_d.db")
@@ -347,7 +357,7 @@ def test_04_multiprocess_boundary_d_batch_crash():
 
 def test_05_persistent_key_lifecycle_and_rotation_across_restarts():
     print("--- Test 05: Persistent Key Lifecycle & Rotation Across Restarts ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "lcs_keys.db")
@@ -367,12 +377,14 @@ def test_05_persistent_key_lifecycle_and_rotation_across_restarts():
         engine_1.gc_complete_physical_deletion(conn, f"sha256:{digest_1}", tok_1)
         engine_1.close()
         
-        # Verify key file permissions on disk
+        # Verify key file permissions on disk (POSIX only)
         key_file = os.path.join(real_anchor, ".lcs_keys", "key_ring.json")
         st = os.stat(key_file)
-        assert stat.S_IMODE(st.st_mode) == 0o600, f"Expected key file permissions 0600, got {oct(stat.S_IMODE(st.st_mode))}"
+        if sys.platform != "win32":
+            assert stat.S_IMODE(st.st_mode) == 0o600, f"Expected key file permissions 0600, got {oct(stat.S_IMODE(st.st_mode))}"
         dir_st = os.stat(os.path.join(real_anchor, ".lcs_keys"))
-        assert stat.S_IMODE(dir_st.st_mode) == 0o700, f"Expected key dir permissions 0700, got {oct(stat.S_IMODE(dir_st.st_mode))}"
+        if sys.platform != "win32":
+            assert stat.S_IMODE(dir_st.st_mode) == 0o700, f"Expected key dir permissions 0700, got {oct(stat.S_IMODE(dir_st.st_mode))}"
         print("  Verified: Key store enforces strict permissions (0700 dir, 0600 file).")
         
         # Session 2: Fresh engine loads Key 1 from disk, verifies Session 1 receipt, then rotates to Key 2

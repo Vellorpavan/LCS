@@ -187,8 +187,14 @@ class SkillIngestionService:
             record.raw_content_digest = content_digest
             record.file_size_bytes = len(raw_bytes)
             record.st_mtime = st.st_mtime
-            record.st_ino = st.st_ino
-            record.st_dev = st.st_dev
+            st_ino = st.st_ino
+            if st_ino >= (1 << 63):
+                st_ino -= (1 << 64)
+            record.st_ino = st_ino
+            st_dev = st.st_dev
+            if st_dev >= (1 << 63):
+                st_dev -= (1 << 64)
+            record.st_dev = st_dev
 
             # 3. If directory bundle, compute and ingest bundle manifest & auxiliary assets
             if record.is_bundle and record.bundle_root_path and os.path.exists(record.bundle_root_path):

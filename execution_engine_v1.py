@@ -21,6 +21,7 @@ Strict Invariants:
 
 import os
 import sys
+import re
 import time
 import json
 import uuid
@@ -33,6 +34,8 @@ import datetime
 import subprocess
 import threading
 import queue
+import urllib.parse
+import urllib.request
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Tuple, Set, Union
@@ -261,22 +264,256 @@ def ensure_execution_engine_schema(conn: sqlite3.Connection) -> None:
 class PathSecurityValidator:
     """
     Validates filesystem parameters to prevent path traversal, symlink escapes,
-    and access outside authorized workspace / discovery roots.
+    and access outside authorized workspace / discovery roots across Windows, macOS, and Linux.
+
+    CRITICAL ARCHITECTURAL DISTINCTION & SECURITY BOUNDARY:
+    Argument-level path validation enforces logical boundary confinement on capability
+    parameters at the governance and planning layer. It confirms that bound path arguments
+    and deliverable targets stay within explicitly authorized workspace roots.
+
+    SECURITY BOUNDARY LIMITATION (UNTYPED COMMAND-LINE ARGUMENTS):
+    PathSecurityValidator validates filesystem path parameters and embedded path arguments
+    (--key=value) where a capability parameter is explicitly or structurally identifiable
+    as a filesystem target. It does NOT and CANNOT claim that arbitrary untyped shell,
+    CLI, or subprocess arguments (such as flags, subcommands, env vars, or shell pipelines)
+    are fully sandboxed. Arbitrary argument validation at the application layer is NOT
+    equivalent to operating-system kernel-level sandbox isolation (e.g., Linux namespaces/seccomp,
+    Windows AppContainer, or macOS sandbox-exec). Host adapters and process supervisors
+    must enforce OS-level sandboxing, process group containment, and argument allowlists
+    where untrusted arbitrary command binaries are executed.
     """
 
+    EXCLUDED_PREFIXES = (
+        "http://", "https://", "ftp://", "ftps://", "ssh://",
+        "ws://", "wss://", "git://", "sftp://", "urn:", "mailto:", "tel:"
+    )
+
+    NON_PATH_PARAM_TOKENS = {
+        "branch", "git_ref", "ref", "tag", "model", "model_name", "engine",
+        "content_type", "mime_type", "media_type", "format", "query", "sql",
+        "command", "cmd", "url", "endpoint", "repo", "repository", "description",
+        "desc", "prompt", "message", "text", "body", "title", "label", "id",
+        "identifier", "name", "type", "kind", "category", "status", "version",
+        "args", "cli_options", "flags", "options", "headers", "token", "payload"
+    }
+
+    PATH_NAME_TOKENS = {
+        "path", "file", "filepath", "dir", "directory", "folder",
+        "deliverable", "script", "workspace"
+    }
+
+    TARGET_NAME_TOKENS = {
+        "target", "dest", "destination", "output", "source", "src", "input"
+    }
+
+    DATA_FILTER_TOKENS = {
+        "data", "content", "format", "type", "value", "val", "text",
+        "query", "json", "body", "summary", "description", "id", "name",
+        "token", "payload", "message"
+    }
+
+    @classmethod
+    def is_path_parameter(cls, val: Any, param_name: str = "", param_type: str = "") -> bool:
+        """
+        Determines whether a parameter value should be validated as a filesystem path.
+        Prioritizes explicit parameter types from validated schemas (schema-first precedence),
+        with carefully constrained structural fallback to prevent false positives on URLs,
+        ordinary text, command arguments, JSON strings, and identifiers containing slashes.
+        """
+        if not isinstance(val, str):
+            return False
+        stripped = val.strip()
+        if not stripped:
+            return False
+
+        p_type_l = (param_type or "").lower()
+
+        # Rule 1: Explicit parameter type (Primary / Schema-First Precedence, per LCS specification)
+        # If the capability schema explicitly declares this parameter to be a path/file/dir/workspace/folder,
+        # it MUST be evaluated as a path parameter. Heuristic guards (such as URL or JSON filters)
+        # must NOT allow bypassing validation on explicit path types.
+        if any(tok in p_type_l for tok in ("path", "file", "dir", "workspace", "folder")):
+            return True
+
+        # Guards for untyped, string-typed, or generic parameters:
+        # Guard 0: Exclude multiline strings from heuristic path matching
+        if "\n" in stripped or "\r" in stripped:
+            return False
+
+        # Guard 1: Exclude command line flags or arguments (e.g. --config=..., -f)
+        if stripped.startswith("-"):
+            return False
+
+        # Guard 2: Exclude known non-filesystem URI schemes, URNs, and SCP-style git URLs
+        val_lower = stripped.lower()
+        if any(val_lower.startswith(prefix) for prefix in cls.EXCLUDED_PREFIXES) or val_lower.startswith("git@"):
+            return False
+
+        # Guard 3: Exclude JSON objects and arrays
+        if (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]")):
+            return False
+
+        # Tokenize parameter name (splitting camelCase, snake_case, and non-alphanumeric delimiters)
+        name_tokens = set(re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", param_name).lower()))
+
+        # Guard 4: Explicitly non-path parameter names (unless overridden by an explicit path token)
+        if (name_tokens & cls.NON_PATH_PARAM_TOKENS) and not (name_tokens & cls.PATH_NAME_TOKENS):
+            return False
+
+        # Guard 5: Exclude well-known identifier namespaces containing slashes when not explicitly typed as path
+        if any(val_lower.startswith(prefix) for prefix in (
+            "application/", "text/", "image/", "audio/", "video/", "multipart/", "font/",
+            "refs/heads/", "refs/tags/", "refs/remotes/", "models/", "model/"
+        )):
+            if not (name_tokens & cls.PATH_NAME_TOKENS):
+                return False
+
+        # Rule 2: Explicit parameter name indicating a filesystem destination/source
+        if name_tokens & cls.PATH_NAME_TOKENS:
+            return True
+        if name_tokens & cls.TARGET_NAME_TOKENS:
+            # Ensure it is not a generic data/content/summary parameter like input_data, summary_data, output_format
+            if not (name_tokens & cls.DATA_FILTER_TOKENS):
+                return True
+
+        # Rule 3: Constrained structural path syntax fallback (Heuristic / Anti-Bypass Protection)
+        # Windows drive-absolute or drive-relative (e.g. C:\... or C:...)
+        if len(stripped) >= 2 and stripped[1] == ":" and stripped[0].isalpha():
+            return True
+        # POSIX absolute path or Windows UNC/device namespace
+        if stripped.startswith(("/", "\\\\", "//")):
+            return True
+        # Relative traversal or explicit relative directory
+        if stripped.startswith(("./", ".\\", "../", "..\\")):
+            return True
+        if "/../" in stripped or "\\..\\" in stripped or stripped.endswith(("/..", "\\..")) or stripped == "..":
+            return True
+        # Home directory expansion
+        if stripped.startswith(("~/", "~\\")) or stripped == "~":
+            return True
+        # Relative file path with directory separator, extension, and no spaces
+        if ("/" in stripped or "\\" in stripped) and " " not in stripped and bool(os.path.splitext(stripped)[1]):
+            return True
+
+        return False
+
     @staticmethod
-    def validate_file_path(path: str, authorized_roots: List[str]) -> str:
+    def validate_file_path(path: str, authorized_roots: List[str], base_dir: Optional[str] = None) -> str:
         """
-        Confirms path is confined within one of authorized_roots and does not escape via symlink.
-        Returns the resolved realpath.
+        Confirms path is confined within one of authorized_roots and does not escape via symlink
+        or junction. Handles Windows drive-absolute, drive-relative, UNC, rooted, and mixed-separator
+        paths, as well as nonexistent output targets.
+        Returns the resolved canonical realpath.
         """
-        norm_roots = [os.path.realpath(r) for r in authorized_roots if os.path.exists(r)]
+        if not path or not isinstance(path, str):
+            raise PathTraversalExecutionError("Path must be a non-empty string.")
+
+        # 1. Reject forbidden control characters and newlines
+        if any(c in path for c in ("\n", "\r", "\0", "\t")):
+            raise PathTraversalExecutionError(f"Filesystem path contains forbidden newline or control characters: {path!r}")
+
+        # 2. Reject JSON formatted structures passed as paths
+        stripped_p = path.strip()
+        if (stripped_p.startswith("{") and stripped_p.endswith("}")) or (stripped_p.startswith("[") and stripped_p.endswith("]")):
+            raise PathTraversalExecutionError(f"JSON formatted string is not a valid filesystem path: {path!r}")
+
+        # 2b. Validate embedded paths in CLI argument syntax (e.g. --config=/etc/shadow, -o/etc/passwd)
+        if stripped_p.startswith("-"):
+            embedded_cand = None
+            if "=" in stripped_p:
+                embedded_cand = stripped_p.split("=", 1)[1].strip()
+            elif len(stripped_p) >= 3 and stripped_p[1].isalpha() and stripped_p[2] in ("/", "\\"):
+                embedded_cand = stripped_p[2:].strip()
+            if embedded_cand:
+                # Recursively validate embedded target against authorized roots
+                resolved_embedded = PathSecurityValidator.validate_file_path(embedded_cand, authorized_roots, base_dir=base_dir)
+                if "=" in stripped_p:
+                    flag_prefix = stripped_p.split("=", 1)[0]
+                    return f"{flag_prefix}={resolved_embedded}"
+                return f"-{stripped_p[1]}{resolved_embedded}"
+            raise PathTraversalExecutionError(f"CLI flag argument without valid path target is rejected: {path!r}")
+
+        # 3. Handle file:// URIs or reject remote network/non-filesystem URI schemes
+        p_lower = stripped_p.lower()
+        if p_lower.startswith("file://"):
+            parsed = urllib.parse.urlparse(stripped_p)
+            netloc = parsed.netloc.strip()
+            # Reject remote authority or malformed file URI
+            if netloc and netloc.lower() != "localhost":
+                raise PathTraversalExecutionError(f"Invalid or unauthorized file URI authority: {path!r}")
+            extracted = urllib.request.url2pathname(parsed.path)
+            if not extracted or extracted in ("/", "\\"):
+                raise PathTraversalExecutionError(f"Malformed or root file URI path rejected: {path!r}")
+            # Normalize Windows drive letter: /C:/... or \C:\... -> C:/...
+            if len(extracted) >= 3 and extracted[0] in ("/", "\\") and extracted[2] == ":" and extracted[1].isalpha():
+                extracted = extracted[1:]
+            path = extracted
+            stripped_p = path.strip()
+            p_lower = stripped_p.lower()
+        elif any(p_lower.startswith(prefix) for prefix in (
+            "http://", "https://", "ftp://", "ftps://", "ssh://",
+            "ws://", "wss://", "git://", "sftp://", "urn:", "mailto:", "tel:"
+        )):
+            scheme = stripped_p.split(":", 1)[0]
+            raise PathTraversalExecutionError(f"URI scheme '{scheme}' is not an authorized local filesystem path: {path!r}")
+
+        # 4. Reject Windows raw device namespaces (\\.\, \\?\, //./, //?/)
+        if path.startswith(("\\\\.\\", "\\\\?\\", "//./", "//?/")):
+            raise PathTraversalExecutionError(f"Raw device namespace paths are rejected: {path!r}")
+
+        # 5. Reject Windows drive-relative paths (e.g. C:foo\bar) on any OS
+        if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+            rest = path[2:]
+            if not (rest.startswith("\\") or rest.startswith("/")):
+                raise PathTraversalExecutionError(f"Ambiguous drive-relative path rejected: {path!r}")
+
+        # 6. Reject Windows NTFS Alternate Data Streams (colon in path after drive letter)
+        colon_check = path[2:] if (len(path) >= 2 and path[1] == ":" and path[0].isalpha()) else path
+        if ":" in colon_check:
+            raise PathTraversalExecutionError(f"NTFS Alternate Data Stream (ADS) path syntax rejected: {path!r}")
+
+        # 7. Reject Windows reserved DOS device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        base_name = os.path.splitext(os.path.basename(path.replace("\\", "/")))[0].upper()
+        if base_name in ("CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"):
+            raise PathTraversalExecutionError(f"Windows reserved DOS device name rejected: {path!r}")
+
+        # 8. Reject UNC paths unless authorized roots explicitly include UNC roots
+        if path.startswith(("\\\\", "//")):
+            if not any(r.startswith(("\\\\", "//")) for r in (authorized_roots or [])):
+                raise PathTraversalExecutionError(f"UNC path outside authorized roots rejected: {path!r}")
+
+        # 9. Normalize authorized roots (strict fail-closed if empty or invalid)
+        norm_roots = [os.path.realpath(r) for r in (authorized_roots or []) if r and os.path.exists(r)]
         if not norm_roots:
-            norm_roots = [os.path.realpath(os.getcwd())]
+            raise PathTraversalExecutionError(f"No valid authorized roots provided: {authorized_roots}")
 
-        resolved = os.path.realpath(path)
+        # Normalize mixed separators on POSIX if backslashes are present
+        norm_input = path.replace("\\", "/") if sys.platform != "win32" and "\\" in path else path
 
-        # 1. Path confinement check
+        # 10. Resolve candidate path against base_dir if relative
+        drive = norm_input[:2] if (len(norm_input) >= 2 and norm_input[1] == ":" and norm_input[0].isalpha()) else ""
+        if drive or os.path.isabs(norm_input) or norm_input.startswith(("/", "\\")):
+            candidate = norm_input
+        else:
+            anchor = base_dir or norm_roots[0]
+            candidate = os.path.join(anchor, norm_input)
+
+        # 11. Symlink / Junction verification if candidate is a symlink (Symlink & TOCTOU Defense)
+        if os.path.islink(candidate):
+            nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
+            if nofollow_flag:
+                try:
+                    fd = os.open(candidate, os.O_RDONLY | nofollow_flag | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0))
+                    os.close(fd)
+                except OSError as e:
+                    if e.errno in (getattr(errno, "ELOOP", 62), 62):
+                        raise PathTraversalExecutionError(f"Symlink rejected by O_NOFOLLOW: '{path}'")
+                    raise
+            else:
+                raise PathTraversalExecutionError(f"Symlink or junction rejected: '{path}'")
+
+        # 12. Confinement check across authorized roots using canonical realpath
+        resolved = os.path.realpath(candidate)
         confined = False
         for root in norm_roots:
             try:
@@ -284,23 +521,19 @@ class PathSecurityValidator:
                     confined = True
                     break
             except ValueError:
-                continue
+                pass
+            if sys.platform == "win32":
+                try:
+                    if os.path.commonpath([os.path.normcase(resolved), os.path.normcase(root)]) == os.path.normcase(root):
+                        confined = True
+                        break
+                except ValueError:
+                    pass
 
         if not confined:
             raise PathTraversalExecutionError(
                 f"Path '{path}' (resolved: '{resolved}') escapes authorized roots: {norm_roots}"
             )
-
-        # 2. Symlink rejection if file exists
-        if os.path.exists(path) and os.path.islink(path):
-            # Check descriptor-level safety
-            try:
-                fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
-                os.close(fd)
-            except OSError as e:
-                if e.errno in (errno.ELOOP, 62):
-                    raise PathTraversalExecutionError(f"Symlink rejected by O_NOFOLLOW: '{path}'")
-                raise
 
         return resolved
 
@@ -374,7 +607,20 @@ class ProcessSupervisor:
     def _kill_process_group(cls, proc: subprocess.Popen) -> None:
         """Sends SIGTERM then SIGKILL to the entire process group."""
         pid = proc.pid
-        if hasattr(os, "killpg") and sys.platform != "win32":
+        if sys.platform == "win32":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=5.0
+                )
+            except Exception:
+                pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        elif hasattr(os, "killpg"):
             try:
                 os.killpg(pid, signal.SIGTERM)
                 time.sleep(1.0)
@@ -396,27 +642,205 @@ class ProcessSupervisor:
 # 6. Modality Handlers
 # ============================================================================
 
+class MCPServerSession:
+    """
+    Represents an active, persistent JSON-RPC 2.0 stdio connection to an MCP server.
+    Eliminates per-call process spawning and initialization overhead.
+    """
+    def __init__(self, command: List[str], env: Optional[Dict[str, str]] = None):
+        self.command = list(command)
+        self.env = env
+        self.proc: Optional[subprocess.Popen] = None
+        self._lock = threading.RLock()
+        self.is_initialized = False
+        self.request_id = 0
+        self.created_at = time.time()
+        self.last_used_at = self.created_at
+
+    def is_alive(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    @property
+    def pid(self) -> Optional[int]:
+        return self.proc.pid if self.proc else None
+
+    def start_and_initialize(self, timeout: float = 15.0) -> None:
+        with self._lock:
+            if self.is_alive() and self.is_initialized:
+                return
+
+            self._close_internal()
+
+            try:
+                self.proc = subprocess.Popen(
+                    self.command,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    env=self.env or os.environ.copy(),
+                    text=True,
+                    bufsize=1
+                )
+            except Exception as e:
+                raise StepExecutionError(f"Failed to spawn MCP server process {self.command}: {e}")
+
+            self.request_id = 1
+            init_req = json.dumps({
+                "jsonrpc": "2.0",
+                "id": self.request_id,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "LCS-Execution-Engine", "version": "1.0.0"}
+                }
+            }) + "\n"
+
+            try:
+                self.proc.stdin.write(init_req)
+                self.proc.stdin.flush()
+                init_line = self.proc.stdout.readline()
+                if not init_line:
+                    raise StepExecutionError("MCP server exited before responding to initialize")
+                init_resp = json.loads(init_line)
+                if "error" in init_resp:
+                    raise StepExecutionError(f"MCP initialize rejected: {init_resp['error']}")
+
+                # Send initialized notification
+                notif = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n"
+                self.proc.stdin.write(notif)
+                self.proc.stdin.flush()
+                self.is_initialized = True
+                self.last_used_at = time.time()
+            except Exception as e:
+                self._close_internal()
+                if isinstance(e, StepExecutionError):
+                    raise
+                raise StepExecutionError(f"Failed to initialize MCP server: {e}")
+
+    def call_tool(self, tool_name: str, arguments: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+        with self._lock:
+            if not self.is_alive() or not self.is_initialized:
+                self.start_and_initialize(timeout=min(timeout, 15.0))
+
+            self.request_id += 1
+            call_req = json.dumps({
+                "jsonrpc": "2.0",
+                "id": self.request_id,
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": arguments
+                }
+            }) + "\n"
+
+            try:
+                self.proc.stdin.write(call_req)
+                self.proc.stdin.flush()
+                resp_line = self.proc.stdout.readline()
+                if not resp_line:
+                    raise StepExecutionError("MCP server connection dropped or process exited")
+                resp = json.loads(resp_line)
+                if "error" in resp:
+                    raise StepExecutionError(f"MCP tool call failed: {resp['error']}")
+
+                res_data = resp.get("result", {})
+                if res_data.get("isError"):
+                    raise StepExecutionError(f"Tool reported failure: {res_data.get('content')}")
+
+                self.last_used_at = time.time()
+                return res_data
+            except Exception as e:
+                if not self.is_alive():
+                    self.is_initialized = False
+                if isinstance(e, StepExecutionError):
+                    raise
+                raise StepExecutionError(f"MCP communication error during tool call: {e}")
+
+    def _close_internal(self) -> None:
+        if self.proc is not None:
+            try:
+                if self.proc.stdin and not self.proc.stdin.closed:
+                    self.proc.stdin.close()
+            except Exception:
+                pass
+            try:
+                self.proc.terminate()
+                self.proc.wait(timeout=1.5)
+            except Exception:
+                try:
+                    self.proc.kill()
+                except Exception:
+                    pass
+            self.proc = None
+        self.is_initialized = False
+
+    def close(self) -> None:
+        with self._lock:
+            self._close_internal()
+
+
+class MCPConnectionPool:
+    """
+    Thread-safe persistent pool of MCPServerSession instances keyed by command signature.
+    """
+    def __init__(self):
+        self._sessions: Dict[Tuple[str, ...], MCPServerSession] = {}
+        self._lock = threading.RLock()
+
+    def get_session(self, command: List[str], env: Optional[Dict[str, str]] = None) -> MCPServerSession:
+        key = tuple(command)
+        with self._lock:
+            if key in self._sessions:
+                sess = self._sessions[key]
+                if sess.is_alive():
+                    return sess
+                else:
+                    sess.close()
+                    del self._sessions[key]
+
+            session = MCPServerSession(command, env)
+            session.start_and_initialize()
+            self._sessions[key] = session
+            return session
+
+    def evict_session(self, command: List[str]) -> None:
+        key = tuple(command)
+        with self._lock:
+            if key in self._sessions:
+                sess = self._sessions.pop(key)
+                sess.close()
+
+    def close_all(self) -> None:
+        with self._lock:
+            for key, sess in list(self._sessions.items()):
+                try:
+                    sess.close()
+                except Exception:
+                    pass
+            self._sessions.clear()
+
+
 class MCPToolHandler:
     """
-    Executes MCP capabilities via JSON-RPC 2.0 tools/call over stdio.
+    Executes MCP capabilities via JSON-RPC 2.0 tools/call over stdio using
+    a persistent session pool.
     """
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
+        self.pool = MCPConnectionPool()
 
     def find_server_command(self, capability_urn: str) -> Optional[List[str]]:
         """Queries mcp_server_registrations or parses tool URN to find server launch command."""
         cur = self.conn.cursor()
-        # Check mcp_server_registrations
         cur.execute("SELECT server_id, command_line FROM mcp_server_registrations;")
         rows = cur.fetchall()
         for s_id, cmd_line in rows:
             if s_id in capability_urn:
                 if cmd_line:
                     import shlex
-                    return shlex.split(cmd_line)
-
-        # Fallback to registered command if registered in memory/db
+                    return shlex.split(cmd_line, posix=(sys.platform != "win32"))
         return None
 
     def execute_tool(
@@ -428,87 +852,25 @@ class MCPToolHandler:
         timeout: float = 30.0
     ) -> Dict[str, Any]:
         """
-        Launches MCP server, sends tools/call, and captures the result.
+        Retrieves a persistent MCP server session from the pool, sends tools/call, and captures the result.
+        Auto-recovers once if a stale session dropped.
         """
         cmd = server_command or self.find_server_command(capability_urn)
         if not cmd:
             raise StepExecutionError(f"No MCP server command found for capability '{capability_urn}'")
 
-        # Start MCP process
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1
-        )
-
         try:
-            # 1. Initialize
-            init_req = json.dumps({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {"name": "LCS-Execution-Engine", "version": "1.0.0"}
-                }
-            }) + "\n"
-            proc.stdin.write(init_req)
-            proc.stdin.flush()
+            session = self.pool.get_session(cmd)
+            return session.call_tool(tool_name, arguments, timeout=timeout)
+        except StepExecutionError as se:
+            if "dropped" in str(se) or "exited" in str(se):
+                self.pool.evict_session(cmd)
+                session = self.pool.get_session(cmd)
+                return session.call_tool(tool_name, arguments, timeout=timeout)
+            raise
 
-            # Read init response
-            init_line = proc.stdout.readline()
-            if not init_line:
-                raise StepExecutionError("MCP server exited before responding to initialize")
-            init_resp = json.loads(init_line)
-            if "error" in init_resp:
-                raise StepExecutionError(f"MCP initialize rejected: {init_resp['error']}")
-
-            # Send initialized notification
-            notif = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n"
-            proc.stdin.write(notif)
-            proc.stdin.flush()
-
-            # 2. Call tool
-            call_req = json.dumps({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments
-                }
-            }) + "\n"
-            proc.stdin.write(call_req)
-            proc.stdin.flush()
-
-            # Read tool response with timeout
-            resp_line = proc.stdout.readline()
-            if not resp_line:
-                raise StepExecutionError("MCP server exited without returning tool response")
-
-            resp = json.loads(resp_line)
-            if "error" in resp:
-                raise StepExecutionError(f"MCP tool call failed: {resp['error']}")
-
-            res_data = resp.get("result", {})
-            if res_data.get("isError"):
-                raise StepExecutionError(f"Tool reported failure: {res_data.get('content')}")
-
-            return res_data
-        finally:
-            try:
-                proc.stdin.close()
-                proc.terminate()
-                proc.wait(timeout=2.0)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+    def close(self) -> None:
+        self.pool.close_all()
 
 
 class SkillExecutionHandler:
@@ -524,18 +886,24 @@ class SkillExecutionHandler:
     def execute_skill(
         self,
         capability_urn: str,
-        arguments: Dict[str, Any]
+        arguments: Dict[str, Any],
+        skill_meta: Optional[Tuple[Any, ...]] = None
     ) -> Dict[str, Any]:
         """
         Renders the skill instructions with bound arguments and generates execution output.
         """
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT raw_content_digest, resolved_path, taxonomy_kind
-            FROM artifact_discovery_records
-            WHERE canonical_urn = ?;
-        """, (capability_urn,))
-        row = cur.fetchone()
+        row = skill_meta
+        if row is None:
+            try:
+                cur = self.conn.cursor()
+                cur.execute("""
+                    SELECT raw_content_digest, resolved_path, taxonomy_kind
+                    FROM artifact_discovery_records
+                    WHERE canonical_urn = ?;
+                """, (capability_urn,))
+                row = cur.fetchone()
+            except Exception:
+                row = None
 
         raw_text = ""
         tax_kind = "SKILL"
@@ -563,13 +931,96 @@ class SkillExecutionHandler:
             rendered = rendered.replace(f"${k}", str(v))
             rendered = rendered.replace(f"{{{{{k}}}}}", str(v))
 
+        # Check if the skill bundle has an executable script in scripts/ or bundle root
+        script_to_run = None
+        if row and row[1] and os.path.isfile(row[1]) and row[1].endswith((".py", ".sh", ".bash")):
+            script_to_run = row[1]
+            skill_dir = os.path.dirname(row[1])
+        else:
+            skill_dir = row[1] if (row and row[1] and os.path.isdir(row[1])) else (os.path.dirname(row[1]) if (row and row[1]) else None)
+            if skill_dir and os.path.isdir(skill_dir):
+                scripts_subdir = os.path.join(skill_dir, "scripts")
+                if os.path.isdir(scripts_subdir):
+                    for c in sorted(os.listdir(scripts_subdir)):
+                        if c.endswith((".py", ".sh", ".bash")):
+                            script_to_run = os.path.join(scripts_subdir, c)
+                            break
+                if not script_to_run:
+                    for c in sorted(os.listdir(skill_dir)):
+                        if c in ("run.py", "main.py", "execute.py", "audit.py", "run.sh"):
+                            script_to_run = os.path.join(skill_dir, c)
+                            break
+
+        deliv_keys = ["deliverable", "deliverable_path", "deliverable_file", "output_file", "output_path", "expected_deliverable"]
+        deliv_path = next((arguments[k] for k in deliv_keys if k in arguments and isinstance(arguments[k], str) and arguments[k].strip()), None)
+
+        script_stdout = ""
+        script_stderr = ""
+        if script_to_run and os.path.exists(script_to_run):
+            script_env = {f"LCS_PARAM_{k.upper()}": str(v) for k, v in arguments.items()}
+            if deliv_path:
+                script_env["LCS_DELIVERABLE_PATH"] = deliv_path
+                script_env["OUTPUT_FILE"] = deliv_path
+
+            if script_to_run.endswith(".py"):
+                cmd = [sys.executable, script_to_run]
+            elif sys.platform == "win32":
+                import shutil
+                bash_path = shutil.which("bash") or shutil.which("sh") or r"C:\Program Files\Git\bin\bash.exe"
+                if os.path.exists(bash_path):
+                    cmd = [bash_path, script_to_run]
+                else:
+                    cmd = ["cmd.exe", "/c", script_to_run]
+            else:
+                cmd = ["/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh", script_to_run]
+
+            for k, v in arguments.items():
+                cmd.extend([f"--{k}", str(v)])
+
+            exit_code, stdout, stderr = ProcessSupervisor.execute_command(
+                command=cmd,
+                cwd=skill_dir,
+                env_vars=script_env,
+                timeout_seconds=30.0
+            )
+            if exit_code != 0:
+                raise StepExecutionError(f"Skill script failed with exit code {exit_code}: {stderr or stdout}")
+            script_stdout = stdout
+            script_stderr = stderr
+
+        # Enforce truthful execution: verify requested deliverable artifact if declared
+        if deliv_path:
+            if not os.path.exists(deliv_path):
+                if not script_to_run:
+                    raise StepExecutionError(f"Requested deliverable artifact was not created (instruction-only playbook without an executable script): '{deliv_path}'")
+                raise StepExecutionError(f"Requested deliverable artifact was not created: '{deliv_path}'")
+            if os.path.isfile(deliv_path) and os.path.getsize(deliv_path) == 0:
+                raise StepExecutionError(f"Requested deliverable artifact is empty: '{deliv_path}'")
+
+        if "expected_deliverables" in arguments and isinstance(arguments["expected_deliverables"], (list, tuple)):
+            for d in arguments["expected_deliverables"]:
+                if isinstance(d, str) and d.strip():
+                    if not os.path.exists(d):
+                        if not script_to_run:
+                            raise StepExecutionError(f"Requested deliverable artifact was not created (instruction-only playbook without an executable script): '{d}'")
+                        raise StepExecutionError(f"Requested deliverable artifact was not created: '{d}'")
+                    if os.path.isfile(d) and os.path.getsize(d) == 0:
+                        raise StepExecutionError(f"Requested deliverable artifact is empty: '{d}'")
+
+        exec_mode = "SCRIPT_EXECUTION" if script_to_run else "INSTRUCTION_HANDOFF"
         return {
             "status": "SUCCESS",
             "capability_urn": capability_urn,
             "taxonomy_kind": tax_kind,
+            "execution_mode": exec_mode,
             "resolved_arguments": arguments,
             "rendered_instructions": rendered,
-            "result": f"Skill '{capability_urn}' contextualized and executed successfully.",
+            "script_path": script_to_run,
+            "exit_code": 0 if script_to_run else None,
+            "stdout": script_stdout,
+            "stderr": script_stderr,
+            "deliverable_path": deliv_path,
+            "result": script_stdout.strip() if script_stdout.strip() else f"Skill '{capability_urn}' contextualized and executed successfully.",
             "execution_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
 
@@ -607,6 +1058,18 @@ class NativeSimulationHandler:
         if "echo" in clean_urn:
             return {"echo": arguments, "result": "ECHO_OK"}
 
+        if "deprovision" in clean_urn or "cleanup" in clean_urn or "delete" in clean_urn:
+            if arguments.get("fail_compensation"):
+                raise RuntimeError("Simulated compensation action failure: storage deprovision timeout")
+            target_path = arguments.get("path") or arguments.get("scratch_dir") or arguments.get("target")
+            if target_path and os.path.exists(target_path):
+                if os.path.isdir(target_path):
+                    import shutil
+                    shutil.rmtree(target_path, ignore_errors=True)
+                else:
+                    os.remove(target_path)
+            return {"result": f"Deprovisioned {target_path}", "status": "COMPLETED"}
+
         # Default fallback
         return {
             "result": f"Executed capability {capability_urn}",
@@ -638,7 +1101,9 @@ class ExecutionEngineV1:
         profile_service: CapabilityProfileService,
         key_store: Any,
         audit_ledger: GovernanceAuditLedger,
-        workspace_root: Optional[str] = None
+        workspace_root: Optional[str] = None,
+        activation_verifier: Optional[Any] = None,
+        subagent_bridge: Optional[Any] = None
     ):
         self.conn = conn
         self.cas_engine = cas_engine
@@ -646,7 +1111,12 @@ class ExecutionEngineV1:
         self.profile_service = profile_service
         self.key_store = key_store
         self.audit_ledger = audit_ledger
-        self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        ws = os.path.realpath(workspace_root or os.getcwd())
+        if os.path.basename(ws) == ".lcs":
+            ws = os.path.dirname(ws)
+        self.workspace_root = ws
+        self.activation_verifier = activation_verifier
+        self.subagent_bridge = subagent_bridge
 
         # Ensure schema
         ensure_execution_engine_schema(self.conn)
@@ -655,6 +1125,14 @@ class ExecutionEngineV1:
         self.mcp_handler = MCPToolHandler(self.conn)
         self.skill_handler = SkillExecutionHandler(self.conn, self.cas_engine)
         self.native_handler = NativeSimulationHandler()
+
+    def close(self) -> None:
+        """Closes all active background resources, pooled MCP sessions, and handles."""
+        if hasattr(self, "mcp_handler") and self.mcp_handler:
+            try:
+                self.mcp_handler.close()
+            except Exception:
+                pass
 
     def store_blob_in_cas(self, payload_bytes: bytes, digest: Optional[str] = None) -> str:
         """Stores raw bytes in CAS and records in content_chunk_blobs under transaction safety."""
@@ -719,6 +1197,14 @@ class ExecutionEngineV1:
         except Exception as e:
             raise PreflightVerificationError(f"Dispatch permit acceptance failed: {e}") from e
 
+        # 3. Hash-on-activation verification (fail-closed if on-disk capability drifted)
+        if self.activation_verifier is not None:
+            try:
+                for step in plan.steps:
+                    self.activation_verifier.verify_capability_activation(step.capability_urn)
+            except Exception as e:
+                raise PreflightVerificationError(f"Hash-on-activation integrity verification failed: {e}") from e
+
         # 3. Create execution run record
         cur = self.conn.cursor()
         total_steps = len(plan.steps)
@@ -748,20 +1234,15 @@ class ExecutionEngineV1:
         )
 
         # --------------------------------------------------------------------
-        # Phase 2: Topological Step Execution Loop
+        # Phase 2: Topological & Branching DAG Step Execution Loop
         # --------------------------------------------------------------------
+        import concurrent.futures
+
         step_records: List[StepExecutionRecord] = []
         step_outputs_map: Dict[str, Dict[str, Any]] = {}
         completed_count = 0
         execution_failed = False
         failure_error_msg: Optional[str] = None
-        failed_step_index = -1
-
-        # Determine step order
-        steps_to_execute = sorted(plan.steps, key=lambda s: s.step_index)
-        if plan.execution_order:
-            order_map = {step_id: idx for idx, step_id in enumerate(plan.execution_order)}
-            steps_to_execute.sort(key=lambda s: order_map.get(s.step_id, s.step_index))
 
         step_timeout = 30.0
         if limits_override and "step_timeout_seconds" in limits_override:
@@ -769,258 +1250,473 @@ class ExecutionEngineV1:
         elif token.constraints and "limits" in token.constraints:
             step_timeout = float(token.constraints["limits"].get("step_timeout_seconds", 30.0))
 
-        for idx, step in enumerate(steps_to_execute):
-            step_rec_id = f"steprec-{uuid.uuid4().hex[:12]}"
-            step_start = time.time()
+        # Build step map and prerequisite graph
+        step_map: Dict[str, PlanStep] = {s.step_id: s for s in plan.steps}
+        step_prereqs: Dict[str, Set[str]] = {}
+        for s in plan.steps:
+            prereqs = set(s.dependencies or [])
+            for b in s.input_bindings.values():
+                src_step = None
+                if hasattr(b, "source_step_id"):
+                    src_step = b.source_step_id
+                elif isinstance(b, dict):
+                    src_step = b.get("source_step_id") or b.get("step_id")
+                if src_step and src_step in step_map:
+                    prereqs.add(src_step)
+            step_prereqs[s.step_id] = prereqs
 
-            # Record step as RUNNING in DB
-            cur.execute("""
-                INSERT INTO execution_step_records (
-                    step_record_id, run_id, step_id, capability_urn,
-                    step_index, status, start_time, input_arguments_cas_digest
-                ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, 'sha256:pending');
-            """, (step_rec_id, run_id, step.step_id, step.capability_urn, step.step_index, step_start))
-            self.conn.commit()
-
-            # 1. Resolve Input Arguments
-            resolved_args: Dict[str, Any] = {}
-            unresolved_err = None
-
-            for p_name, binding in step.input_bindings.items():
-                val = None
-                if hasattr(binding, "source_type"):
-                    src = getattr(binding, "source_type", None)
-                    src_str = src.value if hasattr(src, "value") else str(src)
-                    if src_str in ("USER_SUPPLIED", "SCHEMA_DEFAULT", "DEFAULT_VALUE"):
-                        val = binding.bound_value
-                    elif src_str in ("STEP_OUTPUT", "UPSTREAM_OUTPUT"):
-                        src_step = binding.source_step_id
-                        src_field = binding.source_output_field or "result"
-                        if src_step in step_outputs_map and src_field in step_outputs_map[src_step]:
-                            val = step_outputs_map[src_step][src_field]
-                        else:
-                            val = binding.bound_value
-                    else:
-                        val = binding.bound_value
-                    is_req = binding.required
-                elif isinstance(binding, dict):
-                    src = binding.get("source") or binding.get("source_type")
-                    if src == "USER_SUPPLIED":
-                        val = binding.get("value")
-                    elif src in ("UPSTREAM_OUTPUT", "STEP_OUTPUT"):
-                        src_step = binding.get("step_id") or binding.get("source_step_id")
-                        src_field = binding.get("field") or binding.get("source_output_field") or "result"
-                        if src_step in step_outputs_map and src_field in step_outputs_map[src_step]:
-                            val = step_outputs_map[src_step][src_field]
-                        else:
-                            val = binding.get("value")
-                    else:
-                        val = binding.get("value")
-                    is_req = binding.get("required", False)
+        # Incorporate explicit DAG edges
+        if hasattr(plan, "dag_edges") and plan.dag_edges:
+            for edge in plan.dag_edges:
+                if isinstance(edge, (list, tuple)):
+                    if len(edge) not in (2, 4):
+                        raise PreflightVerificationError(f"Malformed DAG edge: expected 2-tuple or canonical 4-tuple, got {edge}")
+                    src, dst = edge[0], edge[1]
+                    if not isinstance(src, str) or not isinstance(dst, str):
+                        raise PreflightVerificationError(f"Malformed DAG edge: step identifiers must be strings, got ({src}, {dst})")
+                    if src not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge: upstream step '{src}' does not exist in plan")
+                    if dst not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge: downstream step '{dst}' does not exist in plan")
+                    if src == dst:
+                        raise PreflightVerificationError(f"Malformed DAG edge: circular self-dependency on step '{src}'")
+                    if dst in step_prereqs:
+                        step_prereqs[dst].add(src)
+                elif isinstance(edge, dict):
+                    src = edge.get("upstream") or edge.get("src")
+                    dst = edge.get("downstream") or edge.get("dst")
+                    if not src or not dst or not isinstance(src, str) or not isinstance(dst, str):
+                        raise PreflightVerificationError(f"Malformed DAG edge dictionary: {edge}")
+                    if src not in step_map or dst not in step_map:
+                        raise PreflightVerificationError(f"Malformed DAG edge dictionary: unknown step in {edge}")
+                    if src == dst:
+                        raise PreflightVerificationError(f"Malformed DAG edge: circular self-dependency on step '{src}'")
+                    if dst in step_prereqs:
+                        step_prereqs[dst].add(src)
                 else:
-                    val = binding
-                    is_req = False
+                    raise PreflightVerificationError(f"Malformed DAG edge: expected tuple, list, or dict, got {type(edge).__name__}")
 
-                if val is None and is_req:
-                    unresolved_err = f"Mandatory parameter '{p_name}' for step '{step.step_id}' could not be resolved."
+        pending_step_ids = set(step_map.keys())
+        completed_step_ids: Set[str] = set()
+        dispatched_step_ids: Set[str] = set()
+
+        def _execute_capability_worker(
+            cap_urn: str,
+            resolved_args: Dict[str, Any],
+            timeout: float,
+            skill_meta: Optional[Tuple[Any, ...]] = None,
+            server_cmd: Optional[List[str]] = None
+        ) -> Dict[str, Any]:
+            if cap_urn.startswith("urn:lcs:skill:") or cap_urn.startswith("urn:lcs:command:"):
+                return self.skill_handler.execute_skill(cap_urn, resolved_args, skill_meta=skill_meta)
+            elif cap_urn.startswith("urn:lcs:tool:"):
+                tool_name = cap_urn.split(":")[-1]
+                if server_cmd:
+                    return self.mcp_handler.execute_tool(
+                        cap_urn, tool_name, resolved_args, server_command=server_cmd, timeout=timeout
+                    )
+                else:
+                    return self.native_handler.execute_native(cap_urn, resolved_args)
+            elif cap_urn.startswith("urn:lcs:agent:"):
+                if hasattr(self, "subagent_bridge") and self.subagent_bridge:
+                    from lcs.subagents.models import SubagentTaskState
+                    task = self.subagent_bridge.create_task(
+                        parent_request_id=run_id,
+                        role=cap_urn.split(":")[-1],
+                        objective=f"Execute agent capability {cap_urn}",
+                        inputs=resolved_args,
+                        timeout_seconds=int(timeout)
+                    )
+                    res = self.subagent_bridge.dispatch_task(task)
+                    if res.state == SubagentTaskState.COMPLETED:
+                        return {
+                            "result": res.stdout_summary,
+                            "deliverables": res.deliverables,
+                            "provenance": res.provenance,
+                            "verification": {"is_verified": res.is_verified},
+                            "status": "COMPLETED"
+                        }
+                    else:
+                        raise StepExecutionError(f"Subagent execution failed: {res.error_details or res.stdout_summary}")
+                else:
+                    return self.native_handler.execute_native(cap_urn, resolved_args)
+            else:
+                return self.native_handler.execute_native(cap_urn, resolved_args)
+
+        max_workers = min(4, max(1, len(plan.steps)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            running_futures: Dict[concurrent.futures.Future, Dict[str, Any]] = {}
+
+            while pending_step_ids or running_futures:
+                # 1. Identify ready steps whose prerequisites are completed
+                ready_step_ids = [
+                    s_id for s_id in pending_step_ids
+                    if s_id not in dispatched_step_ids and step_prereqs[s_id].issubset(completed_step_ids)
+                ]
+                ready_step_ids.sort(key=lambda s_id: step_map[s_id].step_index)
+
+                if not ready_step_ids and not running_futures:
+                    # Deadlock detection: remaining pending steps have unsatisfied dependencies
+                    execution_failed = True
+                    failure_error_msg = f"Dependency deadlock: pending steps {list(pending_step_ids)} have unsatisfied prerequisites"
                     break
 
-                if val is not None:
-                    # Path security validation
-                    if isinstance(val, str) and (val.startswith("/") or val.startswith("./") or ".." in val):
-                        if os.path.exists(val) or val.startswith("/"):
-                            try:
-                                val = PathSecurityValidator.validate_file_path(val, [self.workspace_root])
-                            except PathTraversalExecutionError as pe:
-                                unresolved_err = str(pe)
-                                break
-                    resolved_args[p_name] = val
-
-            if unresolved_err:
-                step_end = time.time()
-                dur_ms = (step_end - step_start) * 1000.0
-                rec = StepExecutionRecord(
-                    step_record_id=step_rec_id,
-                    run_id=run_id,
-                    step_id=step.step_id,
-                    capability_urn=step.capability_urn,
-                    step_index=step.step_index,
-                    status=StepExecutionStatus.FAILED,
-                    start_time=step_start,
-                    end_time=step_end,
-                    duration_ms=dur_ms,
-                    input_arguments=resolved_args,
-                    error_details=unresolved_err
-                )
-                step_records.append(rec)
-                cur.execute("""
-                    UPDATE execution_step_records
-                    SET status = 'FAILED', end_time = ?, duration_ms = ?, error_details = ?
-                    WHERE step_record_id = ?;
-                """, (step_end, dur_ms, unresolved_err, step_rec_id))
-                self.conn.commit()
-
-                execution_failed = True
-                failure_error_msg = unresolved_err
-                failed_step_index = idx
-                break
-
-            # Ingest resolved inputs into CAS
-            input_bytes = canonicalize_jcs(resolved_args)
-            input_cas_digest = self.store_blob_in_cas(input_bytes)
-
-            # Log step dispatch
-            self.audit_ledger.append_event(
-                event_type="EXECUTION_STEP_DISPATCH",
-                plan_id=plan.plan_id,
-                plan_integrity_hash=permit.plan_integrity_hash,
-                token_id=token.token_id,
-                event_payload={
-                    "run_id": run_id,
-                    "step_id": step.step_id,
-                    "capability_urn": step.capability_urn,
-                    "input_cas_digest": input_cas_digest
-                }
-            )
-
-            # 2. Execute Capability with Retry / Backoff
-            cap_urn = step.capability_urn
-            output_data: Optional[Dict[str, Any]] = None
-            step_error: Optional[str] = None
-            retries_attempted = 0
-            max_retries = 2  # Idempotent retry ceiling
-
-            while retries_attempted <= max_retries:
-                try:
-                    if cap_urn.startswith("urn:lcs:skill:") or cap_urn.startswith("urn:lcs:command:"):
-                        output_data = self.skill_handler.execute_skill(cap_urn, resolved_args)
-                    elif cap_urn.startswith("urn:lcs:tool:"):
-                        # Check if an actual local MCP server exists
-                        server_cmd = self.mcp_handler.find_server_command(cap_urn)
-                        tool_name = cap_urn.split(":")[-1]
-                        if server_cmd:
-                            output_data = self.mcp_handler.execute_tool(
-                                cap_urn, tool_name, resolved_args, server_command=server_cmd, timeout=step_timeout
-                            )
-                        else:
-                            # Fallback to deterministic native simulation handler
-                            output_data = self.native_handler.execute_native(cap_urn, resolved_args)
-                    else:
-                        output_data = self.native_handler.execute_native(cap_urn, resolved_args)
-
-                    step_error = None
-                    break  # Success!
-                except (StepExecutionTimeoutError, StepExecutionError) as se:
-                    step_error = str(se)
-                    retries_attempted += 1
-                    if retries_attempted <= max_retries:
-                        time.sleep(0.1 * (2 ** (retries_attempted - 1)))
-                    else:
+                if execution_failed:
+                    if not running_futures:
                         break
-                except Exception as ex:
-                    step_error = f"Unexpected execution failure: {ex}"
+                    ready_step_ids = []
+
+                # 2. Dispatch ready steps concurrently
+                abort_dispatch = False
+                for s_id in ready_step_ids:
+                    pending_step_ids.remove(s_id)
+                    dispatched_step_ids.add(s_id)
+                    step = step_map[s_id]
+
+                    step_rec_id = f"steprec-{uuid.uuid4().hex[:12]}"
+                    step_start = time.time()
+
+                    # Record step as RUNNING in DB
+                    cur.execute("""
+                        INSERT INTO execution_step_records (
+                            step_record_id, run_id, step_id, capability_urn,
+                            step_index, status, start_time, input_arguments_cas_digest
+                        ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, 'sha256:pending');
+                    """, (step_rec_id, run_id, step.step_id, step.capability_urn, step.step_index, step_start))
+                    self.conn.commit()
+
+                    # Resolve Input Arguments
+                    resolved_args: Dict[str, Any] = {}
+                    unresolved_err = None
+
+                    for p_name, binding in step.input_bindings.items():
+                        val = None
+                        if hasattr(binding, "source_type"):
+                            src = getattr(binding, "source_type", None)
+                            src_str = src.value if hasattr(src, "value") else str(src)
+                            if src_str in ("USER_SUPPLIED", "SCHEMA_DEFAULT", "DEFAULT_VALUE"):
+                                val = binding.bound_value
+                            elif src_str in ("STEP_OUTPUT", "UPSTREAM_OUTPUT"):
+                                src_step = binding.source_step_id
+                                src_field = binding.source_output_field or "result"
+                                if src_step in step_outputs_map and src_field in step_outputs_map[src_step]:
+                                    val = step_outputs_map[src_step][src_field]
+                                else:
+                                    val = binding.bound_value
+                            else:
+                                val = binding.bound_value
+                            is_req = binding.required
+                        elif isinstance(binding, dict):
+                            src = binding.get("source") or binding.get("source_type")
+                            if src == "USER_SUPPLIED":
+                                val = binding.get("value")
+                            elif src in ("UPSTREAM_OUTPUT", "STEP_OUTPUT"):
+                                src_step = binding.get("step_id") or binding.get("source_step_id")
+                                src_field = binding.get("field") or binding.get("source_output_field") or "result"
+                                if src_step in step_outputs_map and src_field in step_outputs_map[src_step]:
+                                    val = step_outputs_map[src_step][src_field]
+                                else:
+                                    val = binding.get("value")
+                            else:
+                                val = binding.get("value")
+                            is_req = binding.get("required", False)
+                        else:
+                            val = binding
+                            is_req = False
+
+                        if val is None and is_req:
+                            unresolved_err = f"Mandatory parameter '{p_name}' for step '{step.step_id}' could not be resolved."
+                            break
+
+                        if val is not None:
+                            p_type = getattr(binding, "param_type", "") if not isinstance(binding, dict) else (binding.get("type") or binding.get("param_type") or "")
+                            if isinstance(val, str) and PathSecurityValidator.is_path_parameter(val, p_name, p_type):
+                                try:
+                                    validated_path = PathSecurityValidator.validate_file_path(val, [self.workspace_root], base_dir=self.workspace_root)
+                                    if os.path.isabs(val) or val.startswith(("/", "\\")) or (len(val) >= 2 and val[1] == ":" and val[0].isalpha()):
+                                        val = validated_path
+                                except PathTraversalExecutionError as pe:
+                                    unresolved_err = str(pe)
+                                    break
+                            resolved_args[p_name] = val
+
+                    if unresolved_err:
+                        step_end = time.time()
+                        dur_ms = (step_end - step_start) * 1000.0
+                        rec = StepExecutionRecord(
+                            step_record_id=step_rec_id,
+                            run_id=run_id,
+                            step_id=step.step_id,
+                            capability_urn=step.capability_urn,
+                            step_index=step.step_index,
+                            status=StepExecutionStatus.FAILED,
+                            start_time=step_start,
+                            end_time=step_end,
+                            duration_ms=dur_ms,
+                            input_arguments=resolved_args,
+                            error_details=unresolved_err
+                        )
+                        step_records.append(rec)
+                        cur.execute("""
+                            UPDATE execution_step_records
+                            SET status = 'FAILED', end_time = ?, duration_ms = ?, error_details = ?
+                            WHERE step_record_id = ?;
+                        """, (step_end, dur_ms, unresolved_err, step_rec_id))
+                        self.conn.commit()
+
+                        execution_failed = True
+                        failure_error_msg = unresolved_err
+                        abort_dispatch = True
+                        break
+
+                    # Ingest resolved inputs into CAS
+                    input_bytes = canonicalize_jcs(resolved_args)
+                    input_cas_digest = self.store_blob_in_cas(input_bytes)
+
+                    # Log step dispatch
+                    self.audit_ledger.append_event(
+                        event_type="EXECUTION_STEP_DISPATCH",
+                        plan_id=plan.plan_id,
+                        plan_integrity_hash=permit.plan_integrity_hash,
+                        token_id=token.token_id,
+                        event_payload={
+                            "run_id": run_id,
+                            "step_id": step.step_id,
+                            "capability_urn": step.capability_urn,
+                            "input_cas_digest": input_cas_digest
+                        }
+                    )
+
+                    # Pre-resolve metadata on supervisor thread to avoid SQLite cross-thread access
+                    skill_meta = None
+                    server_cmd = None
+                    if step.capability_urn.startswith("urn:lcs:skill:") or step.capability_urn.startswith("urn:lcs:command:"):
+                        try:
+                            cur.execute("""
+                                SELECT raw_content_digest, resolved_path, taxonomy_kind
+                                FROM artifact_discovery_records
+                                WHERE canonical_urn = ?;
+                            """, (step.capability_urn,))
+                            skill_meta = cur.fetchone()
+                        except Exception:
+                            skill_meta = None
+                    elif step.capability_urn.startswith("urn:lcs:tool:"):
+                        server_cmd = self.mcp_handler.find_server_command(step.capability_urn)
+
+                    fut = executor.submit(_execute_capability_worker, step.capability_urn, resolved_args, step_timeout, skill_meta, server_cmd)
+                    running_futures[fut] = {
+                        "step": step,
+                        "step_rec_id": step_rec_id,
+                        "step_start": step_start,
+                        "resolved_args": resolved_args,
+                        "input_cas_digest": input_cas_digest
+                    }
+
+                if (abort_dispatch or execution_failed) and not running_futures:
                     break
 
-            step_end = time.time()
-            dur_ms = (step_end - step_start) * 1000.0
-
-            if step_error or output_data is None:
-                # Step Failed
-                rec = StepExecutionRecord(
-                    step_record_id=step_rec_id,
-                    run_id=run_id,
-                    step_id=step.step_id,
-                    capability_urn=cap_urn,
-                    step_index=step.step_index,
-                    status=StepExecutionStatus.FAILED,
-                    start_time=step_start,
-                    end_time=step_end,
-                    duration_ms=dur_ms,
-                    input_arguments=resolved_args,
-                    input_arguments_cas_digest=input_cas_digest,
-                    error_details=step_error,
-                    retry_count=retries_attempted
-                )
-                step_records.append(rec)
-
-                cur.execute("""
-                    UPDATE execution_step_records
-                    SET status = 'FAILED', end_time = ?, duration_ms = ?,
-                        input_arguments_cas_digest = ?, error_details = ?, retry_count = ?
-                    WHERE step_record_id = ?;
-                """, (step_end, dur_ms, input_cas_digest, step_error, retries_attempted, step_rec_id))
-                self.conn.commit()
-
-                self.audit_ledger.append_event(
-                    event_type="EXECUTION_STEP_FAILED",
-                    plan_id=plan.plan_id,
-                    plan_integrity_hash=permit.plan_integrity_hash,
-                    token_id=token.token_id,
-                    event_payload={
-                        "run_id": run_id,
-                        "step_id": step.step_id,
-                        "error_details": step_error,
-                        "retry_count": retries_attempted
-                    }
+                # 3. Wait for at least one running step to finish
+                done_set, _ = concurrent.futures.wait(
+                    running_futures.keys(),
+                    return_when=concurrent.futures.FIRST_COMPLETED
                 )
 
-                execution_failed = True
-                failure_error_msg = step_error
-                failed_step_index = idx
-                break
+                for done_fut in done_set:
+                    step_info = running_futures.pop(done_fut)
+                    step = step_info["step"]
+                    step_rec_id = step_info["step_rec_id"]
+                    step_start = step_info["step_start"]
+                    resolved_args = step_info["resolved_args"]
+                    input_cas_digest = step_info["input_cas_digest"]
 
-            # Ingest output into CAS
-            output_bytes = canonicalize_jcs(output_data)
-            output_cas_digest = self.store_blob_in_cas(output_bytes)
+                    output_data: Optional[Dict[str, Any]] = None
+                    step_error: Optional[str] = None
 
-            step_outputs_map[step.step_id] = output_data
-            completed_count += 1
+                    try:
+                        output_data = done_fut.result()
+                    except (StepExecutionTimeoutError, StepExecutionError) as se:
+                        step_error = str(se)
+                    except Exception as ex:
+                        step_error = f"Unexpected execution failure: {ex}"
 
-            rec = StepExecutionRecord(
-                step_record_id=step_rec_id,
-                run_id=run_id,
-                step_id=step.step_id,
-                capability_urn=cap_urn,
-                step_index=step.step_index,
-                status=StepExecutionStatus.COMPLETED,
-                start_time=step_start,
-                end_time=step_end,
-                duration_ms=dur_ms,
-                input_arguments=resolved_args,
-                input_arguments_cas_digest=input_cas_digest,
-                output_result=output_data,
-                output_result_cas_digest=output_cas_digest,
-                retry_count=retries_attempted
-            )
-            step_records.append(rec)
+                    step_end = time.time()
+                    dur_ms = (step_end - step_start) * 1000.0
 
-            cur.execute("""
-                UPDATE execution_step_records
-                SET status = 'COMPLETED', end_time = ?, duration_ms = ?,
-                    input_arguments_cas_digest = ?, output_result_cas_digest = ?,
-                    retry_count = ?
-                WHERE step_record_id = ?;
-            """, (step_end, dur_ms, input_cas_digest, output_cas_digest, retries_attempted, step_rec_id))
-            cur.execute("UPDATE execution_runs SET completed_steps = ? WHERE run_id = ?;", (completed_count, run_id))
-            self.conn.commit()
+                    if not step_error and output_data is not None:
+                        # 4. Multi-Tier Verification Gate Check
+                        try:
+                            from lcs.verification.gates import UnifiedResourceVerifier
+                            v_type = "SCRIPT" if (output_data.get("execution_mode") == "SCRIPT_EXECUTION" or step.capability_urn.endswith((".py", ".sh", ".bash"))) else (
+                                "MCP_TOOL" if step.capability_urn.startswith("urn:lcs:tool:") else (
+                                    "AGENT" if step.capability_urn.startswith("urn:lcs:agent:") else "SKILL"
+                                )
+                            )
+                            v_ctx = {
+                                "resource_id": step.capability_urn,
+                                "script_path": output_data.get("script_path"),
+                                "exit_code": output_data.get("exit_code", 0) if output_data.get("exit_code") is not None else 0,
+                                "stdout": output_data.get("stdout", ""),
+                                "stderr": output_data.get("stderr", ""),
+                                "rendered_instructions": output_data.get("rendered_instructions") or output_data.get("result") or "Authoritative capability instructions",
+                                "declared_output_files": [output_data["deliverable_path"]] if output_data.get("deliverable_path") else [],
+                                "tool_response": output_data,
+                                "cas_trace_digest": input_cas_digest,
+                                "status": output_data.get("status") or ("COMPLETED" if output_data.get("exit_code", 0) == 0 else "FAILED"),
+                                "iteration_count": output_data.get("iteration_count", 1),
+                                "max_iterations": output_data.get("max_iterations", 50),
+                                "deliverables": output_data.get("deliverables", {}),
+                                "expected_deliverables": output_data.get("expected_deliverables", []),
+                                "success": True
+                            }
+                            v_res = UnifiedResourceVerifier.verify_resource(v_type, v_ctx)
+                            if not v_res.is_verified:
+                                step_error = f"Multi-tier verification failed [{v_type}]: {v_res.error_details}"
+                                output_data = None
+                            else:
+                                output_data["verification"] = v_res.to_dict()
+                        except Exception as ve:
+                            logger.debug(f"Verification gate execution notice: {ve}")
 
-            self.audit_ledger.append_event(
-                event_type="EXECUTION_STEP_COMPLETED",
-                plan_id=plan.plan_id,
-                plan_integrity_hash=permit.plan_integrity_hash,
-                token_id=token.token_id,
-                event_payload={
-                    "run_id": run_id,
-                    "step_id": step.step_id,
-                    "duration_ms": dur_ms,
-                    "output_cas_digest": output_cas_digest
-                }
-            )
+                    if step_error or output_data is None:
+                        rec = StepExecutionRecord(
+                            step_record_id=step_rec_id,
+                            run_id=run_id,
+                            step_id=step.step_id,
+                            capability_urn=step.capability_urn,
+                            step_index=step.step_index,
+                            status=StepExecutionStatus.FAILED,
+                            start_time=step_start,
+                            end_time=step_end,
+                            duration_ms=dur_ms,
+                            input_arguments=resolved_args,
+                            input_arguments_cas_digest=input_cas_digest,
+                            error_details=step_error,
+                            retry_count=0
+                        )
+                        step_records.append(rec)
+                        cur.execute("""
+                            UPDATE execution_step_records
+                            SET status = 'FAILED', end_time = ?, duration_ms = ?,
+                                input_arguments_cas_digest = ?, error_details = ?, retry_count = 0
+                            WHERE step_record_id = ?;
+                        """, (step_end, dur_ms, input_cas_digest, step_error, step_rec_id))
+                        self.conn.commit()
+
+                        self.audit_ledger.append_event(
+                            event_type="EXECUTION_STEP_FAILED",
+                            plan_id=plan.plan_id,
+                            plan_integrity_hash=permit.plan_integrity_hash,
+                            token_id=token.token_id,
+                            event_payload={
+                                "run_id": run_id,
+                                "step_id": step.step_id,
+                                "error_details": step_error
+                            }
+                        )
+
+                        execution_failed = True
+                        failure_error_msg = step_error
+                        break
+
+                    # Ingest output into CAS
+                    output_bytes = canonicalize_jcs(output_data)
+                    output_cas_digest = self.store_blob_in_cas(output_bytes)
+
+                    step_outputs_map[step.step_id] = output_data
+                    completed_step_ids.add(step.step_id)
+                    completed_count += 1
+
+                    step_comp_urn = getattr(step, "compensation_urn", None)
+                    step_rev_type = getattr(step, "reversibility_type", StepReversibilityType.IDEMPOTENT)
+                    if isinstance(step_rev_type, str):
+                        try:
+                            step_rev_type = StepReversibilityType(step_rev_type)
+                        except ValueError:
+                            step_rev_type = StepReversibilityType.IDEMPOTENT
+
+                    rec = StepExecutionRecord(
+                        step_record_id=step_rec_id,
+                        run_id=run_id,
+                        step_id=step.step_id,
+                        capability_urn=step.capability_urn,
+                        step_index=step.step_index,
+                        status=StepExecutionStatus.COMPLETED,
+                        start_time=step_start,
+                        end_time=step_end,
+                        duration_ms=dur_ms,
+                        input_arguments=resolved_args,
+                        input_arguments_cas_digest=input_cas_digest,
+                        output_result=output_data,
+                        output_result_cas_digest=output_cas_digest,
+                        retry_count=0,
+                        reversibility_type=step_rev_type,
+                        compensation_urn=step_comp_urn
+                    )
+                    step_records.append(rec)
+
+                    cur.execute("""
+                        UPDATE execution_step_records
+                        SET status = 'COMPLETED', end_time = ?, duration_ms = ?,
+                            input_arguments_cas_digest = ?, output_result_cas_digest = ?,
+                            retry_count = 0, reversibility_type = ?, compensation_urn = ?
+                        WHERE step_record_id = ?;
+                    """, (step_end, dur_ms, input_cas_digest, output_cas_digest, step_rev_type.value, step_comp_urn, step_rec_id))
+                    cur.execute("UPDATE execution_runs SET completed_steps = ? WHERE run_id = ?;", (completed_count, run_id))
+                    self.conn.commit()
+
+                    self.audit_ledger.append_event(
+                        event_type="EXECUTION_STEP_COMPLETED",
+                        plan_id=plan.plan_id,
+                        plan_integrity_hash=permit.plan_integrity_hash,
+                        token_id=token.token_id,
+                        event_payload={
+                            "run_id": run_id,
+                            "step_id": step.step_id,
+                            "duration_ms": dur_ms,
+                            "output_cas_digest": output_cas_digest
+                        }
+                    )
+
+                if execution_failed:
+                    for fut in list(running_futures.keys()):
+                        fut.cancel()
+                    break
 
         # --------------------------------------------------------------------
         # Phase 3: Compensation Unwinding (If Failure Occurred)
         # --------------------------------------------------------------------
         if execution_failed:
+            # Mark all uncompleted steps as SKIPPED
+            uncompleted_steps = [
+                s for s in plan.steps
+                if s.step_id not in completed_step_ids
+                and not any(r.step_id == s.step_id and r.status == StepExecutionStatus.FAILED for r in step_records)
+            ]
+            skip_time = time.time()
+            for s in uncompleted_steps:
+                s_rec_id = f"steprec-{uuid.uuid4().hex[:12]}"
+                s_rec = StepExecutionRecord(
+                    step_record_id=s_rec_id,
+                    run_id=run_id,
+                    step_id=s.step_id,
+                    capability_urn=s.capability_urn,
+                    step_index=s.step_index,
+                    status=StepExecutionStatus.SKIPPED,
+                    start_time=skip_time,
+                    end_time=skip_time,
+                    duration_ms=0.0,
+                    error_details="Skipped due to upstream step failure"
+                )
+                step_records.append(s_rec)
+                cur.execute("""
+                    INSERT INTO execution_step_records (
+                        step_record_id, run_id, step_id, capability_urn,
+                        step_index, status, start_time, end_time, duration_ms,
+                        input_arguments_cas_digest, reversibility_type, error_details
+                    ) VALUES (?, ?, ?, ?, ?, 'SKIPPED', ?, ?, 0.0, 'sha256:none', 'IDEMPOTENT', 'Skipped due to upstream step failure');
+                """, (s_rec_id, run_id, s.step_id, s.capability_urn, s.step_index, skip_time, skip_time))
+            self.conn.commit()
+
             cur.execute("UPDATE execution_runs SET lifecycle_state = 'COMPENSATION_UNWIND' WHERE run_id = ?;", (run_id,))
             self.conn.commit()
 
@@ -1051,8 +1747,26 @@ class ExecutionEngineV1:
                                 }
                             )
                         except Exception as ce:
-                            # Log compensation error
-                            pass
+                            rec.status = StepExecutionStatus.FAILED
+                            rec.error_details = f"Compensation failed: {ce}"
+                            cur.execute("""
+                                UPDATE execution_step_records
+                                SET status = 'FAILED', error_details = ? WHERE step_record_id = ?;
+                            """, (rec.error_details, rec.step_record_id))
+                            self.conn.commit()
+
+                            self.audit_ledger.append_event(
+                                event_type="COMPENSATION_ACTION_FAILED",
+                                plan_id=plan.plan_id,
+                                plan_integrity_hash=permit.plan_integrity_hash,
+                                token_id=token.token_id,
+                                event_payload={
+                                    "run_id": run_id,
+                                    "original_step_id": rec.step_id,
+                                    "compensation_urn": rec.compensation_urn,
+                                    "error_details": str(ce)
+                                }
+                            )
 
         # --------------------------------------------------------------------
         # Phase 4: Finalization & Audit Receipts
@@ -1060,6 +1774,9 @@ class ExecutionEngineV1:
         end_time = time.time()
         duration_ms = (end_time - start_time) * 1000.0
         final_state = ExecutionLifecycleState.FAILED if execution_failed else ExecutionLifecycleState.SUCCEEDED
+
+        # Ensure step records are in canonical step_index order
+        step_records.sort(key=lambda s: s.step_index)
 
         # Generate complete execution trace dictionary
         trace_dict = {

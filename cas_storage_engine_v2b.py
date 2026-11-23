@@ -37,12 +37,387 @@ import uuid
 import hmac
 import time
 import errno
-import fcntl
+if sys.platform == "win32":
+    if "fcntl" not in sys.modules:
+        import importlib.util
+        _locking_path = os.path.join(os.path.dirname(__file__), "lcs", "locking.py")
+        if os.path.isfile(_locking_path):
+            _spec = importlib.util.spec_from_file_location("lcs_locking_direct", _locking_path)
+            if _spec and _spec.loader:
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                _mod.install_windows_fcntl_shim()
+    import fcntl
+else:
+    import fcntl
 import sqlite3
 import hashlib
 import threading
 from typing import Tuple, Dict, Any, Optional, Iterable, Union, List
 from contextlib import contextmanager
+
+# ============================================================================
+# Cross-Platform Directory Descriptors and Filesystem Primitives
+# ============================================================================
+
+_win32_dir_descriptors: Dict[int, Any] = {}
+_win32_desc_lock = threading.Lock()
+_win32_next_desc_id = 100000
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
+    _kernel32 = ctypes.windll.kernel32
+    _GENERIC_READ = 0x80000000
+    _FILE_SHARE_READ = 0x00000001
+    _FILE_SHARE_WRITE = 0x00000002
+    _FILE_SHARE_DELETE = 0x00000004
+    _OPEN_EXISTING = 3
+    _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    _INVALID_HANDLE_VALUE = -1
+
+    class _BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", wintypes.DWORD),
+            ("ftCreationTime", wintypes.FILETIME),
+            ("ftLastAccessTime", wintypes.FILETIME),
+            ("ftLastWriteTime", wintypes.FILETIME),
+            ("dwVolumeSerialNumber", wintypes.DWORD),
+            ("nFileSizeHigh", wintypes.DWORD),
+            ("nFileSizeLow", wintypes.DWORD),
+            ("nNumberOfLinks", wintypes.DWORD),
+            ("nFileIndexHigh", wintypes.DWORD),
+            ("nFileIndexLow", wintypes.DWORD),
+        ]
+
+    class Win32DirDescriptor:
+        def __init__(self, canonical_path: str, handle: Any, st_dev: int, st_ino: int):
+            self.canonical_path = canonical_path
+            self.handle = handle
+            self.st_dev = st_dev
+            self.st_ino = st_ino
+
+    def _win32_get_path_from_handle(handle: Any, fallback: str) -> str:
+        try:
+            buf = ctypes.create_unicode_buffer(32768)
+            res = _kernel32.GetFinalPathNameByHandleW(handle, buf, len(buf), 0)
+            if res > 0 and res < len(buf):
+                p = buf.value
+                if p.startswith("\\\\?\\UNC\\"):
+                    return "\\\\" + p[8:]
+                if p.startswith("\\\\?\\"):
+                    return p[4:]
+                return p
+        except Exception:
+            pass
+        return fallback
+
+    def _win32_open_dir_desc(dir_path: str) -> int:
+        global _win32_next_desc_id
+        # First verify raw dir_path before realpath resolves symlinks
+        try:
+            st_raw = os.lstat(dir_path)
+            if stat.S_ISLNK(st_raw.st_mode) or (getattr(st_raw, "st_file_attributes", 0) & 0x400):
+                raise CASSecurityViolationError(f"Directory is a symbolic link or reparse point: {dir_path}")
+        except FileNotFoundError:
+            pass
+
+        canonical = os.path.realpath(os.path.abspath(dir_path))
+        if not os.path.isdir(canonical):
+            raise NotADirectoryError(f"Path is not a directory: {canonical}")
+        st = os.lstat(canonical)
+        if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+            raise CASSecurityViolationError(f"Directory is a symbolic link or reparse point: {canonical}")
+
+        handle = _kernel32.CreateFileW(
+            dir_path,
+            0x80,  # FILE_READ_ATTRIBUTES (allows directory and ancestor renaming without WinError 5)
+            _FILE_SHARE_READ | _FILE_SHARE_WRITE | _FILE_SHARE_DELETE,
+            None,
+            _OPEN_EXISTING,
+            _FILE_FLAG_BACKUP_SEMANTICS | _FILE_FLAG_OPEN_REPARSE_POINT,
+            None,
+        )
+        if handle == _INVALID_HANDLE_VALUE or handle == 0:
+            err = _kernel32.GetLastError()
+            raise OSError(f"Failed to open directory handle for '{dir_path}' (Win32 error {err})")
+
+        info = _BY_HANDLE_FILE_INFORMATION()
+        if not _kernel32.GetFileInformationByHandle(handle, ctypes.byref(info)):
+            _kernel32.CloseHandle(handle)
+            raise OSError(f"Failed to get file information for directory '{dir_path}'")
+
+        if info.dwFileAttributes & 0x400:
+            _kernel32.CloseHandle(handle)
+            raise CASSecurityViolationError(f"Directory is a reparse point: {dir_path}")
+
+        st_dev = int(info.dwVolumeSerialNumber)
+        if st_dev >= (1 << 63):
+            st_dev -= (1 << 64)
+        st_ino = (int(info.nFileIndexHigh) << 32) | int(info.nFileIndexLow)
+        if st_ino >= (1 << 63):
+            st_ino -= (1 << 64)
+
+        with _win32_desc_lock:
+            _win32_next_desc_id += 1
+            desc_id = _win32_next_desc_id
+            _win32_dir_descriptors[desc_id] = Win32DirDescriptor(canonical, handle, st_dev, st_ino)
+            return desc_id
+
+    def _win32_resolve_subpath(base_dir: str, rel_path: str, handle: Optional[Any] = None) -> str:
+        if not rel_path or not isinstance(rel_path, str):
+            raise CASSecurityViolationError("Invalid empty subpath")
+        parts = [p for p in rel_path.replace("\\", "/").split("/") if p]
+        for p in parts:
+            if p == "..":
+                raise CASSecurityViolationError("Relative path navigation ('..') is strictly prohibited")
+            if ":" in p:
+                raise CASSecurityViolationError(f"Invalid character in path component: {p}")
+
+        effective_base = base_dir
+        if handle:
+            effective_base = _win32_get_path_from_handle(handle, base_dir)
+
+        norm_base = os.path.realpath(os.path.abspath(effective_base))
+        candidate = os.path.realpath(os.path.abspath(os.path.join(norm_base, rel_path)))
+
+        try:
+            common = os.path.commonpath([norm_base, candidate])
+        except ValueError as e:
+            raise CASSecurityViolationError(f"Cross-drive path resolution rejected: {e}") from e
+
+        if common != norm_base:
+            raise CASSecurityViolationError(f"Path '{rel_path}' escapes directory boundary '{norm_base}'")
+
+        # Verify no intermediate component is a symlink or junction
+        rel_part = os.path.relpath(candidate, norm_base)
+        if rel_part != ".":
+            curr = norm_base
+            for comp in rel_part.replace("/", "\\").split("\\"):
+                if not comp or comp == ".":
+                    continue
+                curr = os.path.join(curr, comp)
+                if os.path.lexists(curr):
+                    st = os.lstat(curr)
+                    if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                        raise CASSecurityViolationError(f"Symlink or reparse point detected at '{curr}'")
+
+        return candidate
+
+
+class _Win32StatResult:
+    def __init__(self, st_dev: int, st_ino: int):
+        self.st_dev = st_dev
+        self.st_ino = st_ino
+        self.st_mode = stat.S_IFDIR | 0o755
+        self.st_size = 0
+
+
+def _fs_fstat(fd: int):
+    if sys.platform == "win32" and fd in _win32_dir_descriptors:
+        desc = _win32_dir_descriptors[fd]
+        return _Win32StatResult(desc.st_dev, desc.st_ino)
+    return os.fstat(fd)
+
+
+def _fs_close_dir(fd: int) -> None:
+    if sys.platform == "win32" and fd in _win32_dir_descriptors:
+        with _win32_desc_lock:
+            desc = _win32_dir_descriptors.pop(fd, None)
+        if desc and desc.handle:
+            try:
+                _kernel32.CloseHandle(desc.handle)
+            except Exception:
+                pass
+        return
+    os.close(fd)
+
+
+def _fs_open(path: str, flags: int, mode: int = 0o666, dir_fd: Optional[int] = None) -> int:
+    if sys.platform == "win32":
+        if dir_fd is not None and dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
+            if os.path.lexists(full_path):
+                st = os.lstat(full_path)
+                if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                    raise CASSecurityViolationError(f"Symlink/reparse point detected at '{full_path}'")
+            return os.open(full_path, flags | getattr(os, "O_BINARY", 0), mode)
+        return os.open(path, flags | getattr(os, "O_BINARY", 0), mode)
+    else:
+        if dir_fd is not None:
+            return os.open(path, flags, mode=mode, dir_fd=dir_fd)
+        return os.open(path, flags, mode=mode)
+
+
+def _fs_stat(path: str, dir_fd: Optional[int] = None, follow_symlinks: bool = True):
+    if sys.platform == "win32":
+        if dir_fd is not None and dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
+            if not follow_symlinks:
+                st = os.lstat(full_path)
+                if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                    raise CASSecurityViolationError(f"Symlink/reparse point detected at '{full_path}'")
+                return st
+            return os.stat(full_path)
+        if not follow_symlinks:
+            st = os.lstat(path)
+            if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                raise CASSecurityViolationError(f"Symlink/reparse point detected at '{path}'")
+            return st
+        return os.stat(path)
+    else:
+        if dir_fd is not None:
+            return os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+        return os.stat(path, follow_symlinks=follow_symlinks)
+
+
+def _fs_unlink(path: str, dir_fd: Optional[int] = None) -> None:
+    if sys.platform == "win32":
+        if dir_fd is not None and dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            full_path = _win32_resolve_subpath(desc.canonical_path, path, handle=desc.handle)
+            try:
+                os.unlink(full_path)
+            except PermissionError:
+                os.chmod(full_path, stat.S_IWRITE | stat.S_IREAD)
+                os.unlink(full_path)
+            return
+        try:
+            os.unlink(path)
+        except PermissionError:
+            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+            os.unlink(path)
+    else:
+        if dir_fd is not None:
+            os.unlink(path, dir_fd=dir_fd)
+        else:
+            os.unlink(path)
+
+
+def _fs_link(src: str, dst: str, src_dir_fd: Optional[int] = None, dst_dir_fd: Optional[int] = None, follow_symlinks: bool = False) -> None:
+    if sys.platform == "win32":
+        full_src = src
+        full_dst = dst
+        if src_dir_fd is not None and src_dir_fd in _win32_dir_descriptors:
+            desc_src = _win32_dir_descriptors[src_dir_fd]
+            full_src = _win32_resolve_subpath(desc_src.canonical_path, src, handle=desc_src.handle)
+        if dst_dir_fd is not None and dst_dir_fd in _win32_dir_descriptors:
+            desc_dst = _win32_dir_descriptors[dst_dir_fd]
+            full_dst = _win32_resolve_subpath(desc_dst.canonical_path, dst, handle=desc_dst.handle)
+
+        st_src = os.lstat(full_src)
+        if stat.S_ISLNK(st_src.st_mode) or (getattr(st_src, "st_file_attributes", 0) & 0x400):
+            raise CASSecurityViolationError("Source file is a symlink or reparse point")
+        if os.path.lexists(full_dst):
+            raise FileExistsError(f"Destination '{full_dst}' already exists")
+        os.link(full_src, full_dst)
+    else:
+        kwargs = {}
+        if src_dir_fd is not None:
+            kwargs["src_dir_fd"] = src_dir_fd
+        if dst_dir_fd is not None:
+            kwargs["dst_dir_fd"] = dst_dir_fd
+        os.link(src, dst, follow_symlinks=follow_symlinks, **kwargs)
+
+
+def _fs_listdir(dir_fd: int) -> List[str]:
+    if sys.platform == "win32" and dir_fd in _win32_dir_descriptors:
+        desc = _win32_dir_descriptors[dir_fd]
+        current_dir = _win32_get_path_from_handle(desc.handle, desc.canonical_path)
+        return os.listdir(current_dir)
+    return os.listdir(dir_fd)
+
+
+def _fs_sync_dir(dir_fd: int) -> None:
+    if sys.platform == "win32":
+        if dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            if desc.handle:
+                try:
+                    _kernel32.FlushFileBuffers(desc.handle)
+                except Exception:
+                    pass
+            return
+        try:
+            import msvcrt
+            h = msvcrt.get_osfhandle(dir_fd)
+            if h and h != -1:
+                try:
+                    _kernel32.FlushFileBuffers(h)
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
+        return
+    else:
+        if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
+            try:
+                fcntl.fcntl(dir_fd, fcntl.F_FULLFSYNC)
+                return
+            except OSError as e:
+                if e.errno in (errno.ENOTSUP, errno.ENOTTY, errno.EINVAL, getattr(errno, "EOPNOTSUPP", 45)):
+                    os.fsync(dir_fd)
+                    return
+                raise
+        os.fsync(dir_fd)
+
+
+# Install transparent descriptor-relative shims for standard library os module on Windows
+if sys.platform == "win32":
+    _orig_os_open = os.open
+    _orig_os_stat = os.stat
+    _orig_os_unlink = os.unlink
+    _orig_os_close = os.close
+
+    def _shim_os_open(path, flags, mode=0o777, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        if dir_fd is not None:
+            return _fs_open(path, flags, mode=mode, dir_fd=dir_fd)
+        return _orig_os_open(path, flags, mode, *args, **kwargs)
+
+    def _shim_os_stat(path, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        follow_symlinks = kwargs.pop("follow_symlinks", True)
+        if dir_fd is not None:
+            return _fs_stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+        return _orig_os_stat(path, *args, follow_symlinks=follow_symlinks, **kwargs)
+
+    def _shim_os_unlink(path, *args, **kwargs):
+        dir_fd = kwargs.pop("dir_fd", None)
+        if dir_fd is not None:
+            return _fs_unlink(path, dir_fd=dir_fd)
+        return _orig_os_unlink(path, *args, **kwargs)
+
+    def _shim_os_close(fd):
+        if fd in _win32_dir_descriptors:
+            _fs_close_dir(fd)
+            return
+        return _orig_os_close(fd)
+
+    os.open = _shim_os_open
+    os.stat = _shim_os_stat
+    os.unlink = _shim_os_unlink
+    os.close = _shim_os_close
+
+
+def _fs_mkdir(path: str, mode: int = 0o755, dir_fd: Optional[int] = None) -> None:
+    if sys.platform == "win32":
+        if dir_fd is not None and dir_fd in _win32_dir_descriptors:
+            desc = _win32_dir_descriptors[dir_fd]
+            full_path = _win32_resolve_subpath(desc.canonical_path, path)
+            os.mkdir(full_path, mode)
+            return
+        os.mkdir(path, mode)
+    else:
+        if dir_fd is not None:
+            os.mkdir(path, mode, dir_fd=dir_fd)
+        else:
+            os.mkdir(path, mode)
 
 class CASError(Exception):
     """Base exception for all CAS storage engine errors."""
@@ -123,28 +498,31 @@ class SecureCASDirectoryWalker:
         if existing_fd is not None:
             self.root_fd = existing_fd
         else:
-            flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
-            try:
-                self.root_fd = os.open(self.cas_root, flags)
-            except OSError as e:
-                if e.errno in (errno.ELOOP, errno.ENOTDIR, errno.EEXIST, errno.EMLINK):
-                    raise CASSecurityViolationError(f"CAS root path '{self.cas_root}' is a symbolic link or non-directory: {e}") from e
-                if e.errno == errno.ENOENT:
-                    raise FileNotFoundError(f"CAS root directory does not exist: {self.cas_root}") from e
-                raise
+            if sys.platform == "win32":
+                self.root_fd = _win32_open_dir_desc(self.cas_root)
+            else:
+                flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
+                try:
+                    self.root_fd = os.open(self.cas_root, flags)
+                except OSError as e:
+                    if e.errno in (errno.ELOOP, errno.ENOTDIR, errno.EEXIST, errno.EMLINK):
+                        raise CASSecurityViolationError(f"CAS root path '{self.cas_root}' is a symbolic link or non-directory: {e}") from e
+                    if e.errno == errno.ENOENT:
+                        raise FileNotFoundError(f"CAS root directory does not exist: {self.cas_root}") from e
+                    raise
             
-        st = os.fstat(self.root_fd)
+        st = _fs_fstat(self.root_fd)
         if not stat.S_ISDIR(st.st_mode):
-            os.close(self.root_fd)
+            _fs_close_dir(self.root_fd)
             raise NotADirectoryError(f"CAS root path is not a directory: {self.cas_root}")
             
         self.dev = st.st_dev
-        self.root_ino = st.st_ino
+        self.root_ino = getattr(st, "st_ino", 0)
 
     def close(self):
         if self.root_fd is not None:
             try:
-                os.close(self.root_fd)
+                _fs_close_dir(self.root_fd)
             except OSError:
                 pass
             self.root_fd = None
@@ -162,48 +540,84 @@ class SecureCASDirectoryWalker:
         If create is True, components are created descriptor-relative via os.mkdir(..., dir_fd=current_fd).
         Validates st_dev on every component against root_dev.
         """
-        components = [c for c in relative_path.strip('/').split('/') if c and c != '.']
+        components = [c for c in relative_path.replace('\\', '/').strip('/').split('/') if c and c != '.']
         for c in components:
             if c == '..':
                 raise CASSecurityViolationError("Relative path navigation ('..') is strictly forbidden")
                 
-        current_fd = os.dup(self.root_fd)
-        for comp in components:
-            if create:
+        if sys.platform == "win32":
+            desc = _win32_dir_descriptors[self.root_fd]
+            curr_path = desc.canonical_path
+            for comp in components:
+                next_path = os.path.join(curr_path, comp)
+                if create:
+                    try:
+                        os.mkdir(next_path, 0o755)
+                    except FileExistsError:
+                        pass
+                    except OSError as e:
+                        raise CASSecurityViolationError(f"Failed to create directory component '{comp}': {e}") from e
+                
                 try:
-                    os.mkdir(comp, 0o755, dir_fd=current_fd)
-                except FileExistsError:
-                    pass
+                    st = os.lstat(next_path)
+                except OSError as e:
+                    if e.errno in (errno.ELOOP, errno.ENOTDIR, errno.EEXIST, errno.EMLINK):
+                        raise CASSecurityViolationError(f"Directory traversal component '{comp}' is a symlink or non-directory: {e}") from e
+                    raise
+                    
+                if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                    raise CASSecurityViolationError(f"Directory traversal component '{comp}' is a symlink or reparse point")
+                if not stat.S_ISDIR(st.st_mode):
+                    raise NotADirectoryError(f"Component '{comp}' is not a directory")
+                    
+                curr_path = next_path
+                
+            next_fd = _win32_open_dir_desc(curr_path)
+            st_next = _fs_fstat(next_fd)
+            if st_next.st_dev != self.dev:
+                _fs_close_dir(next_fd)
+                raise CASDeviceBoundaryViolationError(
+                    f"Cross-device link rejected at component '{components[-1]}' (st_dev {st_next.st_dev} != root {self.dev})"
+                )
+            return next_fd
+        else:
+            current_fd = os.dup(self.root_fd)
+            for comp in components:
+                if create:
+                    try:
+                        os.mkdir(comp, 0o755, dir_fd=current_fd)
+                    except FileExistsError:
+                        pass
+                    except OSError as e:
+                        os.close(current_fd)
+                        raise CASSecurityViolationError(f"Failed to create directory component '{comp}' descriptor-relative: {e}") from e
+                        
+                flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
+                try:
+                    next_fd = os.open(comp, flags, dir_fd=current_fd)
                 except OSError as e:
                     os.close(current_fd)
-                    raise CASSecurityViolationError(f"Failed to create directory component '{comp}' descriptor-relative: {e}") from e
+                    if e.errno in (errno.ELOOP, errno.ENOTDIR, errno.EEXIST, errno.EMLINK):
+                        raise CASSecurityViolationError(f"Directory traversal component '{comp}' is a symlink or non-directory: {e}") from e
+                    raise
                     
-            flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
-            try:
-                next_fd = os.open(comp, flags, dir_fd=current_fd)
-            except OSError as e:
+                st = os.fstat(next_fd)
+                if not stat.S_ISDIR(st.st_mode):
+                    os.close(next_fd)
+                    os.close(current_fd)
+                    raise NotADirectoryError(f"Component '{comp}' is not a directory")
+                    
+                if st.st_dev != self.dev:
+                    os.close(next_fd)
+                    os.close(current_fd)
+                    raise CASDeviceBoundaryViolationError(
+                        f"Cross-device link rejected at component '{comp}' (st_dev {st.st_dev} != root {self.dev})"
+                    )
+                    
                 os.close(current_fd)
-                if e.errno in (errno.ELOOP, errno.ENOTDIR, errno.EEXIST, errno.EMLINK):
-                    raise CASSecurityViolationError(f"Directory traversal component '{comp}' is a symlink or non-directory: {e}") from e
-                raise
+                current_fd = next_fd
                 
-            st = os.fstat(next_fd)
-            if not stat.S_ISDIR(st.st_mode):
-                os.close(next_fd)
-                os.close(current_fd)
-                raise NotADirectoryError(f"Component '{comp}' is not a directory")
-                
-            if st.st_dev != self.dev:
-                os.close(next_fd)
-                os.close(current_fd)
-                raise CASDeviceBoundaryViolationError(
-                    f"Cross-device link rejected at component '{comp}' (st_dev {st.st_dev} != root {self.dev})"
-                )
-                
-            os.close(current_fd)
-            current_fd = next_fd
-            
-        return current_fd
+            return current_fd
 
 
 class PersistentReceiptKeyStore:
@@ -226,27 +640,38 @@ class PersistentReceiptKeyStore:
             os.makedirs(self.key_store_dir, mode=0o700, exist_ok=True)
             
         # Verify directory is a real directory and not a symlink
-        dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        try:
-            dir_fd = os.open(self.key_store_dir, dir_flags)
-        except OSError as e:
-            raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is invalid or a symlink: {e}") from e
-        try:
-            st = os.fstat(dir_fd)
+        if sys.platform == "win32":
+            try:
+                st = os.lstat(self.key_store_dir)
+            except OSError as e:
+                raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is invalid or a symlink: {e}") from e
+            if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
+                raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is a symlink or reparse point")
             if not stat.S_ISDIR(st.st_mode):
                 raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is not a directory")
-            if stat.S_IMODE(st.st_mode) != 0o700:
-                try:
-                    os.fchmod(dir_fd, 0o700)
-                except OSError:
-                    pass
-                st_after = os.fstat(dir_fd)
-                if stat.S_IMODE(st_after.st_mode) != 0o700:
-                    raise CASSecurityViolationError(
-                        f"Key store directory '{self.key_store_dir}' permissions {oct(stat.S_IMODE(st_after.st_mode))} != 0700"
-                    )
-        finally:
-            os.close(dir_fd)
+        else:
+            dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                dir_fd = os.open(self.key_store_dir, dir_flags)
+            except OSError as e:
+                raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is invalid or a symlink: {e}") from e
+            try:
+                st = os.fstat(dir_fd)
+                if not stat.S_ISDIR(st.st_mode):
+                    raise CASSecurityViolationError(f"Key store directory '{self.key_store_dir}' is not a directory")
+                if sys.platform != "win32" and stat.S_IMODE(st.st_mode) != 0o700:
+                    if hasattr(os, "fchmod"):
+                        try:
+                            os.fchmod(dir_fd, 0o700)
+                        except OSError:
+                            pass
+                    st_after = os.fstat(dir_fd)
+                    if stat.S_IMODE(st_after.st_mode) != 0o700:
+                        raise CASSecurityViolationError(
+                            f"Key store directory '{self.key_store_dir}' permissions {oct(stat.S_IMODE(st_after.st_mode))} != 0700"
+                        )
+            finally:
+                os.close(dir_fd)
 
         self.key_file_path = os.path.join(self.key_store_dir, "key_ring.json")
         self.lock_file_path = os.path.join(self.key_store_dir, ".lock")
@@ -288,6 +713,10 @@ class PersistentReceiptKeyStore:
         Executes physical write-through flush on file or directory descriptor.
         Prefers Darwin F_FULLFSYNC when available, falling back to os.fsync on ENOTSUP/ENOTTY/EINVAL.
         """
+        if is_directory or (sys.platform == "win32" and fd in _win32_dir_descriptors):
+            _fs_sync_dir(fd)
+            return "FSYNC"
+
         if sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC"):
             try:
                 fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
@@ -297,6 +726,12 @@ class PersistentReceiptKeyStore:
                     os.fsync(fd)
                     return "FSYNC_FALLBACK"
                 raise
+        elif sys.platform == "win32":
+            try:
+                os.fsync(fd)
+            except OSError:
+                pass
+            return "FSYNC"
         else:
             os.fsync(fd)
             return "FSYNC"
@@ -395,7 +830,7 @@ class PersistentReceiptKeyStore:
             st = os.fstat(fd)
             if not stat.S_ISREG(st.st_mode):
                 raise CASSecurityViolationError(f"Key ring file '{self.key_file_path}' is not a regular file")
-            if stat.S_IMODE(st.st_mode) != 0o600:
+            if sys.platform != "win32" and stat.S_IMODE(st.st_mode) != 0o600:
                 raise CASSecurityViolationError(
                     f"Key ring file '{self.key_file_path}' permissions {oct(stat.S_IMODE(st.st_mode))} != 0600"
                 )
@@ -501,24 +936,40 @@ class PersistentReceiptKeyStore:
         if inject_crash_after_replace:
             raise CASInterruptionError("INJECTED_CRASH_AFTER_REPLACE")
 
-        dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        try:
-            dir_fd = os.open(self.key_store_dir, dir_flags)
-        except OSError as e:
-            self.signing_suspended = True
-            self.persistence_state = "FAILED_INDETERMINATE"
-            raise CASDirectorySyncError(f"Failed to open key directory '{self.key_store_dir}' for sync: {e}") from e
-
-        try:
+        if sys.platform == "win32":
             if inject_dir_sync_error:
-                raise OSError(errno.EIO, "Simulated I/O error during directory sync")
-            self._sync_fd(dir_fd, is_directory=True)
-        except OSError as e:
-            self.signing_suspended = True
-            self.persistence_state = "FAILED_INDETERMINATE"
-            raise CASDirectorySyncError(f"Failed to synchronize key directory '{self.key_store_dir}': {e}") from e
-        finally:
-            os.close(dir_fd)
+                self.signing_suspended = True
+                self.persistence_state = "FAILED_INDETERMINATE"
+                raise CASDirectorySyncError(f"Failed to synchronize key directory '{self.key_store_dir}': Simulated I/O error during directory sync")
+            try:
+                dfd = _win32_open_dir_desc(self.key_store_dir)
+                try:
+                    self._sync_fd(dfd, is_directory=True)
+                finally:
+                    _fs_close_dir(dfd)
+            except Exception as e:
+                self.signing_suspended = True
+                self.persistence_state = "FAILED_INDETERMINATE"
+                raise CASDirectorySyncError(f"Failed to synchronize key directory '{self.key_store_dir}': {e}") from e
+        else:
+            dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                dir_fd = os.open(self.key_store_dir, dir_flags)
+            except OSError as e:
+                self.signing_suspended = True
+                self.persistence_state = "FAILED_INDETERMINATE"
+                raise CASDirectorySyncError(f"Failed to open key directory '{self.key_store_dir}' for sync: {e}") from e
+
+            try:
+                if inject_dir_sync_error:
+                    raise OSError(errno.EIO, "Simulated I/O error during directory sync")
+                self._sync_fd(dir_fd, is_directory=True)
+            except OSError as e:
+                self.signing_suspended = True
+                self.persistence_state = "FAILED_INDETERMINATE"
+                raise CASDirectorySyncError(f"Failed to synchronize key directory '{self.key_store_dir}': {e}") from e
+            finally:
+                os.close(dir_fd)
 
         self.signing_suspended = False
         self.persistence_state = "COMMITTED"
@@ -591,26 +1042,42 @@ class PersistentReceiptKeyStore:
                 self.persistence_state = "CORRUPTED"
                 raise
                 
-            dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-            try:
-                dir_fd = os.open(self.key_store_dir, dir_flags)
-            except OSError:
-                self.signing_suspended = True
-                self.persistence_state = "FAILED_INDETERMINATE"
-                return False
-                
-            try:
-                self._sync_fd(dir_fd, is_directory=True)
-                self.signing_suspended = False
-                self.persistence_state = "COMMITTED"
-                self._cleanup_stale_temp_files_under_lock()
-                return True
-            except OSError:
-                self.signing_suspended = True
-                self.persistence_state = "FAILED_INDETERMINATE"
-                return False
-            finally:
-                os.close(dir_fd)
+            if sys.platform == "win32":
+                try:
+                    dfd = _win32_open_dir_desc(self.key_store_dir)
+                    try:
+                        self._sync_fd(dfd, is_directory=True)
+                    finally:
+                        _fs_close_dir(dfd)
+                    self.signing_suspended = False
+                    self.persistence_state = "COMMITTED"
+                    self._cleanup_stale_temp_files_under_lock()
+                    return True
+                except Exception:
+                    self.signing_suspended = True
+                    self.persistence_state = "FAILED_INDETERMINATE"
+                    return False
+            else:
+                dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                try:
+                    dir_fd = os.open(self.key_store_dir, dir_flags)
+                except OSError:
+                    self.signing_suspended = True
+                    self.persistence_state = "FAILED_INDETERMINATE"
+                    return False
+                    
+                try:
+                    self._sync_fd(dir_fd, is_directory=True)
+                    self.signing_suspended = False
+                    self.persistence_state = "COMMITTED"
+                    self._cleanup_stale_temp_files_under_lock()
+                    return True
+                except OSError:
+                    self.signing_suspended = True
+                    self.persistence_state = "FAILED_INDETERMINATE"
+                    return False
+                finally:
+                    os.close(dir_fd)
 
     def _cleanup_stale_temp_files_under_lock(self, stale_threshold_seconds: float = 60.0) -> int:
         cleaned_count = 0
@@ -644,7 +1111,17 @@ class PersistentReceiptKeyStore:
                 pid_str = pid_thread_uuid.split("_")[0]
                 try:
                     pid = int(pid_str)
-                    os.kill(pid, 0)
+                    if pid <= 0:
+                        is_dead_pid = True
+                    elif sys.platform == "win32":
+                        import ctypes
+                        h_proc = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+                        if not h_proc:
+                            is_dead_pid = True
+                        else:
+                            ctypes.windll.kernel32.CloseHandle(h_proc)
+                    else:
+                        os.kill(pid, 0)
                 except ProcessLookupError:
                     is_dead_pid = True
                 except (ValueError, PermissionError, OSError):
@@ -691,20 +1168,24 @@ class SecureCASStorageEngine:
         norm_anchor = os.path.normpath(trusted_anchor)
         parts = [p for p in norm_anchor.split(os.sep) if p]
         
-        root_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-        try:
-            curr_fd = os.open("/", root_flags)
-        except OSError as e:
-            raise CASSecurityViolationError(f"Failed to open filesystem root descriptor: {e}") from e
+        if sys.platform == "win32":
+            drive, path_part = os.path.splitdrive(norm_anchor)
+            if not drive:
+                raise CASSecurityViolationError(f"Invalid anchor path without drive letter: {norm_anchor}")
+            drive_root = drive + os.sep
+            if not os.path.exists(drive_root):
+                raise CASSecurityViolationError(f"Drive root '{drive_root}' does not exist")
             
-        try:
-            for part in parts:
+            curr_path = drive_root
+            anchor_parts = [p for p in path_part.split(os.sep) if p]
+            for part in anchor_parts:
+                next_path = os.path.join(curr_path, part)
                 try:
-                    st = os.stat(part, dir_fd=curr_fd, follow_symlinks=False)
+                    st = os.lstat(next_path)
                 except OSError as e:
                     raise CASSecurityViolationError(f"Failed to inspect anchor path component '{part}': {e}") from e
-                    
-                if stat.S_ISLNK(st.st_mode):
+                
+                if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & 0x400):
                     raise CASSecurityViolationError(
                         f"Symlink detected in trusted anchor ancestry at component '{part}': "
                         f"symlinks are prohibited within trusted anchor hierarchy."
@@ -713,24 +1194,51 @@ class SecureCASStorageEngine:
                     raise CASSecurityViolationError(
                         f"Component '{part}' in trusted anchor path is not a directory."
                     )
-                    
-                next_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
-                try:
-                    next_fd = os.open(part, next_flags, dir_fd=curr_fd)
-                except OSError as e:
-                    raise CASSecurityViolationError(
-                        f"Cannot securely open anchor component '{part}' with O_NOFOLLOW: {e}"
-                    ) from e
-                os.close(curr_fd)
-                curr_fd = next_fd
+                curr_path = next_path
                 
-            anchor_fd = curr_fd
-            anchor_st = os.fstat(anchor_fd)
-        except Exception:
-            os.close(curr_fd)
-            raise
+            anchor_fd = _win32_open_dir_desc(curr_path)
+            anchor_st = _fs_fstat(anchor_fd)
+        else:
+            root_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            try:
+                curr_fd = os.open("/", root_flags)
+            except OSError as e:
+                raise CASSecurityViolationError(f"Failed to open filesystem root descriptor: {e}") from e
+                
+            try:
+                for part in parts:
+                    try:
+                        st = os.stat(part, dir_fd=curr_fd, follow_symlinks=False)
+                    except OSError as e:
+                        raise CASSecurityViolationError(f"Failed to inspect anchor path component '{part}': {e}") from e
+                        
+                    if stat.S_ISLNK(st.st_mode):
+                        raise CASSecurityViolationError(
+                            f"Symlink detected in trusted anchor ancestry at component '{part}': "
+                            f"symlinks are prohibited within trusted anchor hierarchy."
+                        )
+                    if not stat.S_ISDIR(st.st_mode):
+                        raise CASSecurityViolationError(
+                            f"Component '{part}' in trusted anchor path is not a directory."
+                        )
+                        
+                    next_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
+                    try:
+                        next_fd = os.open(part, next_flags, dir_fd=curr_fd)
+                    except OSError as e:
+                        raise CASSecurityViolationError(
+                            f"Cannot securely open anchor component '{part}' with O_NOFOLLOW: {e}"
+                        ) from e
+                    os.close(curr_fd)
+                    curr_fd = next_fd
+                    
+                anchor_fd = curr_fd
+                anchor_st = os.fstat(anchor_fd)
+            except Exception:
+                os.close(curr_fd)
+                raise
             
-                # Align cas_root if an ancestor resolves to norm_anchor (e.g. system aliases like /var -> /private/var)
+        # Align cas_root if an ancestor resolves to norm_anchor (e.g. system aliases like /var -> /private/var)
         if not self.cas_root.startswith(norm_anchor):
             p = self.cas_root
             sub = []
@@ -744,60 +1252,99 @@ class SecureCASStorageEngine:
         # 2. Verify cas_root is located beneath or equal to trusted_anchor
         rel_to_anchor = os.path.relpath(self.cas_root, norm_anchor)
         if rel_to_anchor == ".." or rel_to_anchor.startswith(".." + os.sep):
-            os.close(anchor_fd)
+            _fs_close_dir(anchor_fd)
             raise CASSecurityViolationError(
                 f"cas_root '{self.cas_root}' is outside trusted_anchor '{norm_anchor}'"
             )
             
         current_fd = anchor_fd
         if rel_to_anchor != ".":
-            components = [c for c in rel_to_anchor.strip('/').split('/') if c and c != '.']
-            for comp in components:
-                if comp == '..':
-                    os.close(current_fd)
-                    raise CASSecurityViolationError("Parent path traversal forbidden in root initialization")
-                    
-                # Descriptor-relative check before creation
-                try:
-                    comp_st = os.stat(comp, dir_fd=current_fd, follow_symlinks=False)
-                    if stat.S_ISLNK(comp_st.st_mode):
-                        os.close(current_fd)
-                        raise CASSecurityViolationError(f"Symlink detected beneath trusted anchor at '{comp}'")
-                    if not stat.S_ISDIR(comp_st.st_mode):
-                        os.close(current_fd)
-                        raise CASSecurityViolationError(f"Component '{comp}' beneath trusted anchor is not a directory")
-                except FileNotFoundError:
+            components = [c for c in rel_to_anchor.replace('\\', '/').strip('/').split('/') if c and c != '.']
+            if sys.platform == "win32":
+                desc = _win32_dir_descriptors[anchor_fd]
+                curr_path = desc.canonical_path
+                for comp in components:
+                    if comp == '..':
+                        _fs_close_dir(current_fd)
+                        raise CASSecurityViolationError("Parent path traversal forbidden in root initialization")
+                    next_path = os.path.join(curr_path, comp)
                     try:
-                        os.mkdir(comp, 0o755, dir_fd=current_fd)
-                    except FileExistsError:
-                        pass
+                        comp_st = os.lstat(next_path)
+                        if stat.S_ISLNK(comp_st.st_mode) or (getattr(comp_st, "st_file_attributes", 0) & 0x400):
+                            _fs_close_dir(current_fd)
+                            raise CASSecurityViolationError(f"Symlink detected beneath trusted anchor at '{comp}'")
+                        if not stat.S_ISDIR(comp_st.st_mode):
+                            _fs_close_dir(current_fd)
+                            raise CASSecurityViolationError(f"Component '{comp}' beneath trusted anchor is not a directory")
+                    except FileNotFoundError:
+                        try:
+                            os.mkdir(next_path, 0o755)
+                        except FileExistsError:
+                            pass
+                        except OSError as e:
+                            _fs_close_dir(current_fd)
+                            raise CASSecurityViolationError(f"Failed to create root directory component '{comp}': {e}") from e
+                        comp_st = os.lstat(next_path)
+                        if stat.S_ISLNK(comp_st.st_mode) or (getattr(comp_st, "st_file_attributes", 0) & 0x400) or not stat.S_ISDIR(comp_st.st_mode):
+                            _fs_close_dir(current_fd)
+                            raise CASSecurityViolationError(f"Component '{comp}' created beneath anchor is invalid")
+                    
+                    next_fd = _win32_open_dir_desc(next_path)
+                    st = _fs_fstat(next_fd)
+                    if st.st_dev != anchor_st.st_dev:
+                        _fs_close_dir(next_fd)
+                        _fs_close_dir(current_fd)
+                        raise CASDeviceBoundaryViolationError(f"Cross-device boundary detected at component '{comp}'")
+                    _fs_close_dir(current_fd)
+                    current_fd = next_fd
+                    curr_path = next_path
+            else:
+                for comp in components:
+                    if comp == '..':
+                        os.close(current_fd)
+                        raise CASSecurityViolationError("Parent path traversal forbidden in root initialization")
+                        
+                    # Descriptor-relative check before creation
+                    try:
+                        comp_st = os.stat(comp, dir_fd=current_fd, follow_symlinks=False)
+                        if stat.S_ISLNK(comp_st.st_mode):
+                            os.close(current_fd)
+                            raise CASSecurityViolationError(f"Symlink detected beneath trusted anchor at '{comp}'")
+                        if not stat.S_ISDIR(comp_st.st_mode):
+                            os.close(current_fd)
+                            raise CASSecurityViolationError(f"Component '{comp}' beneath trusted anchor is not a directory")
+                    except FileNotFoundError:
+                        try:
+                            os.mkdir(comp, 0o755, dir_fd=current_fd)
+                        except FileExistsError:
+                            pass
+                        except OSError as e:
+                            os.close(current_fd)
+                            raise CASSecurityViolationError(f"Failed to create root directory component '{comp}' descriptor-relative: {e}") from e
+                        comp_st = os.stat(comp, dir_fd=current_fd, follow_symlinks=False)
+                        if stat.S_ISLNK(comp_st.st_mode) or not stat.S_ISDIR(comp_st.st_mode):
+                            os.close(current_fd)
+                            raise CASSecurityViolationError(f"Component '{comp}' created beneath anchor is invalid")
+                            
+                    next_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
+                    try:
+                        next_fd = os.open(comp, next_flags, dir_fd=current_fd)
                     except OSError as e:
                         os.close(current_fd)
-                        raise CASSecurityViolationError(f"Failed to create root directory component '{comp}' descriptor-relative: {e}") from e
-                    comp_st = os.stat(comp, dir_fd=current_fd, follow_symlinks=False)
-                    if stat.S_ISLNK(comp_st.st_mode) or not stat.S_ISDIR(comp_st.st_mode):
-                        os.close(current_fd)
-                        raise CASSecurityViolationError(f"Component '{comp}' created beneath anchor is invalid")
+                        raise CASSecurityViolationError(f"Failed to open root directory component '{comp}' securely: {e}") from e
                         
-                next_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
-                try:
-                    next_fd = os.open(comp, next_flags, dir_fd=current_fd)
-                except OSError as e:
+                    st = os.fstat(next_fd)
+                    if not stat.S_ISDIR(st.st_mode):
+                        os.close(next_fd)
+                        os.close(current_fd)
+                        raise CASSecurityViolationError(f"Root component '{comp}' is not a directory")
+                    if st.st_dev != anchor_st.st_dev:
+                        os.close(next_fd)
+                        os.close(current_fd)
+                        raise CASDeviceBoundaryViolationError(f"Cross-device boundary detected at component '{comp}'")
+                        
                     os.close(current_fd)
-                    raise CASSecurityViolationError(f"Failed to open root directory component '{comp}' securely: {e}") from e
-                    
-                st = os.fstat(next_fd)
-                if not stat.S_ISDIR(st.st_mode):
-                    os.close(next_fd)
-                    os.close(current_fd)
-                    raise CASSecurityViolationError(f"Root component '{comp}' is not a directory")
-                if st.st_dev != anchor_st.st_dev:
-                    os.close(next_fd)
-                    os.close(current_fd)
-                    raise CASDeviceBoundaryViolationError(f"Cross-device boundary detected at component '{comp}'")
-                    
-                os.close(current_fd)
-                current_fd = next_fd
+                    current_fd = next_fd
                 
         # current_fd is now the verified, pinned file descriptor for cas_root
         self.walker = SecureCASDirectoryWalker(self.cas_root, existing_fd=current_fd)
@@ -805,7 +1352,7 @@ class SecureCASStorageEngine:
         # Ensure standard subdirectories exist descriptor-relative without following symlinks
         self.staging_dir_fd = self.walker.open_subpath_descriptor("staging", create=True)
         obj_fd = self.walker.open_subpath_descriptor("objects", create=True)
-        os.close(obj_fd)
+        _fs_close_dir(obj_fd)
 
         # Initialize persistent key store within trusted anchor
         if key_store_dir is None:
@@ -822,7 +1369,7 @@ class SecureCASStorageEngine:
     def close(self):
         if self.staging_dir_fd is not None:
             try:
-                os.close(self.staging_dir_fd)
+                _fs_close_dir(self.staging_dir_fd)
             except OSError:
                 pass
             self.staging_dir_fd = None
@@ -859,10 +1406,10 @@ class SecureCASStorageEngine:
         Returns: (tmp_filename, total_bytes, durability_level)
         """
         tmp_filename = f"tmp_{pub_id}_{token}_{expected_digest[:16]}.part"
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
         
         try:
-            staging_file_fd = os.open(tmp_filename, flags, mode=0o600, dir_fd=self.staging_dir_fd)
+            staging_file_fd = _fs_open(tmp_filename, flags, mode=0o600, dir_fd=self.staging_dir_fd)
         except OSError as e:
             raise CASError(f"Failed to create staging file '{tmp_filename}' descriptor-relative: {e}") from e
             
@@ -918,7 +1465,8 @@ class SecureCASStorageEngine:
                 )
                 
             # Apply read-only permissions descriptor-relative (0o444)
-            os.fchmod(staging_file_fd, 0o444)
+            if hasattr(os, "fchmod"):
+                os.fchmod(staging_file_fd, 0o444)
             
             # Durability flush
             durability_level = "FSYNC"
@@ -954,7 +1502,7 @@ class SecureCASStorageEngine:
                 unlink_err_msg = "Simulated unlink failure (EIO/EBUSY)"
             else:
                 try:
-                    os.unlink(tmp_filename, dir_fd=self.staging_dir_fd)
+                    _fs_unlink(tmp_filename, dir_fd=self.staging_dir_fd)
                 except OSError as ue:
                     unlink_failed = True
                     unlink_err_msg = str(ue)
@@ -997,14 +1545,14 @@ class SecureCASStorageEngine:
         
         # Enumerate directory entries descriptor-relative
         try:
-            entries = os.listdir(self.staging_dir_fd)
+            entries = _fs_listdir(self.staging_dir_fd)
         except OSError as e:
             raise CASError(f"Failed to scan staging directory descriptor: {e}") from e
             
         for entry in entries:
             # Check descriptor-relative metadata without following symlinks
             try:
-                st = os.stat(entry, dir_fd=self.staging_dir_fd, follow_symlinks=False)
+                st = _fs_stat(entry, dir_fd=self.staging_dir_fd, follow_symlinks=False)
             except FileNotFoundError:
                 continue
             except OSError as e:
@@ -1043,7 +1591,7 @@ class SecureCASStorageEngine:
                     
             if should_unlink:
                 try:
-                    os.unlink(entry, dir_fd=self.staging_dir_fd)
+                    _fs_unlink(entry, dir_fd=self.staging_dir_fd)
                     recovered += 1
                 except FileNotFoundError:
                     pass
@@ -1052,13 +1600,7 @@ class SecureCASStorageEngine:
                     
         if recovered > 0:
             try:
-                if hasattr(fcntl, "F_FULLFSYNC") and self.strict_fullfsync:
-                    try:
-                        fcntl.fcntl(self.staging_dir_fd, fcntl.F_FULLFSYNC)
-                    except OSError:
-                        os.fsync(self.staging_dir_fd)
-                else:
-                    os.fsync(self.staging_dir_fd)
+                _fs_sync_dir(self.staging_dir_fd)
             except OSError as e:
                 raise CASDirectorySyncError(f"Failed to sync staging directory after durable sweep: {e}") from e
                 
@@ -1066,7 +1608,7 @@ class SecureCASStorageEngine:
         surviving_quarantine = []
         for o in self.quarantined_orphans:
             try:
-                os.stat(o["tmp_filename"], dir_fd=self.staging_dir_fd, follow_symlinks=False)
+                _fs_stat(o["tmp_filename"], dir_fd=self.staging_dir_fd, follow_symlinks=False)
                 surviving_quarantine.append(o)
             except (FileNotFoundError, OSError):
                 pass
@@ -1083,7 +1625,7 @@ class SecureCASStorageEngine:
         for orphan in self.quarantined_orphans:
             fn = orphan["tmp_filename"]
             try:
-                os.unlink(fn, dir_fd=self.staging_dir_fd)
+                _fs_unlink(fn, dir_fd=self.staging_dir_fd)
                 recovered_count += 1
             except FileNotFoundError:
                 recovered_count += 1
@@ -1112,7 +1654,7 @@ class SecureCASStorageEngine:
         try:
             # POSIX linkat(staging_dir_fd, tmp_filename, shard_dir_fd, blob_digest)
             try:
-                os.link(
+                _fs_link(
                     tmp_filename,
                     blob_digest,
                     src_dir_fd=self.staging_dir_fd,
@@ -1121,7 +1663,7 @@ class SecureCASStorageEngine:
                 )
             except FileExistsError:
                 # EEXIST: inspect existing destination file descriptor-relative
-                dst_fd = os.open(blob_digest, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=shard_dir_fd)
+                dst_fd = _fs_open(blob_digest, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=shard_dir_fd)
                 try:
                     hasher = hashlib.sha256()
                     while True:
@@ -1142,21 +1684,21 @@ class SecureCASStorageEngine:
                 
             # Flush shard directory entry (NEVER SUPPRESSED)
             try:
-                os.fsync(shard_dir_fd)
+                _fs_sync_dir(shard_dir_fd)
             except OSError as e:
                 raise CASDirectorySyncError(f"Failed to synchronize shard directory 'objects/{shard_prefix}': {e}") from e
                 
             # Unlink staging file descriptor-relative
-            os.unlink(tmp_filename, dir_fd=self.staging_dir_fd)
+            _fs_unlink(tmp_filename, dir_fd=self.staging_dir_fd)
             
             # Flush staging directory entry (NEVER SUPPRESSED)
             try:
-                os.fsync(self.staging_dir_fd)
+                _fs_sync_dir(self.staging_dir_fd)
             except OSError as e:
                 raise CASDirectorySyncError(f"Failed to synchronize staging directory: {e}") from e
                 
         finally:
-            os.close(shard_dir_fd)
+            _fs_close_dir(shard_dir_fd)
             
         return {
             "status": "PUBLISHED",
@@ -1188,59 +1730,53 @@ class SecureCASStorageEngine:
         prefix = hex_digest[:2]
         filename = hex_digest
         shard_fd = self.get_shard_dir_descriptor(prefix)
-        shard_st = os.fstat(shard_fd)
-        shard_ino = shard_st.st_ino
-        dev_id = shard_st.st_dev
-
-        # Inspect target file descriptor-relative before unlinking
         try:
-            file_st = os.stat(filename, dir_fd=shard_fd, follow_symlinks=False)
-            unlinked_inode = file_st.st_ino
-            unlinked_bytes = file_st.st_size
-            was_present = True
-        except FileNotFoundError:
-            unlinked_inode = 0
-            unlinked_bytes = 0
-            was_present = False
-        except OSError as e:
-            raise CASDeletionError(f"Failed to stat CAS blob '{blob_digest}' before unlink: {e}") from e
+            shard_st = _fs_fstat(shard_fd)
+            shard_ino = shard_st.st_ino
+            dev_id = shard_st.st_dev
 
-        # Boundary A Interruption Point: before physical unlink
-        if real_crash_boundary == "A":
-            os._exit(42)
-        if simulate_crash_before_unlink:
-            raise CASInterruptionError(f"Simulated crash at Boundary A: before unlink of blob '{blob_digest}'")
-
-        if was_present:
+            # Inspect target file descriptor-relative before unlinking
             try:
-                os.unlink(filename, dir_fd=shard_fd)
+                file_st = _fs_stat(filename, dir_fd=shard_fd, follow_symlinks=False)
+                unlinked_inode = file_st.st_ino
+                unlinked_bytes = file_st.st_size
+                was_present = True
             except FileNotFoundError:
+                unlinked_inode = 0
+                unlinked_bytes = 0
                 was_present = False
             except OSError as e:
-                raise CASDeletionError(f"Failed to unlink CAS blob '{blob_digest}': {e}") from e
+                raise CASDeletionError(f"Failed to stat CAS blob '{blob_digest}' before unlink: {e}") from e
 
-        # Boundary B Interruption Point: after physical unlink, before directory synchronization
-        if real_crash_boundary == "B":
-            os._exit(42)
-        if simulate_crash_before_dir_sync:
-            raise CASInterruptionError(f"Simulated crash at Boundary B: after unlink, before shard directory sync of blob '{blob_digest}'")
+            # Boundary A Interruption Point: before physical unlink
+            if real_crash_boundary == "A":
+                os._exit(42)
+            if simulate_crash_before_unlink:
+                raise CASInterruptionError(f"Simulated crash at Boundary A: before unlink of blob '{blob_digest}'")
 
-        # Synchronize shard directory descriptor
-        sync_method = "FSYNC"
-        sync_timestamp_ns = time.time_ns()
-        try:
-            if hasattr(fcntl, "F_FULLFSYNC") and self.strict_fullfsync:
+            if was_present:
                 try:
-                    fcntl.fcntl(shard_fd, fcntl.F_FULLFSYNC)
-                    sync_method = "F_FULLFSYNC"
-                except OSError:
-                    os.fsync(shard_fd)
-                    sync_method = "FSYNC"
-            else:
-                os.fsync(shard_fd)
-                sync_method = "FSYNC"
-        except OSError as e:
-            raise CASDirectorySyncError(f"Failed to synchronize shard directory '{prefix}' after deletion: {e}") from e
+                    _fs_unlink(filename, dir_fd=shard_fd)
+                except FileNotFoundError:
+                    was_present = False
+                except OSError as e:
+                    raise CASDeletionError(f"Failed to unlink CAS blob '{blob_digest}': {e}") from e
+
+            # Boundary B Interruption Point: after physical unlink, before directory synchronization
+            if real_crash_boundary == "B":
+                os._exit(42)
+            if simulate_crash_before_dir_sync:
+                raise CASInterruptionError(f"Simulated crash at Boundary B: after unlink, before shard directory sync of blob '{blob_digest}'")
+
+            # Synchronize shard directory descriptor
+            sync_method = "F_FULLFSYNC" if (sys.platform == "darwin" and hasattr(fcntl, "F_FULLFSYNC") and self.strict_fullfsync) else "FSYNC"
+            sync_timestamp_ns = time.time_ns()
+            try:
+                _fs_sync_dir(shard_fd)
+            except OSError as e:
+                raise CASDirectorySyncError(f"Failed to synchronize shard directory '{prefix}' after deletion: {e}") from e
+        finally:
+            _fs_close_dir(shard_fd)
 
         key_id, key_secret = self.key_store.get_active_key()
         sig_payload = f"LCS-DEL-RECEIPT-v1:{key_id}:{hex_digest}:{reservation_token}:{unlinked_inode}:{shard_ino}:{dev_id}:{sync_method}:{sync_timestamp_ns}".encode("utf-8")
@@ -1486,20 +2022,23 @@ class SecureCASStorageEngine:
             # Positively verify physical existence descriptor-relative
             shard_fd = self.get_shard_dir_descriptor(prefix)
             try:
-                file_st = os.stat(filename, dir_fd=shard_fd, follow_symlinks=False)
-                if not stat.S_ISREG(file_st.st_mode):
+                try:
+                    file_st = _fs_stat(filename, dir_fd=shard_fd, follow_symlinks=False)
+                    if not stat.S_ISREG(file_st.st_mode):
+                        raise CASDeletionError(
+                            f"GC cancellation failed for blob '{blob_digest}': path exists but is not a regular file"
+                        )
+                    verified_inode = file_st.st_ino
+                    verified_bytes = file_st.st_size
+                    shard_st = _fs_fstat(shard_fd)
+                    dev_id = shard_st.st_dev
+                except FileNotFoundError:
                     raise CASDeletionError(
-                        f"GC cancellation failed for blob '{blob_digest}': path exists but is not a regular file"
+                        f"Cannot cancel reservation for blob '{blob_digest}': physical file does not exist on disk! "
+                        f"Physical unlink has already completed; cannot resurrect phantom blob."
                     )
-                verified_inode = file_st.st_ino
-                verified_bytes = file_st.st_size
-                shard_st = os.fstat(shard_fd)
-                dev_id = shard_st.st_dev
-            except FileNotFoundError:
-                raise CASDeletionError(
-                    f"Cannot cancel reservation for blob '{blob_digest}': physical file does not exist on disk! "
-                    f"Physical unlink has already completed; cannot resurrect phantom blob."
-                )
+            finally:
+                _fs_close_dir(shard_fd)
                 
             # If state is COMMITTED_FOR_UNLINK, record cryptographic cancellation receipt
             if existing_state == 'COMMITTED_FOR_UNLINK':
@@ -1581,7 +2120,7 @@ class SecureCASStorageEngine:
         shard_fd = self.get_shard_dir_descriptor(prefix)
         try:
             try:
-                fd = os.open(filename, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=shard_fd)
+                fd = _fs_open(filename, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=shard_fd)
             except FileNotFoundError as e:
                 raise CASBlobNotFoundError(f"CAS blob '{hex_digest}' not found in shard '{prefix}'") from e
             except OSError as e:
@@ -1601,7 +2140,7 @@ class SecureCASStorageEngine:
             finally:
                 os.close(fd)
         finally:
-            os.close(shard_fd)
+            _fs_close_dir(shard_fd)
 
         actual_digest = hashlib.sha256(data).hexdigest()
         if actual_digest != hex_digest:
@@ -1624,12 +2163,12 @@ class SecureCASStorageEngine:
         
         shard_fd = self.get_shard_dir_descriptor(prefix)
         try:
-            st = os.stat(filename, dir_fd=shard_fd, follow_symlinks=False)
+            st = _fs_stat(filename, dir_fd=shard_fd, follow_symlinks=False)
             return stat.S_ISREG(st.st_mode)
         except OSError:
             return False
         finally:
-            os.close(shard_fd)
+            _fs_close_dir(shard_fd)
 
     def audit_physical_deletion_consistency(
         self,
@@ -1652,7 +2191,7 @@ class SecureCASStorageEngine:
         
         # Check physical presence
         try:
-            st = os.stat(filename, dir_fd=shard_fd, follow_symlinks=False)
+            st = _fs_stat(filename, dir_fd=shard_fd, follow_symlinks=False)
             physically_exists = True
             disk_inode = st.st_ino
             disk_size = st.st_size
@@ -1660,6 +2199,8 @@ class SecureCASStorageEngine:
             physically_exists = False
             disk_inode = 0
             disk_size = 0
+        finally:
+            _fs_close_dir(shard_fd)
             
         cur = conn.cursor()
         cur.execute("""

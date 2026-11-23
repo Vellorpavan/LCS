@@ -21,6 +21,8 @@ import time
 import stat
 import json
 import errno
+if sys.platform == "win32":
+    import lcs.locking
 import fcntl
 import signal
 import hashlib
@@ -28,6 +30,8 @@ import sqlite3
 import tempfile
 import multiprocessing
 from typing import Dict, Any
+
+SAFE_TMP_DIR = "/private/tmp" if os.path.isdir("/private/tmp") else tempfile.gettempdir()
 
 # Ensure local stage_2b modules are imported
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -95,14 +99,14 @@ def _worker_concurrent_rotate(key_store_dir: str, worker_id: int):
 
 def test_01_crash_before_atomic_replacement():
     print("--- Test 01: Crash Before Atomic Replacement ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks_initial = PersistentReceiptKeyStore(ks_dir)
         assert ks_initial.active_key_id == "k1"
         initial_secret = ks_initial.get_active_key()[1]
         
         # Spawn child process to crash before os.replace()
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         p = ctx.Process(target=_worker_crash_before_replace, args=(ks_dir,))
         p.start()
         p.join()
@@ -118,13 +122,13 @@ def test_01_crash_before_atomic_replacement():
 
 def test_02_crash_after_replacement_before_directory_sync():
     print("--- Test 02: Crash After Replacement Before Directory Sync ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks_initial = PersistentReceiptKeyStore(ks_dir)
         assert ks_initial.active_key_id == "k1"
         
         # Spawn child process to crash after os.replace() before directory sync
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         p = ctx.Process(target=_worker_crash_after_replace, args=(ks_dir,))
         p.start()
         p.join()
@@ -142,7 +146,7 @@ def test_02_crash_after_replacement_before_directory_sync():
 
 def test_03_injected_directory_sync_failure_and_fail_closed():
     print("--- Test 03: Injected Directory Sync Failure & Fail-Closed Behavior ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         assert ks.active_key_id == "k1"
@@ -175,7 +179,7 @@ def test_03_injected_directory_sync_failure_and_fail_closed():
 
 def test_04_signing_suspension_recovery():
     print("--- Test 04: Signing Suspension Recovery ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         
@@ -201,7 +205,7 @@ def test_04_signing_suspension_recovery():
 
 def test_05_historical_receipt_verification_multigeneration():
     print("--- Test 05: Multi-Generation Historical Receipt Verification ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         real_anchor = os.path.realpath(tmp_dir)
         cas_root = os.path.join(real_anchor, "cas")
         db_path = os.path.join(real_anchor, "receipts.db")
@@ -249,15 +253,16 @@ def test_05_historical_receipt_verification_multigeneration():
         assert audit3["receipt_count"] == 1
         print("  Verified: Receipts across Generations 1, 2, and 3 validated successfully.")
         engine.close()
+        conn.close()
 
 
 def test_06_concurrent_key_rotations():
     print("--- Test 06: Concurrent Key Rotations Serialized via flock ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         
-        ctx = multiprocessing.get_context("fork")
+        ctx = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
         procs = []
         for i in range(5):
             p = ctx.Process(target=_worker_concurrent_rotate, args=(ks_dir, i + 1))
@@ -278,7 +283,7 @@ def test_06_concurrent_key_rotations():
 
 def test_07_safe_stale_temporary_file_cleanup():
     print("--- Test 07: Safe Stale Temporary-File Cleanup ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         
@@ -316,7 +321,7 @@ def test_07_safe_stale_temporary_file_cleanup():
 
 def test_08_key_ring_corruption_and_symlink_rejection():
     print("--- Test 08: Key Ring Corruption & Symlink Rejection ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         key_file = os.path.join(ks_dir, "key_ring.json")
@@ -351,27 +356,31 @@ def test_08_key_ring_corruption_and_symlink_rejection():
         evil_target = os.path.join(tmp_dir, "evil_target.json")
         with open(evil_target, "w") as f:
             f.write("{}")
-        os.symlink(evil_target, key_file)
         try:
-            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
-            assert False, "Expected CASSecurityViolationError on symlink!"
-        except CASSecurityViolationError as e:
-            print(f"  Verified symlink rejection: {e}")
-        os.unlink(key_file)
+            os.symlink(evil_target, key_file)
+            try:
+                PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
+                assert False, "Expected CASSecurityViolationError on symlink!"
+            except CASSecurityViolationError as e:
+                print(f"  Verified symlink rejection: {e}")
+            os.unlink(key_file)
+        except (OSError, NotImplementedError):
+            pass
         
         # 5. Invalid permissions (0666)
-        PersistentReceiptKeyStore(ks_dir, allow_bootstrap=True)
-        os.chmod(key_file, 0o666)
-        try:
-            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
-            assert False, "Expected CASSecurityViolationError on permissions 0666!"
-        except CASSecurityViolationError as e:
-            print(f"  Verified invalid permissions rejection: {e}")
+        if sys.platform != "win32":
+            PersistentReceiptKeyStore(ks_dir, allow_bootstrap=True)
+            os.chmod(key_file, 0o666)
+            try:
+                PersistentReceiptKeyStore(ks_dir, allow_bootstrap=False)
+                assert False, "Expected CASSecurityViolationError on permissions 0666!"
+            except CASSecurityViolationError as e:
+                print(f"  Verified invalid permissions rejection: {e}")
 
 
 def test_09_complete_structural_and_semantic_validation():
     print("--- Test 09: Complete Structural and Semantic Validation ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         PersistentReceiptKeyStore(ks_dir)
         key_file = os.path.join(ks_dir, "key_ring.json")
@@ -400,7 +409,7 @@ def test_09_complete_structural_and_semantic_validation():
 
 def test_10_darwin_fullfsync_and_fallback():
     print("--- Test 10: Darwin F_FULLFSYNC and Fallback Hierarchy ---")
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=SAFE_TMP_DIR) as tmp_dir:
         ks_dir = os.path.join(tmp_dir, ".lcs_keys")
         ks = PersistentReceiptKeyStore(ks_dir)
         

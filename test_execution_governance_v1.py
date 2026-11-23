@@ -442,8 +442,9 @@ def test_08_trust_freshness_revision_drift_and_storage_topology(governance_fixtu
     assert row[1] == "POLICY_REVISION_DRIFT"
 
     # Test separate-database topology fail-closed enforcement
-    with tempfile.NamedTemporaryFile(suffix=".db") as separate_db:
-        conn_sep = sqlite3.connect(separate_db.name)
+    with tempfile.TemporaryDirectory() as td:
+        sep_db_path = os.path.join(td, "separate.db")
+        conn_sep = sqlite3.connect(sep_db_path)
         with pytest.raises(UnsupportedStorageTopologyError):
             check_storage_topology(ctx.conn, conn_sep)
         conn_sep.close()
@@ -484,7 +485,7 @@ def test_09_filesystem_path_confinement_and_traversal():
         boundary_root = os.path.realpath(td)
         grants, warnings, violations = evaluate_resource_boundaries(plan, boundary_root=boundary_root)
         assert len(violations) > 0
-        assert any("Path traversal detected" in v or "resolves outside boundary root" in v for v in violations)
+        assert any("Path traversal" in v or "resolves outside boundary root" in v for v in violations)
 
 
 # ============================================================================
