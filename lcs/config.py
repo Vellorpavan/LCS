@@ -16,6 +16,7 @@ class LCSConfig:
     key_store_dir: str
     schema_dir: str
     user_state_dir: Optional[str] = None
+    workspace_root: Optional[str] = None
 
     @classmethod
     def get_user_state_dir(cls, home_override: Optional[str] = None) -> str:
@@ -110,6 +111,7 @@ class LCSConfig:
             key_store_dir=os.path.join(root, "keys"),
             schema_dir=s_dir,
             user_state_dir=user_state_dir,
+            workspace_root=ws,
         )
 
     def ensure_directories(self) -> None:

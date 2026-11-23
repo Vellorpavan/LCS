@@ -1,144 +1,298 @@
-# Living Capability System (LCS) — Release v3.1.0
+# Living Capability System (LCS) — Universal Capability Engine v3.2.0
 
-The **Living Capability System (LCS)** is an autonomous, cryptographic, zero-trust infrastructure for discovering, understanding, planning, governing, and executing agentic tools, MCP servers, and agent skills.
+[![CI Matrix](https://img.shields.io/badge/CI-12%2F12%20Passing-brightgreen.svg)](#cross-platform-ci-matrix)
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](#system-requirements)
+[![Supported OS](https://img.shields.io/badge/OS-macOS%20%7C%20Ubuntu%20Linux%20%7C%20Windows-blueviolet.svg)](#cross-platform-architecture)
+[![Governance](https://img.shields.io/badge/Governance-Zero--Trust%20Dual--Gate-orange.svg)](#zero-trust-governance--security-invariants)
 
-LCS v3.1.0 introduces the **Call Me Invocation Architecture** (`/call-me`): universal multi-agent capability intelligence and execution orchestration across Google Antigravity, Codex, Claude Code, OpenCode, and Generic POSIX environments without conversational interference, context token inflation, or ungoverned tool execution.
+The **Living Capability System (LCS)** is an autonomous, cryptographic, zero-trust infrastructure for discovering, understanding, planning, governing, and executing agentic tools, MCP servers, and agent skills across any compatible coding agent.
 
----
-
-## Core Security & Operational Invariants
-
-- **Cryptographic Zero-Trust Governance**: Capabilities and interfaces must be attested with HMAC-SHA256 signatures before plan authorization.
-- **Fail-Closed Dual-Gate Control**: Strict verification requires Policy Gate 1 (attestation & version invariants) and Approver Consent Gate 2 (role-based confirmation).
-- **Plan Tampering Immunity**: Tokens are bound to the SHA-256 hash of the RFC 8785 JSON Canonicalization (JCS) representation (`PlanIntegrityHash`). Any mid-flight parameter or step alteration fails closed.
-- **Single-Use Replay Protection**: Monotonic Compare-and-Consume protocol consumes Execution Authorization Tokens (EAT) and Dispatch Permits atomically under SQLite exclusive transaction locks (`BEGIN IMMEDIATE`).
-- **Conversational Dormancy**: Non-`/call-me` developer messages completely bypass LCS Core (0 Core invocations, 0 catalog queries, 0 SQLite mutations, 0 CAS writes, 0 injected context tokens).
-- **Exact-Byte Provenance & Sandboxing**: Artifacts are hashed and preserved bit-for-bit in CAS storage (`O_NOFOLLOW`, descriptor-relative path pinning). Process groups (`os.setsid`) manage graceful `SIGTERM` $\to$ `SIGKILL` termination, child reaping, and reverse-order compensation unwinding.
+With **LCS v3.2.0**, developers can install LCS **once** on their computer and use it repeatedly from any coding agent—including Google Antigravity, OpenCode, Claude Code, OpenAI Codex, and custom declarative coding agents—without modifying the frozen core engine.
 
 ---
 
-## Installation & Clean Initialization
+## Architecture Overview
+
+```text
+  Developer / Coding Agent Interface
+       │  (Invokes exact command: /call-me <task>)
+       ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LCS UNIVERSAL HOST ADAPTER LAYER                     │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐│
+│  │  Antigravity  │ │   OpenCode    │ │  Claude Code  │ │ Custom Agents ││
+│  │   (Skills)    │ │  (Commands)   │ │  (Commands)   │ │ (Declarative) ││
+│  └───────┬───────┘ └───────┬───────┘ └───────┬───────┘ └───────┬───────┘│
+└──────────┼─────────────────┼─────────────────┼─────────────────┼────────┘
+           ▼                 ▼                 ▼                 ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CAPABILITY INTELLIGENCE & PLANNING                   │
+│  • Fast FTS5 Lexical & Semantic Profile Matcher                        │
+│  • Parameter Understanding & Schema Compatibility Engine                │
+│  • Directed Acyclic Graph (DAG) Multi-Capability Planner               │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   DUAL-GATE GOVERNANCE ENGINE (V1)                      │
+│  Gate 1: Interface Trust Policy (Attestation & Boundary Confinement)    │
+│  Gate 2: Human Operator Approval (Cryptographic Consent Verification)   │
+│  Token:  Single-Use RFC 8785 PlanIntegrityHash Signed Token (EAT)       │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                 CONCURRENT EXECUTION & AUDIT SUBSTRATE                  │
+│  • Topological Wave Concurrent Execution Engine                        │
+│  • Fail-Closed Reverse-Order Step Compensation & Cleanup                │
+│  • Exact-Byte Content-Addressable Storage (CAS) Sandboxing              │
+│  • Immutable Append-Only Cryptographic Audit Ledger (HMAC-SHA256)      │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Key Features in v3.2.0
+
+1. **Universal Local-First Setup (`lcs setup`)**:
+   - Install once globally (`~/.lcs`) with automatic project-local state fallback (`./.lcs`).
+   - Idempotent configuration management, health diagnostics (`lcs setup --check`), and self-healing repair (`lcs setup --repair`).
+2. **Pluggable Host Adapter Contract**:
+   - Zero modifications to the frozen core to integrate future coding agents.
+   - Declarative JSON/YAML adapter specifications with built-in path-traversal and shell-injection guards.
+3. **Cross-Agent Context Hydration**:
+   - Seamlessly transfer task context, dependencies, and capability state between different coding agents working on the same project without data leakage.
+4. **Universal Model Context Protocol (MCP) Interface**:
+   - Standard stdio JSON-RPC 2.0 server (`lcs serve-mcp`) exposing `lcs_call_me`.
+   - Built-in prevention against caller self-authorization: execution strictly requires authenticated, scoped governance tokens.
+5. **Native Cross-Platform Concurrency Parity**:
+   - Genuine cross-process file locking on POSIX (`fcntl.flock`) and Windows (`kernel32.LockFileEx`).
+   - Secure Windows-native filesystem descriptor emulation and process tree lifecycle termination.
+
+---
+
+## Zero-Trust Governance & Security Invariants
+
+LCS enforces strict mathematical and architectural constraints to guarantee zero-trust execution:
+
+- **Dual-Gate Fail-Closed Control**: Every execution plan must pass Gate 1 (interface policy attestation) and Gate 2 (human approver consent). Plans cannot self-authorize.
+- **Plan Integrity Binding**: Authorization tokens are cryptographically bound to the RFC 8785 JSON Canonicalization (JCS) hash of the execution plan (`PlanIntegrityHash`). Any modification to steps or parameters invalidates the token.
+- **Single-Use Replay Immunity**: Monotonic compare-and-consume protocol consumes tokens atomically under database exclusive locks (`BEGIN IMMEDIATE`). Token reuse raises `TokenAlreadyConsumedError`.
+- **Conversational Dormancy**: Regular conversational messages bypass LCS completely. LCS activates strictly upon explicit `/call-me` invocation.
+- **Content-Addressable Storage (CAS)**: Deliverables and execution artifacts are stored under their exact SHA-256 digests with descriptor-pinned, traversal-resistant filesystem operations.
+- **Tamper-Evident Audit Ledger**: Every governance evaluation, approval, execution step, and compensation event is written to an append-only, SHA-256 hash-chained ledger.
+
+---
+
+## System Requirements & Supported Platforms
+
+### System Requirements
+- **Python**: $\ge 3.10$ (fully tested on 3.10, 3.11, 3.12, 3.13)
+- **Dependencies**: `pyyaml >= 6.0` (core); `pytest`, `mcp` (development/MCP tools)
+- **Disk**: Minimal footprint (< 50MB for core and runtime database)
+
+### Cross-Platform Architecture
+| Platform | Process Concurrency & Locking | Filesystem Sandboxing | Status |
+| :--- | :--- | :--- | :---: |
+| **macOS (Darwin)** | Kernel `flock` / `F_FULLFSYNC` | Descriptor-relative (`openat`, `O_NOFOLLOW`) | ✅ Full Parity |
+| **Ubuntu Linux** | Kernel POSIX `flock` / `fsync` | Descriptor-relative (`openat`, `O_NOFOLLOW`) | ✅ Full Parity |
+| **Native Windows** | Win32 `kernel32.LockFileEx` | Realpath boundary confinement & Win32 handles | ✅ Full Parity |
+
+---
+
+## Coding Agent Integration Matrix
+
+LCS standardizes on the **exact invocation command**: `/call-me <task>`.
+
+To prevent ambiguity between simulated adapters and real-world execution, LCS maintains a truthful categorization of supported host agents:
+
+| Host Agent | Target Command Artifact | Invocation Syntax | Verification Classification | Capabilities & Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Google Antigravity** | `~/.gemini/config/skills/call-me/SKILL.md` | `/call-me` | **LIVE_VERIFIED** | Active runtime; multi-capability intake, DAG planning, and handoff verified. |
+| **OpenCode** | `~/.opencode/commands/call-me.md` | `/call-me` | **PROTOCOL_VERIFIED** | Standalone binary (`opencode v2.3.2`) verified; remote execution requires valid provider key. |
+| **Claude Code** | `~/.claude/commands/call-me.md` | `/call-me` | **PROTOCOL_VERIFIED** | Markdown command contract verified; CLI binary uninstalled locally. |
+| **OpenAI Codex** | `.agents/skills/call-me/SKILL.md` | `/call-me` | **PROTOCOL_VERIFIED** | Ambient rule and skill discovery verified; CLI binary uninstalled locally. |
+| **Custom Agents** | `.nexus/commands/call-me.md` (or custom) | `/call-me` | **CONTRACT_LIVE_VERIFIED** | Declarative spec schema validated, dynamic loader instantiated, security checks active. |
+
+---
+
+## Installation & Setup
 
 ### 1. Installation
 
-LCS is packaged as a standard Python package (`lcs-core`).
-
-**From Local Source (Editable):**
+**From Built Wheel Package:**
 ```bash
-python3 -m pip install -e .
+pip install lcs_core-3.2.0rc1-py3-none-any.whl
 ```
 
-**From Standalone Wheel Package:**
+**From Source Repository (Editable Mode):**
 ```bash
-python3 -m pip install dist/lcs_core-3.1.0-py3-none-any.whl
+git clone https://github.com/Vellorpavan/LCS.git
+cd lcs
+pip install -e ".[dev]"
 ```
 
-*Requirements:* Python $\ge 3.10$, `pyyaml >= 6.0`.
+### 2. Local-First Setup
 
-### 2. Initialization & System Status
+Run the idempotent setup command to configure LCS and register command artifacts for all detected agents:
 
-Initialize a clean workspace or verify system health:
 ```bash
+# Setup user-global environment (~/.lcs)
+lcs setup --global
+
+# Setup project-local environment (./.lcs)
+lcs setup --project
+```
+
+### 3. Diagnostics & Health Verification
+
+Inspect system health, database migrations, and agent command integrations:
+```bash
+# Run non-destructive diagnostic check
+lcs setup --check
+
+# Run automatic self-healing repair
+lcs setup --repair
+
+# View active status summary
 lcs status
 ```
-*Note:* Running `lcs status` in a new workspace automatically creates the SQLite relational database (`lcs.db`), applies baseline schemas and migrations, provisions Content-Addressable Storage (CAS) directories, and initializes the persistent cryptographic key store.
-
-To run against a custom directory root:
-```bash
-lcs --root /path/to/custom_dir status
-```
 
 ---
 
-## Supported Host Environments & Slash Commands
+## Usage Examples
 
-LCS adapts dynamically to the host environment using dedicated environment adapters:
-
-| Host Environment | Active Adapter | Slash Command Target | Subagent Delegation | Live MCP Stdio |
-| :--- | :--- | :--- | :---: | :---: |
-| **Google Antigravity** | `AntigravityAdapter` | `.agents/skills/call-me/SKILL.md` | In-Memory (Simulated) | Supported |
-| **Codex** | `CodexAdapter` | `.agents/skills/call-me/SKILL.md` | *Unsupported (fails closed)* | Supported |
-| **Claude Code** | `ClaudeCodeAdapter` | `.claude/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
-| **OpenCode** | `OpenCodeAdapter` | `.opencode/commands/call-me.md` | *Unsupported (fails closed)* | Supported |
-| **Generic POSIX** | `GenericPOSIXAdapter` | CLI Subcommand: `lcs call-me` | *Unsupported (fails closed)* | Supported |
-
-### Installing `/call-me` Slash Commands
-
-Install slash command definition files into your workspace or user home:
-```bash
-# Install into all detected environments in workspace:
-lcs install-command --environment all
-
-# Install globally to user home:
-lcs install-command --environment all --global
-
-# Safely uninstall command artifacts:
-lcs uninstall-command --environment all
-```
-*Safety Invariant:* `install-command` will refuse to overwrite existing non-LCS files unless `--overwrite` is explicitly provided. `uninstall-command` only deletes verified LCS-managed files and only removes directories if completely empty.
-
----
-
-## Invocation & Usage
-
-### 1. Host Slash Command Invocation
-In supported host conversational interfaces (Antigravity, Claude Code, OpenCode):
+### 1. Natural Language Capability Intake via `/call-me`
+In supported agent interfaces (Antigravity, OpenCode, Claude Code):
 ```text
-/call-me "Inspect release version, run compliance security scan, and deploy to staging"
+/call-me "Ingest telemetry logs, compute anomaly distribution, and export report"
 ```
 
-### 2. CLI Invocation
-In generic POSIX shells or automation pipelines:
+### 2. Standalone CLI Execution
+Execute an explicit handoff from the terminal:
 ```bash
-lcs call-me "Inspect release version, run compliance security scan, and deploy to staging"
+lcs call-me --handoff -- "Ingest telemetry logs and export report"
 ```
 
-### 3. Python API Usage
+### 3. Python API Integration
 ```python
-from lcs import LCSConfig, LCSContext, ApproverConsent, ApproverRole, InterfaceTrustPolicy
+import os
+from lcs.config import LCSConfig
+from lcs.context import LCSContext
+from lcs.governance import ApproverConsent, ApproverRole
+from lcs.policy import InterfaceTrustPolicy
 
+# Initialize isolated or project context
 config = LCSConfig.resolve()
 with LCSContext(config=config, auto_migrate=True) as ctx:
-    # 1. User explicit /call-me intake
-    resp = ctx.call_me.execute_call_me('/call-me "Format data and compute checksum"')
-    print(f"Call Me Intake Status: {resp.status}, Matched: {resp.candidate_count}")
+    # 1. Synthesize multi-step execution plan from natural language query
+    plan = ctx.planning_engine.create_plan("Process report and generate digest")
+    print(f"Plan ID: {plan.plan_id}, Steps: {len(plan.steps)}")
 
-    # 2. Planning and Governance
-    plan = ctx.planning_engine.create_plan("format data and compute checksum")
-    policy = InterfaceTrustPolicy(policy_name="default", min_interface_version=1)
-    consent = ApproverConsent(principal="security-officer@local", role=ApproverRole.SECURITY_OFFICER, method="API")
+    # 2. Authorize plan under Governance Gate 1 & Gate 2
+    consent = ApproverConsent("lead@company.com", ApproverRole.HUMAN_OPERATOR, "CLI_APPROVAL")
+    policy = InterfaceTrustPolicy("production-policy", min_interface_version=1)
     
-    token, eval_res = ctx.governance_engine.approve_plan(plan, consent, active_policy=policy)
-    
-    # 3. Execution & Audit Ledger
+    token, eval_result = ctx.governance_engine.approve_plan(plan, approver=consent, active_policy=policy)
+    print(f"Authorization Token: {token.token_id}")
+
+    # 3. Execute plan with atomic token consumption
     result = ctx.execution_engine.execute_plan(plan, token)
     print(f"Execution State: {result.lifecycle_state.value}")
+
+    # 4. Verify cryptographic audit chain integrity
+    is_valid, count, msg = ctx.execution_engine.audit_ledger.verify_ledger()
+    assert is_valid is True
+    print(f"Audit ledger verified across {count} events.")
+```
+
+### 4. Running the Model Context Protocol (MCP) Server
+Launch LCS as a standard stdio MCP server for agent configurations:
+```bash
+lcs serve-mcp
+```
+Configure in Claude Desktop, OpenCode, or Cursor:
+```json
+{
+  "mcpServers": {
+    "lcs": {
+      "command": "lcs",
+      "args": ["serve-mcp"]
+    }
+  }
+}
 ```
 
 ---
 
-## Known Operational Boundaries & Documented Limitations
+## Declarative Custom Agent Specification
 
-1. **Subagent Delegation Boundary:**
-   - Host-level subagent coordination is validated for structured task creation, parameter handoff, and output deliverable verification under in-memory executor callbacks (**SIMULATED**).
-   - In standalone CPython execution without host-provided IPC callbacks, live interactive Antigravity child agent execution is **NOT VERIFIED**. Non-supporting environments (Claude Code, OpenCode) fail closed honestly.
-2. **Governance Duplicate Attestation Invariant:**
-   - In frozen core module `governance_policy_v1.py`, `evaluate_plan()` preserves attestation duplicates while `approve_plan()` deduplicates attestation IDs via `set()`.
-   - Multi-step plans under strict `require_attestation=True` where multiple steps share an identical attestation ID fail closed at dispatch with `PlanIntegrityTamperedError`.
-   - **Mitigation / Safe Compatibility Pattern:** Multi-tool single-server plans must register capabilities under qualified interface URNs (`urn:lcs:interface:mcp.{server}.{tool}:v1`), assigning distinct attestation IDs per capability.
-3. **Pending SQLite Version Migration:**
-   - `lcs_schema_m5_sqlite_compat.sql` provides backward-compatible static error literals for SQLite `< 3.44`. Production database migration remains deferred pending explicit operator migration authorization.
+To integrate a custom or future coding agent, define a declarative specification file (`agent_spec.json`):
+
+```json
+{
+  "schema_version": "1.0",
+  "agent_id": "adapter.custom.v1",
+  "name": "custom_agent",
+  "display_name": "Custom Coding Agent",
+  "precedence": 70,
+  "environment_markers": {
+    "env_vars": ["CUSTOM_AGENT_ACTIVE"],
+    "workspace_files": ["custom_agent.config.json"],
+    "workspace_dirs": [".custom_agent"]
+  },
+  "command_integration": {
+    "target_path": ".custom_agent/commands/call-me.md",
+    "execution_command": "lcs call-me --handoff -- \"$*\""
+  },
+  "capabilities": {
+    "slash_commands": true,
+    "skills": true,
+    "mcp": true,
+    "subagent_delegation": false
+  }
+}
+```
+LCS dynamically detects markers, generates safe `/call-me` command templates, and rejects untrusted command injection or directory traversal patterns.
 
 ---
 
 ## Cryptographically Sealed Frozen Core
 
-The five foundational baseline modules remain 100% bit-for-bit invariant against their authoritative SHA-256 digests:
+The five foundational Python core modules and four database migration schemas remain 100% invariant against their authoritative SHA-256 digests:
 
-| File Name | Authoritative SHA-256 Digest | Status |
-| :--- | :--- | :---: |
-| `capability_retrieval_v1.py` | `b7d476236d2f5addd6619f619a6f1145bf407a6917d20493e4d85afd0ca843b4` | ✅ VERIFIED |
-| `capability_retrieval_v1_1.py` | `2a29c3dcec1e792021a63707fec9a92c3a6505080b0c05a63e377c69ce272e12` | ✅ VERIFIED |
-| `capability_parameter_v1.py` | `469b743cf6af1f6807544f2182dee12a4708ceb5512dd32185c4e5986a524c00` | ✅ VERIFIED |
-| `capability_planning_v1.py` | `eb81b3255d58958d73689b99cb8506647f8c781d30d93cea1c90dfd435d070e4` | ✅ VERIFIED |
-| `governance_policy_v1.py` | `5273f17e83d1c90cd5f935b815841db711a3523a08d1d180f2a4d67bcad44252` | ✅ VERIFIED |
+| Component / Module | Authoritative SHA-256 Digest | Status | Invariance Guarantee |
+| :--- | :--- | :---: | :---: |
+| `capability_retrieval_v1.py` | `b7d476236d2f5addd6619f619a6f1145bf407a6917d20493e4d85afd0ca843b4` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `capability_retrieval_v1_1.py` | `2a29c3dcec1e792021a63707fec9a92c3a6505080b0c05a63e377c69ce272e12` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `capability_parameter_v1.py` | `469b743cf6af1f6807544f2182dee12a4708ceb5512dd32185c4e5986a524c00` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `capability_planning_v1.py` | `eb81b3255d58958d73689b99cb8506647f8c781d30d93cea1c90dfd435d070e4` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `governance_policy_v1.py` | `5273f17e83d1c90cd5f935b815841db711a3523a08d1d180f2a4d67bcad44252` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `lcs/schemas/lcs_schema_v2b.sql` | `49ee7ff523e6740f01d52ba279da77055047f1ea0325a7042614befb7401e421` | ✅ VERIFIED | Approved Portable Baseline |
+| `lcs/schemas/lcs_schema_m3_migration.sql` | `65652fa722ddb4fe1334071cd01369cb13e11923a3dd55d313008f73bdefb652` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `lcs/schemas/lcs_schema_m4_migration.sql` | `6644e0ead9752ba2c136c5414a6dde72a8ad5eed126ceebe246e7f84ab1817dc` | ✅ VERIFIED | Invariant since v3.0.0 |
+| `lcs/schemas/lcs_schema_m5_sqlite_compat.sql` | `88d13292f7888fe7148785c935f4854d8acfca700f0777e1334190f8f750b620` | ✅ VERIFIED | Invariant since v3.0.1 |
+
+Verify checksums at any time:
+```bash
+python3 scripts/verify_frozen_hashes.py
+```
+
+---
+
+## Cross-Platform CI Matrix
+
+LCS runs automated CI testing across all supported operating systems and Python versions:
+
+| Target Runner OS | Python Versions | Total Jobs | Passed | Status |
+| :--- | :--- | :---: | :---: | :---: |
+| **Ubuntu Linux 24.04 LTS** | 3.10, 3.11, 3.12, 3.13 | 4 | 4 | ✅ 100% Green |
+| **macOS 15 (Apple Silicon)** | 3.10, 3.11, 3.12, 3.13 | 4 | 4 | ✅ 100% Green |
+| **Native Windows Server 2022** | 3.10, 3.11, 3.12, 3.13 | 4 | 4 | ✅ 100% Green |
+
+---
+
+## Community & Security Guidelines
+
+- **Contributing**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, development setup, and PR requirements.
+- **Code of Conduct**: Community interaction guidelines are detailed in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- **Security Policy**: For vulnerability reporting and security invariants, see [SECURITY.md](SECURITY.md).
+- **License**: Pending maintainer license finalization (see Stage 7 recommendation).

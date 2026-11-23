@@ -168,7 +168,9 @@ class LCSContext:
             # Environment Adapters & Live Verification
             self.activation_verifier = ActivationIntegrityVerifier(self.conn)
             discovery_root = self.config.root_dir
-            if os.path.basename(discovery_root) == ".lcs":
+            if self.config.user_state_dir and os.path.realpath(self.config.root_dir) == os.path.realpath(self.config.user_state_dir):
+                discovery_root = self.config.workspace_root or os.getcwd()
+            elif os.path.basename(discovery_root) == ".lcs":
                 discovery_root = os.path.dirname(discovery_root)
             self.adapter_registry = AdapterRegistry()
             self.adapter_registry.register(CodexAdapter(workspace_root=discovery_root))

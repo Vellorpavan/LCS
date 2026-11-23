@@ -433,6 +433,7 @@ def test_generic_posix_cli_live_subprocess(monkeypatch):
         ]
         cli_env = os.environ.copy()
         cli_env["PYTHONPATH"] = os.path.abspath(".")
+        cli_env["LCS_ROOT"] = os.path.join(tmpdir, ".lcs")
         cli_env["LCS_DELIVERABLE_PATH"] = deliv_path
         res = subprocess.run(cmd, cwd=tmpdir, env=cli_env, capture_output=True, text=True)
         assert res.returncode == 0, f"CLI execution failed: {res.stderr}\n{res.stdout}"
