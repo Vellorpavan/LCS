@@ -362,3 +362,228 @@ class UnifiedResourceVerifier:
             return res
 
         return gate.verify(execution_context)
+
+
+class DeliverableVerificationGate(BaseVerificationGate):
+    """
+    Physical Deliverable Verification Gate for closed-loop execution.
+    Checks:
+    1. Expected files exist physically on disk within the authorized workspace.
+    2. Files are non-empty where required.
+    3. Traversal attacks, path escapes, and NTFS ADS streams are rejected.
+    4. Optional verification commands (e.g. pytest / unittest) pass with exit code 0.
+    5. Artifacts are digested into CAS for permanent auditability.
+    """
+
+    def verify(self, execution_context: Dict[str, Any]) -> VerificationResult:
+        run_id = execution_context.get("run_id", "unknown-run")
+        workspace_root = execution_context.get("workspace_root") or os.getcwd()
+        expected_files = execution_context.get("expected_files", [])
+        verification_commands = execution_context.get("verification_commands", [])
+
+        result = VerificationResult(
+            resource_id=run_id,
+            resource_type="DELIVERABLE",
+            state=VerificationState.VERIFIED,
+            is_verified=True
+        )
+
+        abs_workspace = os.path.abspath(workspace_root)
+
+        # 1. Physical file existence and non-empty checks
+        missing_files = []
+        empty_files = []
+        escaped_files = []
+        file_digests = {}
+
+        for f_spec in expected_files:
+            rel_path = f_spec if isinstance(f_spec, str) else f_spec.get("path", "")
+            allow_empty = False if isinstance(f_spec, str) else f_spec.get("allow_empty", False)
+
+            # Security check: disallow Windows NTFS alternate data streams or traversal
+            if ":" in rel_path or ".." in rel_path:
+                escaped_files.append(rel_path)
+                continue
+
+            target_path = os.path.abspath(os.path.join(abs_workspace, rel_path))
+            if not target_path.startswith(abs_workspace):
+                escaped_files.append(rel_path)
+                continue
+
+            if not os.path.exists(target_path):
+                missing_files.append(rel_path)
+            elif not allow_empty and os.path.getsize(target_path) == 0:
+                empty_files.append(rel_path)
+            elif os.path.isfile(target_path):
+                with open(target_path, "rb") as f_obj:
+                    file_digests[rel_path] = hashlib.sha256(f_obj.read()).hexdigest()
+
+        result.add_evidence(
+            EvidenceTier.TIER_1_IDENTITY_INTEGRITY,
+            "Workspace confinement security check",
+            len(escaped_files) == 0,
+            details=f"Escaped paths: {escaped_files}" if escaped_files else "Confined"
+        )
+
+        if file_digests:
+            result.add_evidence(
+                EvidenceTier.TIER_1_IDENTITY_INTEGRITY,
+                "Physical deliverable cryptographic SHA-256 digests",
+                True,
+                details=f"Digests: {file_digests}"
+            )
+
+        result.add_evidence(
+            EvidenceTier.TIER_2_RETRIEVAL_ACTIVATION,
+            "Expected physical deliverable files exist",
+            len(missing_files) == 0,
+            details=f"Missing files: {missing_files}" if missing_files else f"{len(expected_files)} files present"
+        )
+
+        result.add_evidence(
+            EvidenceTier.TIER_3_EXECUTION_EVIDENCE,
+            "Deliverable files are non-empty",
+            len(empty_files) == 0,
+            details=f"Empty files: {empty_files}" if empty_files else "Non-empty"
+        )
+
+        # 2. Automated test / verification command execution with strict governance & confinement
+        ALLOWED_VERIFICATION_BINARIES = {
+            "python", "python3", "pytest", "py.test", "unittest",
+            "node", "npm", "npx", "vitest", "jest",
+            "cargo", "go"
+        }
+        failed_commands = []
+        governance_violations = []
+
+        import shlex
+        import subprocess
+        import re
+
+        is_gov_authorized = execution_context.get("governance_authorized", True)
+
+        for cmd in verification_commands:
+            try:
+                cmd_tokens = cmd if isinstance(cmd, list) else shlex.split(cmd)
+                if not cmd_tokens:
+                    continue
+
+                binary_name = os.path.basename(cmd_tokens[0])
+                is_python_bin = bool(re.match(r"^python(3(\.(1[0-4]|\d))?)?(\.exe)?$", binary_name))
+                is_pytest_bin = bool(re.match(r"^py(\.test|test)(\.exe)?$", binary_name))
+                if not (binary_name in ALLOWED_VERIFICATION_BINARIES or is_python_bin or is_pytest_bin):
+                    governance_violations.append(
+                        f"Unauthorized executable '{cmd_tokens[0]}' in verification command"
+                    )
+                    failed_commands.append({
+                        "cmd": cmd,
+                        "error": f"Governance violation: '{binary_name}' is not an authorized test/verification binary"
+                    })
+                    continue
+
+                # Workspace confinement and argument safety analysis
+                arg_violation = False
+                expect_code_payload = False
+
+                for token in cmd_tokens[1:]:
+                    if token in ("-c", "--command"):
+                        if not is_gov_authorized:
+                            arg_violation = True
+                            governance_violations.append(
+                                f"Inline executable code (-c/--command) in '{cmd}' requires explicit governance authorization"
+                            )
+                            break
+                        expect_code_payload = True
+                        continue
+
+                    if expect_code_payload:
+                        expect_code_payload = False
+                        # Inspect inline code: block attempts to escape workspace confinement
+                        if ".." in token:
+                            # If traversal escapes abs_workspace
+                            for part in token.split():
+                                if ".." in part:
+                                    resolved_part = os.path.abspath(os.path.join(abs_workspace, part.strip("\"'")))
+                                    if not resolved_part.startswith(abs_workspace):
+                                        arg_violation = True
+                                        governance_violations.append(
+                                            f"Inline code argument contains prohibited path traversal escaping workspace: '{part}'"
+                                        )
+                                        break
+                        if arg_violation:
+                            break
+                        continue
+
+                    if token.startswith("-"):
+                        continue
+
+                    # Path arguments: check for NTFS alternate data stream (ADS) syntax (e.g. file.txt:stream)
+                    # Ignore legitimate Windows absolute drive letters (e.g. C:\ or C:/)
+                    if ":" in token and not re.match(r"^[a-zA-Z]:[\\/]", token):
+                        arg_violation = True
+                        governance_violations.append(
+                            f"Argument '{token}' contains prohibited NTFS alternate data stream in '{cmd}'"
+                        )
+                        break
+
+                    # Check for directory traversal escaping workspace
+                    if ".." in token:
+                        resolved_arg = os.path.abspath(os.path.join(abs_workspace, token))
+                        if not resolved_arg.startswith(abs_workspace):
+                            arg_violation = True
+                            governance_violations.append(
+                                f"Argument '{token}' escapes workspace confinement in '{cmd}'"
+                            )
+                            break
+
+                    # If it looks like a path, ensure it resolves inside abs_workspace
+                    if os.path.sep in token or token.startswith("/"):
+                        resolved_arg = os.path.abspath(os.path.join(abs_workspace, token))
+                        if not resolved_arg.startswith(abs_workspace):
+                            arg_violation = True
+                            governance_violations.append(
+                                f"Argument '{token}' escapes workspace confinement in '{cmd}'"
+                            )
+                            break
+
+                if arg_violation:
+                    failed_commands.append({
+                        "cmd": cmd,
+                        "error": "Governance violation: command argument escapes workspace boundaries or security policy"
+                    })
+                    continue
+
+                proc = subprocess.run(
+                    cmd_tokens,
+                    cwd=abs_workspace,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if proc.returncode != 0:
+                    failed_commands.append({"cmd": cmd, "code": proc.returncode, "stderr": proc.stderr[:300]})
+            except Exception as e:
+                failed_commands.append({"cmd": cmd, "error": str(e)})
+
+        if governance_violations:
+            result.add_evidence(
+                EvidenceTier.TIER_1_IDENTITY_INTEGRITY,
+                "Verification command governance authorization check",
+                False,
+                details=f"Violations: {governance_violations}"
+            )
+
+        if verification_commands:
+            result.add_evidence(
+                EvidenceTier.TIER_4_CONTRACT_COMPLIANCE,
+                "Automated deliverable verification commands succeed",
+                len(failed_commands) == 0,
+                details=f"Failed commands: {failed_commands}" if failed_commands else f"{len(verification_commands)} commands passed"
+            )
+
+        if escaped_files or missing_files or empty_files or failed_commands:
+            result.state = VerificationState.FAILED
+            result.is_verified = False
+
+        return result
+

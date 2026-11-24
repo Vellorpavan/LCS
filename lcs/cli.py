@@ -929,9 +929,9 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
     if getattr(args, "raw_json", False):
         if hasattr(resp, "to_dict"):
             print(json.dumps(resp.to_dict(), indent=2))
-            return 0 if resp.status == "ACCEPTED" else 1
+            return 0 if resp.status in ("ACCEPTED", "SUCCEEDED", "HANDOFF_READY", "PLAN_READY") else 1
         print(json.dumps(resp, indent=2))
-        return 0 if resp.get("status") in ("ACCEPTED", "SUCCEEDED") else 1
+        return 0 if resp.get("status") in ("ACCEPTED", "SUCCEEDED", "HANDOFF_READY", "PLAN_READY") else 1
 
     if do_execute and isinstance(resp, dict):
         print("=" * 72)
@@ -943,6 +943,10 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
         print(f"  Lifecycle State:    {resp.get('lifecycle_state')}")
         print(f"  Steps Completed:    {resp.get('completed_steps')} / {resp.get('total_steps')}")
         print(f"  Trace CAS Digest:   {resp.get('trace_cas_digest')}")
+
+        if resp.get("status") == "HANDOFF_READY":
+            print("\n  [Notice] Pipeline executed in INSTRUCTION_HANDOFF mode.")
+            print("  Specialist agent instructions rendered into CAS trace. Physical deliverables require host dispatch.")
 
         if resp.get("capabilities_used"):
             print("\nCapabilities Used in Execution:")
@@ -957,7 +961,8 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
         if resp.get("error_message"):
             print(f"\nExecution Error: {resp['error_message']}", file=sys.stderr)
 
-        return 0 if resp.get("status") == "SUCCEEDED" else 1
+        return 0 if resp.get("status") in ("SUCCEEDED", "HANDOFF_READY") else 1
+
 
     print("=" * 72)
     print(" LIVING CAPABILITY SYSTEM (LCS) — /call-me INVOCATION")
@@ -978,6 +983,105 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
         print(f"\nError Details: {resp.error_details}", file=sys.stderr)
 
     return 0 if resp.status == "ACCEPTED" else 1
+
+
+def cmd_call_me_plan(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Generates structured DAG plan and specialist instructions for host agents."""
+    raw_instruction = args.task
+    if not raw_instruction or not raw_instruction.strip():
+        print("Error: Task description cannot be empty.", file=sys.stderr)
+        return 1
+
+    plan = ctx.call_me.plan_call_me(
+        f"/call-me {raw_instruction}",
+        session_id=getattr(args, "session_id", None),
+        workspace_root=getattr(args, "workspace", None)
+    )
+
+    if getattr(args, "raw_json", False):
+        print(json.dumps(plan, indent=2))
+        return 0
+
+    print("=" * 72)
+    print(" CALL ME — AUTONOMOUS ORCHESTRATION PLAN")
+    print("=" * 72)
+    print(f"  Status:          {plan.get('status')}")
+    print(f"  Request ID:      {plan.get('request_id')}")
+    print(f"  Objective:       {plan.get('objective')}")
+    print(f"  Workspace:       {plan.get('workspace_root')}")
+    print(f"  Total Steps:     {plan.get('total_steps')}")
+    print(f"  Execution Waves: {len(plan.get('execution_waves', []))}")
+
+    print("\nExecution Waves (DAG Dependency Order):")
+    for idx, wave in enumerate(plan.get("execution_waves", []), 1):
+        print(f"  Wave {idx}: {wave}")
+
+    print("\nPlanned Steps & Specialist Roles:")
+    for s in plan.get("steps", []):
+        print(f"  [{s.get('step_id')}] Role: {s.get('role')} -> Cap: {s.get('capability_urn')}")
+
+    return 0
+
+
+def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
+    """Verifies physical deliverables, non-empty files, and automated tests."""
+    run_id = args.run_id
+    workspace = getattr(args, "workspace", None) or os.getcwd()
+    expected_files = getattr(args, "files", []) or []
+    verification_cmds = getattr(args, "commands", []) or []
+    inspect_mode = getattr(args, "inspect", False)
+
+    if inspect_mode:
+        receipt = ctx.call_me.get_verification_receipt(run_id)
+        if not receipt:
+            print(f"Error: No persisted verification receipt found for run ID '{run_id}'", file=sys.stderr)
+            return 1
+        if getattr(args, "raw_json", False):
+            print(json.dumps(receipt, indent=2))
+            return 0 if receipt.get("is_verified") else 1
+        print("=" * 72)
+        print(" CALL ME — PERSISTED VERIFICATION RECEIPT")
+        print("=" * 72)
+        print(f"  Run ID:              {receipt.get('run_id')}")
+        print(f"  Verification ID:     {receipt.get('verification_id')}")
+        print(f"  Verification State:  {receipt.get('verification_state')}")
+        print(f"  Verified Deliverable: {'YES' if receipt.get('is_verified') else 'NO'}")
+        if receipt.get("cas_receipt_digest"):
+            print(f"  CAS Receipt Digest:  {receipt.get('cas_receipt_digest')}")
+        print(f"  Verified At:         {receipt.get('verified_at')}")
+        print("\nVerification Evidence:")
+        for ev in receipt.get("evidence", []):
+            mark = "✓" if ev.get("passed") else "✗"
+            print(f"  [{mark}] [Tier {ev.get('tier')}] {ev.get('criterion')} -> {ev.get('details')}")
+        return 0 if receipt.get("is_verified") else 1
+
+    res = ctx.call_me.verify_deliverables(
+        run_id=run_id,
+        expected_files=expected_files,
+        verification_commands=verification_cmds,
+        workspace_root=workspace
+    )
+
+    if getattr(args, "raw_json", False):
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("is_verified") else 1
+
+    print("=" * 72)
+    print(" CALL ME — DELIVERABLE VERIFICATION REPORT")
+    print("=" * 72)
+    print(f"  Run ID:              {res.get('run_id')}")
+    print(f"  Verification State:  {res.get('verification_state')}")
+    print(f"  Verified Deliverable: {'YES' if res.get('is_verified') else 'NO'}")
+    if res.get("cas_receipt_digest"):
+        print(f"  CAS Receipt Digest:  {res.get('cas_receipt_digest')}")
+
+    print("\nVerification Evidence:")
+    for ev in res.get("evidence", []):
+        mark = "✓" if ev.get("passed") else "✗"
+        print(f"  [{mark}] [Tier {ev.get('tier')}] {ev.get('criterion')} -> {ev.get('details')}")
+
+    return 0 if res.get("is_verified") else 1
+
 
 
 def cmd_install_command(ctx: LCSContext, args: argparse.Namespace) -> int:
@@ -1333,19 +1437,31 @@ def cmd_inventory_context(ctx: LCSContext, args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="lcs",
-        description="Living Capability System (LCS) Command-Line Interface"
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}"
-    )
+def build_parser(prog: str = "lcs") -> argparse.ArgumentParser:
+    is_call_me = (prog == "call-me")
+    if is_call_me:
+        parser = argparse.ArgumentParser(
+            prog="call-me",
+            description="Call Me — Universal Multi-Agent Capability Orchestrator"
+        )
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"Call Me {__version__} (LCS core {__version__})"
+        )
+    else:
+        parser = argparse.ArgumentParser(
+            prog="lcs",
+            description="Living Capability System (LCS) / Call Me Command-Line Interface"
+        )
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"%(prog)s {__version__}"
+        )
     parser.add_argument(
         "--root",
-        help="Path to LCS root directory (default: LCS_ROOT env or ./.lcs)"
+        help="Path to LCS state root directory (default: LCS_ROOT env or ./.lcs)"
     )
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Available commands")
@@ -1403,11 +1519,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_params.set_defaults(func=cmd_params)
 
     # lcs plan
-    sub_plan = subparsers.add_parser("plan", help="Synthesize an explainable multi-capability execution plan")
-    sub_plan.add_argument("query", help="Compound or single task description")
-    sub_plan.add_argument("--args", dest="json_args", help="Structured JSON dictionary of user arguments")
-    sub_plan.add_argument("--format-json", dest="raw_json", action="store_true", help="Output raw JSON instead of formatted text")
-    sub_plan.set_defaults(func=cmd_plan)
+    if not is_call_me:
+        sub_plan = subparsers.add_parser("plan", help="Synthesize an explainable multi-capability execution plan")
+        sub_plan.add_argument("query", help="Compound or single task description")
+        sub_plan.add_argument("--args", dest="json_args", help="Structured JSON dictionary of user arguments")
+        sub_plan.add_argument("--format-json", dest="raw_json", action="store_true", help="Output raw JSON instead of formatted text")
+        sub_plan.set_defaults(func=cmd_plan)
 
     # lcs approve
     sub_approve = subparsers.add_parser("approve", help="Evaluate and authorize a capability execution plan under Governance V1")
@@ -1500,6 +1617,43 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_call_me.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
     sub_call_me.set_defaults(func=cmd_call_me)
 
+    # call-me plan (Stage 1 Closed-Loop Protocol)
+    sub_plan = subparsers.add_parser("call-me-plan", help="Synthesize structured DAG plan and specialist instructions for host agents")
+    sub_plan.add_argument("task", help="Natural language task description")
+    sub_plan.add_argument("--session-id", help="Optional persistent session identifier")
+    sub_plan.add_argument("--workspace", help="Target workspace root directory")
+    sub_plan.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
+    sub_plan.set_defaults(func=cmd_call_me_plan)
+
+    if is_call_me:
+        # On call-me CLI, 'plan' is the primary planning syntax
+        sub_plan_alias = subparsers.add_parser("plan", help="Synthesize structured DAG plan and specialist instructions")
+        sub_plan_alias.add_argument("task", help="Natural language task description")
+        sub_plan_alias.add_argument("--session-id", help="Optional persistent session identifier")
+        sub_plan_alias.add_argument("--workspace", help="Target workspace root directory")
+        sub_plan_alias.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
+        sub_plan_alias.set_defaults(func=cmd_call_me_plan)
+
+    # call-me verify (Stage 1 Deliverable Verification Gate)
+    sub_verify = subparsers.add_parser("call-me-verify", help="Verify physical deliverables and automated tests on disk")
+    sub_verify.add_argument("run_id", help="Execution run identifier")
+    sub_verify.add_argument("--workspace", help="Target workspace root directory")
+    sub_verify.add_argument("--files", nargs="*", help="List of expected physical deliverable files")
+    sub_verify.add_argument("--commands", nargs="*", help="List of automated verification commands to execute")
+    sub_verify.add_argument("--inspect", action="store_true", help="Retrieve previously persisted verification receipt by run ID")
+    sub_verify.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
+    sub_verify.set_defaults(func=cmd_call_me_verify)
+
+    # 'verify' alias available on both call-me and lcs
+    sub_verify_alias = subparsers.add_parser("verify", help="Verify physical deliverables and automated tests on disk (alias)")
+    sub_verify_alias.add_argument("run_id", help="Execution run identifier")
+    sub_verify_alias.add_argument("--workspace", help="Target workspace root directory")
+    sub_verify_alias.add_argument("--files", nargs="*", help="List of expected physical deliverable files")
+    sub_verify_alias.add_argument("--commands", nargs="*", help="List of automated verification commands to execute")
+    sub_verify_alias.add_argument("--inspect", action="store_true", help="Retrieve previously persisted verification receipt by run ID")
+    sub_verify_alias.add_argument("--format-json", dest="raw_json", action="store_true", help="Output JSON response")
+    sub_verify_alias.set_defaults(func=cmd_call_me_verify)
+
     # lcs install-command (Phase 2A)
     sub_inst_cmd = subparsers.add_parser("install-command", help="Install /call-me slash command artifacts into host environments")
     sub_inst_cmd.add_argument("--environment", choices=["codex", "antigravity", "claude_code", "opencode", "all"], default="all", help="Target environment")
@@ -1552,6 +1706,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub_setup.add_argument("--format-json", "--json", dest="raw_json", action="store_true", help="Output results in JSON format")
     sub_setup.set_defaults(func=cmd_setup)
 
+    return parser
+
+
+def _dispatch_cli(prog: str, argv: Optional[List[str]] = None) -> int:
+    parser = build_parser(prog=prog)
+
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if not argv:
+        parser.print_help()
+        return 0
+
     parsed_args = parser.parse_args(argv)
 
     if not parsed_args.subcommand:
@@ -1561,9 +1728,40 @@ def main(argv: Optional[List[str]] = None) -> int:
     if parsed_args.subcommand == "setup":
         return cmd_setup(parsed_args)
 
-    cfg = LCSConfig.resolve(root_override=parsed_args.root)
+    ws_root = getattr(parsed_args, "workspace", None)
+    root_arg = parsed_args.root
+    if not root_arg and ws_root:
+        if os.path.exists(os.path.join(ws_root, "lcs.db")):
+            root_arg = ws_root
+        elif os.path.exists(os.path.join(ws_root, ".lcs", "lcs.db")):
+            root_arg = os.path.join(ws_root, ".lcs")
+    cfg = LCSConfig.resolve(root_override=root_arg, workspace_root=ws_root)
     with LCSContext(config=cfg, auto_migrate=True) as ctx:
         return parsed_args.func(ctx, parsed_args)
+
+
+def main_call_me(argv: Optional[List[str]] = None) -> int:
+    """Primary entry point for the 'call-me' executable."""
+    if argv is None:
+        argv = sys.argv[1:]
+
+    known_subcommands = {
+        "status", "discover", "search", "inspect", "explain", "profile",
+        "match", "params", "plan", "approve", "audit-log", "skill",
+        "execute", "run", "serve-mcp", "dashboard", "call-me", "call-me-plan",
+        "call-me-verify", "verify", "install-command", "uninstall-command",
+        "inventory", "setup"
+    }
+    # If the first argument is not a known subcommand and not a flag, default to call-me <objective>
+    if argv and not argv[0].startswith("-") and argv[0] not in known_subcommands:
+        argv = ["call-me"] + argv
+
+    return _dispatch_cli(prog="call-me", argv=argv)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """Canonical entry point for the 'lcs' executable."""
+    return _dispatch_cli(prog="lcs", argv=argv)
 
 
 if __name__ == "__main__":

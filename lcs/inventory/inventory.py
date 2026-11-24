@@ -175,20 +175,28 @@ class UnifiedCapabilityInventory:
             score += 20.0
 
         # Word boundary token matching
-        r_name_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_name))
-        r_display_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_display))
-        r_desc_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_desc))
+        r_name_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_name)) | set(re.split(r'[^a-zA-Z0-9]+', r_name))
+        r_display_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_display)) | set(re.split(r'[^a-zA-Z0-9]+', r_display))
+        r_desc_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_desc)) | set(re.split(r'[^a-zA-Z0-9]+', r_desc))
 
         for token in query_tokens:
-            if token in r_name_words or any(token in w for w in r_name_words if len(token) >= 4):
+            token_variants = {token}
+            if token.endswith("s") and len(token) > 3:
+                token_variants.add(token[:-1])
+            if token.endswith("ing") and len(token) > 5:
+                token_variants.add(token[:-3])
+            if token.endswith("ed") and len(token) > 4:
+                token_variants.add(token[:-2])
+
+            if any(v in r_name_words or any(v in w for w in r_name_words if len(v) >= 4) for v in token_variants):
                 score += 20.0
-            if token in r_display_words or any(token in w for w in r_display_words if len(token) >= 4):
+            if any(v in r_display_words or any(v in w for w in r_display_words if len(v) >= 4) for v in token_variants):
                 score += 15.0
-            if token in r_desc_words:
+            if any(v in r_desc_words for v in token_variants):
                 score += 10.0
-            if any(token == tag.lower() for tag in record.tags):
+            if any(any(v == tag.lower() for tag in record.tags) for v in token_variants):
                 score += 15.0
-            elif any(token in tag.lower() for tag in record.tags if len(token) >= 4):
+            elif any(any(v in tag.lower() for tag in record.tags if len(v) >= 4) for v in token_variants):
                 score += 8.0
 
         # Precedence boost
@@ -222,7 +230,7 @@ class UnifiedCapabilityInventory:
             return list(self._inventory.values())[:limit]
 
         # Multi-intent decomposition (e.g. "extract data and generate report")
-        sub_intents = [s.strip() for s in re.split(r'\b(?:and|then|followed by|after that)\b|[;&]', clean_q) if len(s.strip()) > 3]
+        sub_intents = [s.strip() for s in re.split(r'\b(?:and|then|followed by|after that)\b|[,;&]', clean_q) if len(s.strip()) > 3]
         if len(sub_intents) > 1:
             selected_urns = set()
             multi_results = []
@@ -289,15 +297,16 @@ class UnifiedCapabilityInventory:
         # 1. Artifact Discovery Records
         try:
             cur.execute("""
-                SELECT canonical_urn, name, display_name, taxonomy_kind, environment_origin,
-                       precedence_tier, source_path, resolved_path, is_bundle, bundle_root_path,
-                       raw_content_digest, lifecycle_state, provenance_json
-                FROM artifact_discovery_records;
+                SELECT a.canonical_urn, a.name, a.display_name, a.taxonomy_kind, a.environment_origin,
+                       a.precedence_tier, a.source_path, a.resolved_path, a.is_bundle, a.bundle_root_path,
+                       a.raw_content_digest, a.lifecycle_state, a.provenance_json, c.description
+                FROM artifact_discovery_records a
+                LEFT JOIN capabilities c ON a.canonical_urn = c.capability_urn;
             """)
             for row in cur.fetchall():
                 (urn, name, display_name, taxonomy_kind, origin, tier,
                  src_path, res_path, is_bundle, bundle_root, raw_digest,
-                 lifecycle_state, prov_json) = row
+                 lifecycle_state, prov_json, db_desc) = row
 
                 # Map taxonomy_kind to ResourceType
                 rtype = ResourceType.SKILL
@@ -320,7 +329,7 @@ class UnifiedCapabilityInventory:
                         pass
 
                 # Parse frontmatter / description
-                description = self._extract_description(raw_text)
+                description = (db_desc and db_desc.strip()) or self._extract_description(raw_text)
                 reqs = self._extract_execution_requirements(raw_text, rtype)
                 deps = self._extract_dependencies(raw_text)
 
@@ -858,6 +867,9 @@ class UnifiedCapabilityInventory:
                         self.iface_service.attest_interface(iface_urn)
                     except Exception:
                         pass
+
+            # Ingest into live memory inventory
+            self._register_resource_with_conflict_resolution(record)
         except Exception as e:
             logger.debug(f"Failed to persist capability '{record.urn}' to db: {e}", exc_info=True)
 

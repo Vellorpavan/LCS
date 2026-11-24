@@ -1,13 +1,26 @@
-# Living Capability System (LCS) — Universal Capability Engine v3.2.0
+# Call Me — Universal Multi-Agent Capability Orchestrator
 
 [![CI Matrix](https://img.shields.io/badge/CI-12%2F12%20Passing-brightgreen.svg)](#cross-platform-ci-matrix)
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](#system-requirements)
 [![Supported OS](https://img.shields.io/badge/OS-macOS%20%7C%20Ubuntu%20Linux%20%7C%20Windows-blueviolet.svg)](#cross-platform-architecture)
 [![Governance](https://img.shields.io/badge/Governance-Zero--Trust%20Dual--Gate-orange.svg)](#zero-trust-governance--security-invariants)
 
-The **Living Capability System (LCS)** is an autonomous, cryptographic, zero-trust infrastructure for discovering, understanding, planning, governing, and executing agentic tools, MCP servers, and agent skills across any compatible coding agent.
+**Call Me** is the universal multi-agent capability orchestrator powered by the **Living Capability System (LCS)** cryptographic zero-trust substrate. It enables developers and AI agents to discover, retrieve, plan, govern, and execute capabilities across supported AI hosts (Google Antigravity, Claude Code, OpenCode, Codex) and the command line.
 
-With **LCS v3.2.0**, developers can install LCS **once** on their computer and use it repeatedly from any coding agent—including Google Antigravity, OpenCode, Claude Code, OpenAI Codex, and custom declarative coding agents—without modifying the frozen core engine.
+Install once. Then invoke in your AI coding host:
+```text
+/call-me <any natural-language objective>
+```
+
+Or from your terminal:
+```bash
+call-me "<objective>"
+call-me plan "<objective>"
+call-me verify <run-id> --workspace <dir> --files <files...>
+call-me setup
+```
+
+Full backward compatibility is preserved for canonical `lcs` commands (`lcs call-me`, `lcs call-me-plan`, `lcs call-me-verify`, `lcs setup`).
 
 ---
 
@@ -308,4 +321,4 @@ LCS runs automated CI testing across all supported operating systems and Python 
 - **Contributing**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, development setup, and PR requirements.
 - **Code of Conduct**: Community interaction guidelines are detailed in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 - **Security Policy**: For vulnerability reporting and security invariants, see [SECURITY.md](SECURITY.md).
-- **License**: MIT License (see `pyproject.toml`). Copyright holder pending operator confirmation.
+- **License**: MIT License (see [LICENSE](LICENSE)). Copyright (c) 2026 Vellor Pavan.

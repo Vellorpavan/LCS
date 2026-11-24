@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 lcs = "lcs.cli:main"
+call-me = "lcs.cli:main_call_me"
 
 [tool.setuptools]
 py-modules = [
