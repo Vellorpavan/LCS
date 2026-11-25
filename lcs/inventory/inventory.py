@@ -96,6 +96,7 @@ class UnifiedCapabilityInventory:
         self.iface_service = iface_service
         self._inventory: Dict[str, UnifiedResourceRecord] = {}
         self._conflicts: List[ConflictRecord] = []
+        self._stat_fingerprints: Dict[str, Tuple[int, int]] = {}
         self._initialized = False
 
     @property
@@ -109,6 +110,7 @@ class UnifiedCapabilityInventory:
         """
         self._inventory.clear()
         self._conflicts.clear()
+        self._stat_fingerprints.clear()
 
         # 1. Ingest existing records from SQLite catalog
         self._load_from_sqlite_catalog()
@@ -132,10 +134,161 @@ class UnifiedCapabilityInventory:
                 except Exception as e:
                     logger.warning(f"Error discovering from adapter {getattr(adapter, 'adapter_id', 'unknown')}: {e}")
 
+        # 2b. Ingest custom capability directories from environment variables
+        env_paths = os.environ.get("LCS_CAPABILITY_PATHS", "")
+        if not env_paths:
+            env_paths = os.environ.get("LCS_SKILL_PATHS", "")
+        if env_paths:
+            for p in env_paths.split(os.pathsep):
+                p = p.strip()
+                if p and os.path.isdir(p):
+                    custom_root = CapabilityRoot(
+                        root_path=os.path.realpath(p),
+                        precedence_tier="WORKSPACE",
+                        origin="custom",
+                        is_writable=os.access(p, os.W_OK)
+                    )
+                    self._scan_capability_root(custom_root, "custom")
+
         # 3. Perform live reachability probes and dependency completeness checks
         self._evaluate_operational_states()
 
         self._initialized = True
+        return self.get_inventory_summary()
+
+    def refresh_discovery(
+        self,
+        adapters: Optional[List[Any]] = None,
+        custom_roots: Optional[List[CapabilityRoot]] = None
+    ) -> Dict[str, int]:
+        """
+        Dynamically refreshes capability inventory:
+        1. Initializes environment if not already initialized.
+        2. Detects deleted files and evicts them from memory and SQLite.
+        3. Dynamically discovers roots across active host adapters, starter skills,
+           and custom paths (LCS_CAPABILITY_PATHS / LCS_SKILL_PATHS).
+        4. Applies Level 1 POSIX stat pre-filter to bypass unchanged files (0ms I/O).
+        5. Re-ingests and indexes new or modified capabilities (updating CAS, SQLite, and inventory).
+        6. Updates MCP configs and evaluates operational states.
+        """
+        if not self._initialized:
+            return self.initialize_environment(adapters=adapters)
+
+        # 1. Evict deleted capabilities from memory and database
+        to_evict = []
+        for urn, record in list(self._inventory.items()):
+            res_path = record.provenance.resolved_path or record.provenance.source_path
+            if res_path and not res_path.startswith("db://") and record.resource_type != ResourceType.AGENT:
+                check_path = record.bundle_root_path or res_path
+                if not os.path.exists(check_path):
+                    to_evict.append((urn, res_path))
+
+        for urn, path in to_evict:
+            self._inventory.pop(urn, None)
+            self._stat_fingerprints.pop(path, None)
+            try:
+                with self.conn:
+                    self.conn.execute("UPDATE artifact_discovery_records SET lifecycle_state = 'DELETED' WHERE canonical_urn = ?;", (urn,))
+                    self.conn.execute("DELETE FROM artifact_discovery_records WHERE canonical_urn = ?;", (urn,))
+                    self.conn.execute("UPDATE entity_urn_registry SET lifecycle_state = 'REVOKED' WHERE entity_urn = ?;", (urn,))
+                    self.conn.execute("DELETE FROM capabilities WHERE capability_urn = ?;", (urn,))
+                    self.conn.execute("DELETE FROM capability_declarations WHERE capability_urn = ?;", (urn,))
+                    self.conn.execute("DELETE FROM interface_capability_bindings WHERE capability_urn = ?;", (urn,))
+            except Exception as e:
+                logger.debug(f"Failed deleting stale capability {urn}: {e}")
+
+        # 2. Collect capability roots
+        all_roots: List[Tuple[CapabilityRoot, str]] = []
+
+        # Starter skills
+        starter_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "starter_skills"))
+        if os.path.isdir(starter_dir):
+            all_roots.append((CapabilityRoot(
+                root_path=starter_dir,
+                precedence_tier="SYSTEM",
+                origin="system",
+                is_writable=False
+            ), "system"))
+
+        # Adapters
+        if adapters:
+            for adapter in adapters:
+                env_kind = getattr(adapter, "environment_kind", EnvironmentKind.GENERIC_POSIX)
+                env_name = env_kind.value if hasattr(env_kind, "value") else str(env_kind)
+                if hasattr(adapter, "discover_capability_roots"):
+                    try:
+                        for r in adapter.discover_capability_roots(self.workspace_root):
+                            all_roots.append((r, env_name))
+                    except Exception as e:
+                        logger.warning(f"Error discovering roots from {env_name}: {e}")
+
+        # Custom roots via environment variables
+        env_paths = os.environ.get("LCS_CAPABILITY_PATHS", "")
+        if not env_paths:
+            env_paths = os.environ.get("LCS_SKILL_PATHS", "")
+        if env_paths:
+            for p in env_paths.split(os.pathsep):
+                p = p.strip()
+                if p and os.path.isdir(p):
+                    all_roots.append((CapabilityRoot(
+                        root_path=os.path.realpath(p),
+                        precedence_tier="WORKSPACE",
+                        origin="custom",
+                        is_writable=os.access(p, os.W_OK)
+                    ), "custom"))
+
+        # Explicit custom roots parameter
+        if custom_roots:
+            for cr in custom_roots:
+                all_roots.append((cr, getattr(cr, "origin", "custom")))
+
+        # 3. Incremental scan across roots
+        visited_roots = set()
+        for root, env_name in all_roots:
+            norm_r = os.path.realpath(root.root_path)
+            if norm_r in visited_roots:
+                continue
+            visited_roots.add(norm_r)
+            self._scan_capability_root(root, env_name)
+
+        # 4. Ingest MCP configs from adapters
+        if adapters:
+            for adapter in adapters:
+                env_kind = getattr(adapter, "environment_kind", EnvironmentKind.GENERIC_POSIX)
+                env_name = env_kind.value if hasattr(env_kind, "value") else str(env_kind)
+                if hasattr(adapter, "discover_mcp_servers"):
+                    try:
+                        mcp_entries = adapter.discover_mcp_servers(self.workspace_root)
+                        for entry in mcp_entries:
+                            s_name = getattr(entry, "server_name", getattr(entry, "server_id", "mcp"))
+                            clean_ident = _canonical_identifier(s_name)
+                            urn = f"urn:lcs:tool:{env_name}:mcp-{clean_ident}"
+                            cmd = f"{entry.command} {' '.join(entry.args)}"
+                            prov = ProvenanceRecord(
+                                origin_host=env_name,
+                                precedence_tier="HOST",
+                                source_path=entry.source_file or cmd,
+                                resolved_path=entry.cwd or entry.source_file or cmd,
+                                content_hash=hashlib.sha256(cmd.encode()).hexdigest()
+                            )
+                            rec = UnifiedResourceRecord(
+                                urn=urn,
+                                name=s_name,
+                                resource_type=ResourceType.MCP_SERVER,
+                                display_name=f"{s_name} ({env_name})",
+                                description=f"Configured MCP Server via {env_name}: {cmd}",
+                                raw_content=cmd,
+                                raw_content_digest=prov.content_hash,
+                                provenance=prov,
+                                lifecycle_state=OperationalLifecycleState.CONFIGURED,
+                                metadata={"command": entry.command, "args": entry.args, "cwd": entry.cwd}
+                            )
+                            self._register_resource_with_conflict_resolution(rec)
+                    except Exception as e:
+                        logger.debug(f"MCP discovery error: {e}")
+
+        # 5. Evaluate operational states
+        self._evaluate_operational_states()
         return self.get_inventory_summary()
 
     def get_by_urn(self, urn: str) -> Optional[UnifiedResourceRecord]:
@@ -175,20 +328,28 @@ class UnifiedCapabilityInventory:
             score += 20.0
 
         # Word boundary token matching
-        r_name_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_name))
-        r_display_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_display))
-        r_desc_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_desc))
+        r_name_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_name)) | set(re.split(r'[^a-zA-Z0-9]+', r_name))
+        r_display_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_display)) | set(re.split(r'[^a-zA-Z0-9]+', r_display))
+        r_desc_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_desc)) | set(re.split(r'[^a-zA-Z0-9]+', r_desc))
 
         for token in query_tokens:
-            if token in r_name_words or any(token in w for w in r_name_words if len(token) >= 4):
+            token_variants = {token}
+            if token.endswith("s") and len(token) > 3:
+                token_variants.add(token[:-1])
+            if token.endswith("ing") and len(token) > 5:
+                token_variants.add(token[:-3])
+            if token.endswith("ed") and len(token) > 4:
+                token_variants.add(token[:-2])
+
+            if any(v in r_name_words or any(v in w for w in r_name_words if len(v) >= 4) for v in token_variants):
                 score += 20.0
-            if token in r_display_words or any(token in w for w in r_display_words if len(token) >= 4):
+            if any(v in r_display_words or any(v in w for w in r_display_words if len(v) >= 4) for v in token_variants):
                 score += 15.0
-            if token in r_desc_words:
+            if any(v in r_desc_words for v in token_variants):
                 score += 10.0
-            if any(token == tag.lower() for tag in record.tags):
+            if any(any(v == tag.lower() for tag in record.tags) for v in token_variants):
                 score += 15.0
-            elif any(token in tag.lower() for tag in record.tags if len(token) >= 4):
+            elif any(any(v in tag.lower() for tag in record.tags if len(v) >= 4) for v in token_variants):
                 score += 8.0
 
         # Precedence boost
@@ -221,8 +382,20 @@ class UnifiedCapabilityInventory:
         if not clean_q:
             return list(self._inventory.values())[:limit]
 
+        # Use Priority 5 Hybrid Semantic & Lexical Retrieval
+        try:
+            from .hybrid_retrieval import HybridSemanticRetriever
+            return HybridSemanticRetriever.search(
+                inventory_records=list(self._inventory.values()),
+                query=query,
+                limit=limit,
+                resource_types=resource_types
+            )
+        except Exception as e:
+            logger.debug(f"Hybrid retrieval fallback to lexical: {e}")
+
         # Multi-intent decomposition (e.g. "extract data and generate report")
-        sub_intents = [s.strip() for s in re.split(r'\b(?:and|then|followed by|after that)\b|[;&]', clean_q) if len(s.strip()) > 3]
+        sub_intents = [s.strip() for s in re.split(r'\b(?:and|then|followed by|after that)\b|[,;&]', clean_q) if len(s.strip()) > 3]
         if len(sub_intents) > 1:
             selected_urns = set()
             multi_results = []
@@ -289,15 +462,16 @@ class UnifiedCapabilityInventory:
         # 1. Artifact Discovery Records
         try:
             cur.execute("""
-                SELECT canonical_urn, name, display_name, taxonomy_kind, environment_origin,
-                       precedence_tier, source_path, resolved_path, is_bundle, bundle_root_path,
-                       raw_content_digest, lifecycle_state, provenance_json
-                FROM artifact_discovery_records;
+                SELECT a.canonical_urn, a.name, a.display_name, a.taxonomy_kind, a.environment_origin,
+                       a.precedence_tier, a.source_path, a.resolved_path, a.is_bundle, a.bundle_root_path,
+                       a.raw_content_digest, a.lifecycle_state, a.provenance_json, c.description
+                FROM artifact_discovery_records a
+                LEFT JOIN capabilities c ON a.canonical_urn = c.capability_urn;
             """)
             for row in cur.fetchall():
                 (urn, name, display_name, taxonomy_kind, origin, tier,
                  src_path, res_path, is_bundle, bundle_root, raw_digest,
-                 lifecycle_state, prov_json) = row
+                 lifecycle_state, prov_json, db_desc) = row
 
                 # Map taxonomy_kind to ResourceType
                 rtype = ResourceType.SKILL
@@ -312,7 +486,23 @@ class UnifiedCapabilityInventory:
 
                 tier_str = "WORKSPACE" if tier == 0 else "USER_GLOBAL"
                 raw_text = ""
-                if res_path and os.path.exists(res_path):
+                if res_path and not res_path.startswith("db://"):
+                    check_target = bundle_root or res_path
+                    if not os.path.exists(check_target):
+                        # File was deleted on disk! Clean up stale record and skip loading
+                        try:
+                            self.conn.execute("UPDATE artifact_discovery_records SET lifecycle_state = 'DELETED' WHERE canonical_urn = ?;", (urn,))
+                        except Exception:
+                            pass
+                        continue
+                    try:
+                        raw_bytes, _ = SafeFileReader.read_exact_bytes(res_path, MAX_INSTRUCTION_FILE_SIZE)
+                        raw_text = raw_bytes.decode("utf-8", errors="replace")
+                        st = os.stat(res_path)
+                        self._stat_fingerprints[os.path.realpath(res_path)] = (st.st_mtime_ns, st.st_size)
+                    except Exception:
+                        pass
+                elif res_path and os.path.exists(res_path):
                     try:
                         raw_bytes, _ = SafeFileReader.read_exact_bytes(res_path, MAX_INSTRUCTION_FILE_SIZE)
                         raw_text = raw_bytes.decode("utf-8", errors="replace")
@@ -320,7 +510,7 @@ class UnifiedCapabilityInventory:
                         pass
 
                 # Parse frontmatter / description
-                description = self._extract_description(raw_text)
+                description = (db_desc and db_desc.strip()) or self._extract_description(raw_text)
                 reqs = self._extract_execution_requirements(raw_text, rtype)
                 deps = self._extract_dependencies(raw_text)
 
@@ -348,7 +538,7 @@ class UnifiedCapabilityInventory:
                     declared_dependencies=deps,
                     security_flags=self._audit_security(raw_text)
                 )
-                self._register_resource_with_conflict_resolution(rec)
+                self._register_resource_with_conflict_resolution(rec, persist=False)
         except Exception as e:
             logger.debug(f"Catalog artifact query error: {e}")
 
@@ -403,7 +593,7 @@ class UnifiedCapabilityInventory:
                     provenance=prov,
                     lifecycle_state=OperationalLifecycleState.CONFIGURED
                 )
-                self._register_resource_with_conflict_resolution(rec)
+                self._register_resource_with_conflict_resolution(rec, persist=False)
         except Exception as e:
             logger.debug(f"Agent declarations query error: {e}")
 
@@ -463,6 +653,19 @@ class UnifiedCapabilityInventory:
 
             # Case A: Directory bundle (e.g. skill folder with SKILL.md)
             if os.path.isdir(full_path):
+                # Also check if this directory contains a nested skills folder (e.g. plugin/skills)
+                plugin_skills = os.path.join(full_path, "skills")
+                if os.path.isdir(plugin_skills):
+                    self._scan_capability_root(
+                        CapabilityRoot(
+                            root_path=plugin_skills,
+                            precedence_tier=tier,
+                            origin=env_name,
+                            is_writable=root.is_writable
+                        ),
+                        env_name
+                    )
+
                 skill_file = os.path.join(full_path, "SKILL.md")
                 workflow_file = os.path.join(full_path, "WORKFLOW.md")
                 readme_file = os.path.join(full_path, "README.md")
@@ -482,11 +685,20 @@ class UnifiedCapabilityInventory:
 
                 if target_file and os.path.exists(target_file):
                     try:
-                        raw_bytes, _ = SafeFileReader.read_exact_bytes(target_file, MAX_INSTRUCTION_FILE_SIZE)
-                        content = raw_bytes.decode("utf-8", errors="replace")
-                        digest = hashlib.sha256(content.encode()).hexdigest()
+                        target_real = os.path.realpath(target_file)
+                        st = os.stat(target_real)
+                        cur_fp = (st.st_mtime_ns, st.st_size)
                         clean_ident = _canonical_identifier(item)
                         urn = f"urn:lcs:{_canonical_entity_kind(rtype)}:{env_name}:{clean_ident}"
+
+                        # Level 1 POSIX stat pre-filter: bypass unchanged capabilities
+                        if target_real in self._stat_fingerprints and self._stat_fingerprints[target_real] == cur_fp and urn in self._inventory:
+                            continue
+
+                        raw_bytes, _ = SafeFileReader.read_exact_bytes(target_real, MAX_INSTRUCTION_FILE_SIZE)
+                        content = raw_bytes.decode("utf-8", errors="replace")
+                        digest = hashlib.sha256(content.encode()).hexdigest()
+                        self._stat_fingerprints[target_real] = cur_fp
                         desc = self._extract_description(content)
                         reqs = self._extract_execution_requirements(content, rtype)
                         deps = self._extract_dependencies(content)
@@ -529,7 +741,9 @@ class UnifiedCapabilityInventory:
                 rtype = None
 
                 if ext == ".md" or item == ".cursorrules":
-                    if item.upper() in ("CLAUDE.MD", "AGENTS.MD", "RULES.MD", ".CURSORRULES") or item == ".cursorrules":
+                    if os.path.basename(r_path) == "agents" or r_path.endswith(f"{os.sep}agents") or f"{os.sep}agents{os.sep}" in r_path:
+                        rtype = ResourceType.AGENT
+                    elif item.upper() in ("CLAUDE.MD", "AGENTS.MD", "RULES.MD", ".CURSORRULES") or item == ".cursorrules":
                         rtype = ResourceType.RULE
                     else:
                         rtype = ResourceType.COMMAND
@@ -538,12 +752,21 @@ class UnifiedCapabilityInventory:
 
                 if rtype:
                     try:
-                        raw_bytes, _ = SafeFileReader.read_exact_bytes(full_path, MAX_INSTRUCTION_FILE_SIZE)
-                        content = raw_bytes.decode("utf-8", errors="replace")
-                        digest = hashlib.sha256(content.encode()).hexdigest()
+                        full_real = os.path.realpath(full_path)
+                        st = os.stat(full_real)
+                        cur_fp = (st.st_mtime_ns, st.st_size)
                         clean_name = os.path.splitext(item)[0]
                         clean_ident = _canonical_identifier(clean_name)
                         urn = f"urn:lcs:{_canonical_entity_kind(rtype)}:{env_name}:{clean_ident}"
+
+                        # Level 1 POSIX stat pre-filter: bypass unchanged capabilities
+                        if full_real in self._stat_fingerprints and self._stat_fingerprints[full_real] == cur_fp and urn in self._inventory:
+                            continue
+
+                        raw_bytes, _ = SafeFileReader.read_exact_bytes(full_real, MAX_INSTRUCTION_FILE_SIZE)
+                        content = raw_bytes.decode("utf-8", errors="replace")
+                        digest = hashlib.sha256(content.encode()).hexdigest()
+                        self._stat_fingerprints[full_real] = cur_fp
 
                         prov = ProvenanceRecord(
                             origin_host=env_name,
@@ -607,7 +830,7 @@ class UnifiedCapabilityInventory:
 
         return aux
 
-    def _register_resource_with_conflict_resolution(self, record: UnifiedResourceRecord):
+    def _register_resource_with_conflict_resolution(self, record: UnifiedResourceRecord, persist: bool = True):
         """
         Registers a resource or resolves conflicts according to precedence tiers:
         WORKSPACE (0) > HOST (1) > USER_GLOBAL (2) > BUILTIN (3).
@@ -623,7 +846,8 @@ class UnifiedCapabilityInventory:
 
         if not existing:
             self._inventory[record.urn] = record
-            self._persist_and_bind_capability(record)
+            if persist:
+                self._persist_and_bind_capability(record)
             return
 
         # Case 1: Same resource re-scanned (update content)
@@ -631,7 +855,8 @@ class UnifiedCapabilityInventory:
             existing.provenance.source_path and existing.provenance.source_path == record.provenance.source_path
         ):
             self._inventory[record.urn] = record
-            self._persist_and_bind_capability(record)
+            if persist:
+                self._persist_and_bind_capability(record)
             return
 
         # Case 2: Conflict resolution based on tier between different locations
@@ -651,7 +876,8 @@ class UnifiedCapabilityInventory:
             if existing.urn in self._inventory:
                 del self._inventory[existing.urn]
             self._inventory[record.urn] = record
-            self._persist_and_bind_capability(record)
+            if persist:
+                self._persist_and_bind_capability(record)
         else:
             # Existing record preserved
             self._conflicts.append(ConflictRecord(
@@ -694,8 +920,12 @@ class UnifiedCapabilityInventory:
                     VALUES (?, 'CAPABILITY', 'PENDING');
                 """, (record.urn,))
                 self.conn.execute("""
-                    INSERT OR IGNORE INTO capabilities (capability_urn, name, version, description)
-                    VALUES (?, ?, ?, ?);
+                    INSERT INTO capabilities (capability_urn, name, version, description)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(capability_urn) DO UPDATE SET
+                        name = excluded.name,
+                        version = excluded.version,
+                        description = excluded.description;
                 """, (record.urn, record.name, record.provenance.version, record.description))
                 self.conn.execute("""
                     UPDATE entity_urn_registry SET lifecycle_state = 'ACTIVE' WHERE entity_urn = ?;
@@ -742,9 +972,13 @@ class UnifiedCapabilityInventory:
 
                 # 3. capability_declarations
                 self.conn.execute("""
-                    INSERT OR REPLACE INTO capability_declarations (
+                    INSERT INTO capability_declarations (
                         capability_urn, definition_blob_digest, schema_version, display_name, capability_type
-                    ) VALUES (?, ?, 1, ?, ?);
+                    ) VALUES (?, ?, 1, ?, ?)
+                    ON CONFLICT(capability_urn) DO UPDATE SET
+                        definition_blob_digest = excluded.definition_blob_digest,
+                        display_name = excluded.display_name,
+                        registered_at = datetime('now');
                 """, (record.urn, raw_digest, record.display_name, "skill"))
 
                 # 4. Interface and Agent Declarations
@@ -784,9 +1018,13 @@ class UnifiedCapabilityInventory:
                         UPDATE entity_urn_registry SET lifecycle_state = 'ACTIVE' WHERE entity_urn = ?;
                     """, (cap_ref_urn,))
                     self.conn.execute("""
-                        INSERT OR REPLACE INTO capability_declarations (
+                        INSERT INTO capability_declarations (
                             capability_urn, definition_blob_digest, schema_version, display_name, capability_type
-                        ) VALUES (?, ?, 1, ?, 'skill');
+                        ) VALUES (?, ?, 1, ?, 'skill')
+                        ON CONFLICT(capability_urn) DO UPDATE SET
+                            definition_blob_digest = excluded.definition_blob_digest,
+                            display_name = excluded.display_name,
+                            registered_at = datetime('now');
                     """, (cap_ref_urn, raw_digest, f"{record.name} skill"))
 
                 from ..policy import InterfaceDeclaration, InterfaceCapabilityRef
@@ -841,16 +1079,22 @@ class UnifiedCapabilityInventory:
 
                 bnd_id = f"bnd_{hashlib.sha256((iface_urn + record.urn).encode()).hexdigest()[:16]}"
                 self.conn.execute("""
-                    INSERT OR REPLACE INTO interface_capability_bindings (
+                    INSERT INTO interface_capability_bindings (
                         binding_id, interface_urn, capability_urn, expected_definition_digest, bound_at
-                    ) VALUES (?, ?, ?, ?, ?);
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(interface_urn, capability_urn) DO UPDATE SET
+                        expected_definition_digest = excluded.expected_definition_digest,
+                        bound_at = excluded.bound_at;
                 """, (bnd_id, iface_urn, record.urn, raw_digest, now_iso))
                 if cap_ref_urn != record.urn:
                     bnd_id2 = f"bnd_{hashlib.sha256((iface_urn + cap_ref_urn).encode()).hexdigest()[:16]}"
                     self.conn.execute("""
-                        INSERT OR REPLACE INTO interface_capability_bindings (
+                        INSERT INTO interface_capability_bindings (
                             binding_id, interface_urn, capability_urn, expected_definition_digest, bound_at
-                        ) VALUES (?, ?, ?, ?, ?);
+                        ) VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(interface_urn, capability_urn) DO UPDATE SET
+                            expected_definition_digest = excluded.expected_definition_digest,
+                            bound_at = excluded.bound_at;
                     """, (bnd_id2, iface_urn, cap_ref_urn, raw_digest, now_iso))
 
                 if self.iface_service:

@@ -2,7 +2,7 @@ name: LCS Core CI/CD & Integrity Pipeline
 
 on:
   push:
-    branches: [ main, 'verify/**', 'stage5**' ]
+    branches: [ main, 'feature/**', 'verify/**', 'stage5**' ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
@@ -46,5 +46,75 @@ jobs:
 
       - name: Verify CLI Functionality
         run: |
+          lcs --version
           lcs --help
           lcs status
+          call-me --version
+          call-me --help
+
+      - name: Build Distribution Wheel and Sdist
+        run: |
+          python -m build --wheel --sdist -o dist/
+
+      - name: Verify Isolated Package Installation
+        shell: bash
+        run: |
+          CLEAN_VENV="$RUNNER_TEMP/clean_pkg_venv"
+          python -m venv "$CLEAN_VENV"
+          if [ -f "$CLEAN_VENV/bin/pip" ]; then
+            PIP_EXEC="$CLEAN_VENV/bin/pip"
+            CALL_ME_EXEC="$CLEAN_VENV/bin/call-me"
+            LCS_EXEC="$CLEAN_VENV/bin/lcs"
+          else
+            PIP_EXEC="$CLEAN_VENV/Scripts/pip.exe"
+            CALL_ME_EXEC="$CLEAN_VENV/Scripts/call-me.exe"
+            LCS_EXEC="$CLEAN_VENV/Scripts/lcs.exe"
+          fi
+          "$PIP_EXEC" install dist/*.whl
+          "$CALL_ME_EXEC" --version
+          "$LCS_EXEC" --version
+
+  installer-acceptance:
+    name: Installer Acceptance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test Unix Installer (install.sh & uninstall.sh)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          chmod +x install.sh uninstall.sh
+          # Test script syntax and execution
+          ./install.sh || bash install.sh
+          # Verify installed binaries exist
+          export PATH="$HOME/.local/bin:$PATH"
+          call-me --version || ~/.local/bin/call-me --version
+          lcs --version || ~/.local/bin/lcs --version
+          # Test repeat installation (idempotency)
+          ./install.sh || bash install.sh
+          # Test safe uninstaller
+          ./uninstall.sh --yes || bash uninstall.sh --yes
+
+      - name: Test Windows Installer (install.ps1)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\install.ps1 -Force
+          $env:Path = "$HOME\.local\bin;" + $env:Path
+          & "$HOME\.local\bin\call-me.cmd" --version
+          & "$HOME\.local\bin\lcs.cmd" --version
+          # Test repeat installation (idempotency)
+          .\install.ps1 -Force
+

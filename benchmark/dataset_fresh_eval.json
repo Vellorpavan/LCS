@@ -1,0 +1,452 @@
+[
+  {
+    "id": "FRESH-001",
+    "domain": "backend_python",
+    "category": "SKILL",
+    "query": "Build a FastAPI application with Pydantic v2 schemas and async SQLAlchemy sessions",
+    "expected_capabilities": ["fastapi-patterns", "python-patterns"],
+    "expect_abstain": false,
+    "description": "FastAPI async database application"
+  },
+  {
+    "id": "FRESH-002",
+    "domain": "backend_python",
+    "category": "SKILL",
+    "query": "Implement Celery background task workers with automated retries and dead-letter queues",
+    "expected_capabilities": ["django-celery"],
+    "expect_abstain": false,
+    "description": "Celery worker with retry logic"
+  },
+  {
+    "id": "FRESH-003",
+    "domain": "frontend_web",
+    "category": "SKILL",
+    "query": "Develop an accessible modal dialog in React with keyboard trap and focus restoration",
+    "expected_capabilities": ["frontend-patterns", "accessibility"],
+    "expect_abstain": false,
+    "description": "Accessible React modal component"
+  },
+  {
+    "id": "FRESH-004",
+    "domain": "frontend_web",
+    "category": "SKILL",
+    "query": "Optimize Next.js app router performance with server components and streaming SSR",
+    "expected_capabilities": ["frontend-patterns", "react-patterns"],
+    "expect_abstain": false,
+    "description": "Next.js performance optimization"
+  },
+  {
+    "id": "FRESH-005",
+    "domain": "systems_rust",
+    "category": "SKILL",
+    "query": "Write async Rust microservices using Tokio with property-based testing via proptest",
+    "expected_capabilities": ["rust-patterns", "rust-testing"],
+    "expect_abstain": false,
+    "description": "Async Rust service with property testing"
+  },
+  {
+    "id": "FRESH-006",
+    "domain": "systems_golang",
+    "category": "SKILL",
+    "query": "Implement idiomatic Go concurrency with worker pools and context cancellation",
+    "expected_capabilities": ["golang-patterns"],
+    "expect_abstain": false,
+    "description": "Go concurrency patterns"
+  },
+  {
+    "id": "FRESH-007",
+    "domain": "database_sql",
+    "category": "SKILL",
+    "query": "Design PostgreSQL schemas with B-tree indexes, foreign keys, and zero-downtime migrations",
+    "expected_capabilities": ["postgres-patterns", "database-migrations"],
+    "expect_abstain": false,
+    "description": "PostgreSQL schema and index design"
+  },
+  {
+    "id": "FRESH-008",
+    "domain": "testing_qa",
+    "category": "SKILL",
+    "query": "Write end-to-end user journey tests with Playwright Page Object Model in TypeScript",
+    "expected_capabilities": ["e2e-testing"],
+    "expect_abstain": false,
+    "description": "Playwright POM E2E tests"
+  },
+  {
+    "id": "FRESH-009",
+    "domain": "testing_qa",
+    "category": "SKILL",
+    "query": "Implement pytest test fixtures with parametrized test cases and mocking",
+    "expected_capabilities": ["python-testing"],
+    "expect_abstain": false,
+    "description": "Pytest fixtures and mocking"
+  },
+  {
+    "id": "FRESH-010",
+    "domain": "security_audit",
+    "category": "SKILL",
+    "query": "Audit backend API endpoints against OWASP Top 10 injection vulnerabilities and CSRF",
+    "expected_capabilities": ["security-review", "cso"],
+    "expect_abstain": false,
+    "description": "OWASP API security audit"
+  },
+  {
+    "id": "FRESH-011",
+    "domain": "security_audit",
+    "category": "SKILL",
+    "query": "Ensure HIPAA security rule compliance for handling protected health information",
+    "expected_capabilities": ["hipaa-compliance", "security-review"],
+    "expect_abstain": false,
+    "description": "HIPAA compliance verification"
+  },
+  {
+    "id": "FRESH-012",
+    "domain": "cgi_3d",
+    "category": "SKILL",
+    "query": "Create realistic hard-surface mechanical device with bevel modifiers and panel cuts",
+    "expected_capabilities": ["hard-surface"],
+    "expect_abstain": false,
+    "description": "Hard surface mechanical modeling"
+  },
+  {
+    "id": "FRESH-013",
+    "domain": "cgi_3d",
+    "category": "SKILL",
+    "query": "Configure three-point studio lighting with key, fill, and rim lights and volumetrics",
+    "expected_capabilities": ["lighting", "camera-cinematography"],
+    "expect_abstain": false,
+    "description": "Cinematic lighting setup"
+  },
+  {
+    "id": "FRESH-014",
+    "domain": "cgi_3d",
+    "category": "SKILL",
+    "query": "Author PBR metallic and dielectric materials with roughness maps and procedural dirt",
+    "expected_capabilities": ["materials", "lookdev"],
+    "expect_abstain": false,
+    "description": "PBR shader authoring"
+  },
+  {
+    "id": "FRESH-015",
+    "domain": "devops_cloud",
+    "category": "SKILL",
+    "query": "Build a multi-stage Dockerfile optimizing layer cache and unprivileged container user",
+    "expected_capabilities": ["docker-patterns"],
+    "expect_abstain": false,
+    "description": "Multi-stage Dockerfile optimization"
+  },
+  {
+    "id": "FRESH-016",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Architect a multi-service event-driven system with clear domain boundaries",
+    "expected_capabilities": ["code-architect", "architecture-decision-records"],
+    "expect_abstain": false,
+    "description": "System architecture delegation"
+  },
+  {
+    "id": "FRESH-017",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Conduct thorough code review on pull request checking for race conditions and style",
+    "expected_capabilities": ["review", "code-review"],
+    "expect_abstain": false,
+    "description": "Automated PR code review"
+  },
+  {
+    "id": "FRESH-018",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Guide test-driven development workflow implementing red-green-refactor cycle",
+    "expected_capabilities": ["tdd", "test-driven-development"],
+    "expect_abstain": false,
+    "description": "TDD specialist guidance"
+  },
+  {
+    "id": "FRESH-019",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Diagnose complex distributed system regression using scientific debugging method",
+    "expected_capabilities": ["systematic-debugging", "diagnosing-bugs"],
+    "expect_abstain": false,
+    "description": "Systematic debugging investigation"
+  },
+  {
+    "id": "FRESH-020",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Perform automated security penetration testing and static vulnerability audit",
+    "expected_capabilities": ["cso", "security-review"],
+    "expect_abstain": false,
+    "description": "CSO security audit"
+  },
+  {
+    "id": "FRESH-021",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Inspect code for silent errors, unhandled promises, and swallowed exceptions",
+    "expected_capabilities": ["error-handling", "systematic-debugging"],
+    "expect_abstain": false,
+    "description": "Silent failure auditing"
+  },
+  {
+    "id": "FRESH-022",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Review software architecture tradeoffs using founder mode product interrogation",
+    "expected_capabilities": ["office-hours", "plan-ceo-review"],
+    "expect_abstain": false,
+    "description": "YC office hours review"
+  },
+  {
+    "id": "FRESH-023",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Eliminate dead code, unnecessary wrappers, and bloated dependencies following minimalism",
+    "expected_capabilities": ["ponytail", "deslop-shared-libs"],
+    "expect_abstain": false,
+    "description": "Ponytail minimalist refactoring"
+  },
+  {
+    "id": "FRESH-024",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Audit user interface against visual design quality standards and spacing hierarchies",
+    "expected_capabilities": ["design-review", "checklist-design"],
+    "expect_abstain": false,
+    "description": "Design review audit"
+  },
+  {
+    "id": "FRESH-025",
+    "domain": "agent_specialists",
+    "category": "AGENT",
+    "query": "Validate developer experience and onboarding time-to-hello-world for CLI library",
+    "expected_capabilities": ["devex-review", "plan-devex-review"],
+    "expect_abstain": false,
+    "description": "DevEx review"
+  },
+  {
+    "id": "FRESH-026",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Query Blender scene objects, inspect active camera, and render preview",
+    "expected_capabilities": ["blender-mcp"],
+    "expect_abstain": false,
+    "description": "Blender MCP scene query"
+  },
+  {
+    "id": "FRESH-027",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Generate a 3D mesh inside Blender via programmatic Python script execution",
+    "expected_capabilities": ["blender-mcp", "execute_blender_code"],
+    "expect_abstain": false,
+    "description": "Blender MCP code execution"
+  },
+  {
+    "id": "FRESH-028",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Inspect Supabase database tables, list database migrations, and execute SQL queries",
+    "expected_capabilities": ["supabase-mcp-server"],
+    "expect_abstain": false,
+    "description": "Supabase MCP database inspection"
+  },
+  {
+    "id": "FRESH-029",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Search Living Capability System registry for capabilities and inspect schema",
+    "expected_capabilities": ["lcs", "lcs_search"],
+    "expect_abstain": false,
+    "description": "LCS MCP capability search"
+  },
+  {
+    "id": "FRESH-030",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Execute verified Living Capability System workflow step through MCP governance",
+    "expected_capabilities": ["lcs", "lcs_govern"],
+    "expect_abstain": false,
+    "description": "LCS MCP governance execution"
+  },
+  {
+    "id": "FRESH-031",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Deploy Supabase edge function with environment secrets and typescript types",
+    "expected_capabilities": ["supabase-mcp-server"],
+    "expect_abstain": false,
+    "description": "Supabase MCP edge function deploy"
+  },
+  {
+    "id": "FRESH-032",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Search 3D model assets and import OBJ / FBX asset into Blender workspace",
+    "expected_capabilities": ["blender-mcp", "import_asset"],
+    "expect_abstain": false,
+    "description": "Blender MCP asset import"
+  },
+  {
+    "id": "FRESH-033",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Take a viewport snapshot in Blender to verify visual asset shading",
+    "expected_capabilities": ["blender-mcp", "look"],
+    "expect_abstain": false,
+    "description": "Blender MCP look snapshot"
+  },
+  {
+    "id": "FRESH-034",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "List all branches and create a new database branch in Supabase",
+    "expected_capabilities": ["supabase-mcp-server"],
+    "expect_abstain": false,
+    "description": "Supabase MCP branch creation"
+  },
+  {
+    "id": "FRESH-035",
+    "domain": "mcp_capabilities",
+    "category": "MCP",
+    "query": "Execute database SQL statements and inspect query performance advisors in Supabase",
+    "expected_capabilities": ["supabase-mcp-server"],
+    "expect_abstain": false,
+    "description": "Supabase MCP SQL execution"
+  },
+  {
+    "id": "FRESH-036",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Generate unified Call Me execution plan for objective using the CLI",
+    "expected_capabilities": ["call-me", "lcs"],
+    "expect_abstain": false,
+    "description": "Call Me plan CLI"
+  },
+  {
+    "id": "FRESH-037",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Verify deliverable files and execute test suites via call-me verify command",
+    "expected_capabilities": ["call-me", "verify"],
+    "expect_abstain": false,
+    "description": "Call Me verify CLI"
+  },
+  {
+    "id": "FRESH-038",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Run diagnostics and repair local LCS installation across agent environments",
+    "expected_capabilities": ["setup", "lcs"],
+    "expect_abstain": false,
+    "description": "LCS setup repair CLI"
+  },
+  {
+    "id": "FRESH-039",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Inspect registered capability inventory and URN schema in terminal",
+    "expected_capabilities": ["lcs", "inventory"],
+    "expect_abstain": false,
+    "description": "LCS inventory inspect CLI"
+  },
+  {
+    "id": "FRESH-040",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Install Git pre-commit hooks running lint-staged and Prettier",
+    "expected_capabilities": ["setup-pre-commit"],
+    "expect_abstain": false,
+    "description": "Pre-commit hook setup"
+  },
+  {
+    "id": "FRESH-041",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Manage isolated Git worktrees for safe parallel feature branches",
+    "expected_capabilities": ["using-git-worktrees"],
+    "expect_abstain": false,
+    "description": "Git worktree management"
+  },
+  {
+    "id": "FRESH-042",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Freeze edits strictly to target directory while debugging production issue",
+    "expected_capabilities": ["freeze", "guard"],
+    "expect_abstain": false,
+    "description": "Directory freeze safety mode"
+  },
+  {
+    "id": "FRESH-043",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Run full test suite, bump version, write changelog, and ship pull request",
+    "expected_capabilities": ["ship"],
+    "expect_abstain": false,
+    "description": "Ship CLI workflow"
+  },
+  {
+    "id": "FRESH-044",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Save current working context and task decisions to disk for later restoration",
+    "expected_capabilities": ["context-save"],
+    "expect_abstain": false,
+    "description": "Context save command"
+  },
+  {
+    "id": "FRESH-045",
+    "domain": "cli_commands",
+    "category": "COMMAND",
+    "query": "Restore working context saved from earlier session",
+    "expected_capabilities": ["context-restore"],
+    "expect_abstain": false,
+    "description": "Context restore command"
+  },
+  {
+    "id": "FRESH-046",
+    "domain": "out_of_domain",
+    "category": "ABSTAIN",
+    "query": "Provide a medical prescription and dosage for severe acute chest pain",
+    "expected_capabilities": [],
+    "expect_abstain": true,
+    "description": "Medical prescription query (abstain)"
+  },
+  {
+    "id": "FRESH-047",
+    "domain": "out_of_domain",
+    "category": "ABSTAIN",
+    "query": "Give me real-time stock price predictions and intraday trading signals",
+    "expected_capabilities": [],
+    "expect_abstain": true,
+    "description": "Stock trading signal query (abstain)"
+  },
+  {
+    "id": "FRESH-048",
+    "domain": "out_of_domain",
+    "category": "ABSTAIN",
+    "query": "Draft a legal contract for purchasing residential real estate under Florida probate law",
+    "expected_capabilities": [],
+    "expect_abstain": true,
+    "description": "Real estate probate law contract (abstain)"
+  },
+  {
+    "id": "FRESH-049",
+    "domain": "out_of_domain",
+    "category": "ABSTAIN",
+    "query": "Translate this ancient Sumerian cuneiform tablet fragment into English",
+    "expected_capabilities": [],
+    "expect_abstain": true,
+    "description": "Ancient cuneiform translation (abstain)"
+  },
+  {
+    "id": "FRESH-050",
+    "domain": "out_of_domain",
+    "category": "ABSTAIN",
+    "query": "How do I bake a chocolate sourdough bread with high hydration?",
+    "expected_capabilities": [],
+    "expect_abstain": true,
+    "description": "Baking sourdough bread (abstain)"
+  }
+]

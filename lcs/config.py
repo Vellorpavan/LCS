@@ -83,6 +83,8 @@ class LCSConfig:
             root = user_state_dir
         elif os.environ.get("LCS_ROOT"):
             root = os.path.realpath(os.environ["LCS_ROOT"])
+        elif os.path.exists(os.path.join(local_candidate, "lcs.db")):
+            root = os.path.realpath(local_candidate)
         elif os.path.exists(local_candidate):
             root = os.path.realpath(local_candidate)
         elif os.path.exists(os.path.join(user_state_dir, "lcs.db")):

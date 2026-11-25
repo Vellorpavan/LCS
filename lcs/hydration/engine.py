@@ -272,8 +272,16 @@ class HydrationEngine:
                                     ))
                                     seen_names.add(dname)
 
-                        # tools: [ ... ]
-                        for tool in meta.get("tools", []):
+                        # tools: [ ... ] or comma-separated string
+                        raw_tools = meta.get("tools", [])
+                        if isinstance(raw_tools, str):
+                            tool_list = [t.strip() for t in raw_tools.split(",") if t.strip()]
+                        elif isinstance(raw_tools, list):
+                            tool_list = raw_tools
+                        else:
+                            tool_list = []
+
+                        for tool in tool_list:
                             tname = tool if isinstance(tool, str) else tool.get("name")
                             if tname and tname not in seen_names:
                                 deps.append(DependencyReference(

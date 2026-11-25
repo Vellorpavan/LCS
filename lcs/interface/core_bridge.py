@@ -10,6 +10,7 @@ Invariants:
 - Maintains strict session isolation.
 """
 
+import os
 import time
 import re
 import hashlib
@@ -126,8 +127,9 @@ class LCSCoreBridge:
             # Primary source: Unified Capability Inventory (live cross-host catalog)
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
                 try:
-                    if self.ctx.inventory.total_count == 0 and hasattr(self.ctx, "adapter_registry"):
-                        self.ctx.inventory.initialize_environment(adapters=self.ctx.adapter_registry.list_all())
+                    if hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry:
+                        adapters = self.ctx.adapter_registry.list_all()
+                        self.ctx.inventory.refresh_discovery(adapters=adapters)
                     matches = self.ctx.inventory.search(query, limit=10)
                     for idx, m in enumerate(matches):
                         score = 100.0 - (idx * 5.0)
@@ -358,8 +360,11 @@ class LCSCoreBridge:
                     sub_queries.append(chunk)
 
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
-                if self.ctx.inventory.total_count == 0 and hasattr(self.ctx, "adapter_registry"):
-                    self.ctx.inventory.initialize_environment(adapters=self.ctx.adapter_registry.list_all())
+                adapters = self.ctx.adapter_registry.list_all() if hasattr(self.ctx, "adapter_registry") else None
+                try:
+                    self.ctx.inventory.refresh_discovery(adapters=adapters)
+                except Exception as e:
+                    logger.debug(f"Discovery refresh error: {e}")
 
                 if len(sub_queries) > 1:
                     # Multi-intent decomposition: select top candidate for each distinct sub-query
@@ -404,9 +409,11 @@ class LCSCoreBridge:
         # 3. Dependency Resolution & Topological Ordering
         exec_order, dep_graph = self.resolve_dependencies(hydrated_caps)
         # Filter execution order to only include executable capabilities (not static documentation/reference files)
+        hydrated_urn_set = {c.capability_urn for c in hydrated_caps}
         executable_order = []
         for urn in exec_order:
-            # Auxiliary bundle files (e.g. cap:references/..., cap:scripts/...) are internal bundle assets, not distinct plan steps
+            if not urn or urn not in hydrated_urn_set:
+                continue
             if any(urn.startswith(f"{c.capability_urn}:") for c in hydrated_caps):
                 continue
             node = dep_graph.nodes.get(urn) if dep_graph else None
@@ -592,6 +599,13 @@ class LCSCoreBridge:
 
         # 7. Collect Auditable Results
         step_summary = []
+        total_steps = exec_result.total_steps
+        completed_steps = exec_result.completed_steps
+        has_failed = (exec_result.lifecycle_state == ExecutionLifecycleState.FAILED)
+        script_steps = 0
+        instruction_steps = 0
+        has_real_deliverable = False
+
         for r in exec_result.step_records:
             step_summary.append({
                 "step_id": r.step_id,
@@ -603,11 +617,59 @@ class LCSCoreBridge:
                 "output_cas_digest": r.output_result_cas_digest
             })
 
+        # Check execution modes from execution trace outputs
+        if hasattr(exec_result, "outputs") and isinstance(exec_result.outputs, dict):
+            for out in exec_result.outputs.values():
+                if isinstance(out, dict):
+                    mode = out.get("execution_mode")
+                    status = out.get("status")
+                    if mode == "SCRIPT_EXECUTION":
+                        if status == "SUCCESS":
+                            script_steps += 1
+                        else:
+                            has_failed = True
+                    elif mode == "INSTRUCTION_HANDOFF":
+                        instruction_steps += 1
+                    if out.get("deliverable_path") and os.path.exists(out.get("deliverable_path")):
+                        has_real_deliverable = True
+                    if out.get("stdout"):
+                        try:
+                            parsed_out = json.loads(out["stdout"])
+                            if isinstance(parsed_out, dict):
+                                f = parsed_out.get("file") or parsed_out.get("deliverable") or parsed_out.get("deliverable_path")
+                                if f and os.path.exists(f) and os.path.getsize(f) > 0:
+                                    has_real_deliverable = True
+                        except Exception:
+                            pass
+
+        # Check if caller requested physical output file
+        expected_output_file = initial_inputs.get("output_file") or initial_inputs.get("deliverable") if initial_inputs else None
+        if expected_output_file and os.path.exists(expected_output_file):
+            has_real_deliverable = True
+
+        # Determine truthful final status:
+        # 1. Any failed step -> FAILED
+        # 2. Instruction-only execution awaiting specialists -> HANDOFF_READY
+        # 3. Mixed execution with unfinished required specialist steps -> HANDOFF_READY
+        # 4. All required steps executed with scripts / deliverables -> SUCCEEDED
+        if has_failed or exec_result.lifecycle_state == ExecutionLifecycleState.FAILED:
+            final_status = "FAILED"
+            lifecycle_str = ExecutionLifecycleState.FAILED.value
+        elif instruction_steps > 0 and not has_real_deliverable:
+            final_status = "HANDOFF_READY"
+            lifecycle_str = "HANDOFF_READY"
+        elif exec_result.lifecycle_state == ExecutionLifecycleState.SUCCEEDED and (script_steps == total_steps or has_real_deliverable):
+            final_status = "SUCCEEDED"
+            lifecycle_str = exec_result.lifecycle_state.value
+        else:
+            final_status = "HANDOFF_READY"
+            lifecycle_str = "HANDOFF_READY"
+
         return {
-            "status": "SUCCEEDED" if exec_result.lifecycle_state == ExecutionLifecycleState.SUCCEEDED else "FAILED",
+            "status": final_status,
             "run_id": exec_result.run_id,
             "plan_id": plan.plan_id,
-            "lifecycle_state": exec_result.lifecycle_state.value,
+            "lifecycle_state": lifecycle_str,
             "total_steps": exec_result.total_steps,
             "completed_steps": exec_result.completed_steps,
             "trace_cas_digest": exec_result.trace_cas_digest,
@@ -616,3 +678,302 @@ class LCSCoreBridge:
             "step_records": step_summary,
             "error_message": exec_result.error_message
         }
+
+    def plan_task_pipeline(
+        self,
+        request: TaskRequest,
+        candidate_urns: Optional[List[str]] = None,
+        initial_inputs: Optional[Dict[str, Any]] = None,
+        workspace_root: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Stage 1 Closed-Loop Protocol:
+        Synthesizes a structured handoff packet for host coordinators:
+        - Resolves dependencies and computes topological execution waves
+        - Hydrates full specialist instructions for each step
+        - Specifies expected deliverables and verification criteria
+        """
+        # Ensure live capability discovery
+        if hasattr(self.ctx, "inventory") and self.ctx.inventory:
+            adapters = self.ctx.adapter_registry.list_all() if hasattr(self.ctx, "adapter_registry") else None
+            try:
+                self.ctx.inventory.refresh_discovery(adapters=adapters)
+            except Exception as e:
+                logger.debug(f"Discovery refresh error in plan: {e}")
+
+        # Determine active caller environment
+        active_host = (getattr(request, "invocation_environment", None) or getattr(request, "caller_environment", None) or (request.provenance.get("env") if hasattr(request, "provenance") and isinstance(request.provenance, dict) else "") or "").lower()
+        if not active_host and hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry:
+            try:
+                active_host = self.ctx.adapter_registry.detect_active().kind.value.lower()
+            except Exception:
+                pass
+
+        # Resolve capabilities via SemanticReasoner (host-assisted decision or local fallback)
+        reasoning_res = None
+        host_decision = (initial_inputs or {}).get("host_decision")
+        host_model = (initial_inputs or {}).get("host_model")
+
+        if not candidate_urns:
+            query = request.normalized_task_description or request.original_instruction
+            if hasattr(self.ctx, "inventory") and self.ctx.inventory:
+                from ..intelligence.semantic_reasoner import SemanticReasoner
+                if host_decision:
+                    reqs = SemanticReasoner.decompose_requirements(query)
+                    reasoning_res = SemanticReasoner.validate_and_build_from_host_decision(
+                        objective=query,
+                        requirements=reqs,
+                        host_decision=host_decision,
+                        inventory=self.ctx.inventory,
+                        active_host=active_host,
+                        host_model=host_model,
+                        is_compatible_fn=self._is_capability_compatible_with_host,
+                    )
+                else:
+                    reasoning_res = SemanticReasoner.reason_locally(
+                        objective=query,
+                        inventory=self.ctx.inventory,
+                        active_host=active_host,
+                        is_compatible_fn=self._is_capability_compatible_with_host,
+                        max_steps=8,
+                    )
+                candidate_urns = [s.urn for s in reasoning_res.selections]
+            else:
+                candidate_urns = []
+
+        hydrated_caps: List[HydratedCapability] = []
+        hydration_errors: List[str] = []
+        for urn in candidate_urns:
+            try:
+                cap = self.ctx.hydration_engine.hydrate_capability(urn)
+                hydrated_caps.append(cap)
+            except Exception as e:
+                hydration_errors.append(f"{urn}: {e}")
+                logger.warning(f"Capability hydration failed for '{urn}': {e}")
+
+        if not hydrated_caps and candidate_urns:
+            # Fall back to synthetic hydrated wrappers so multi-intent objectives don't collapse
+            for urn in candidate_urns:
+                ident = urn.split(":")[-1]
+                synthetic_cap = HydratedCapability(
+                    capability_urn=urn,
+                    name=ident,
+                    raw_instructions=f"Implement capability '{ident}' to fulfill: {request.original_instruction}",
+                    instruction_digest=hashlib.sha256(ident.encode("utf-8")).hexdigest()
+                )
+                hydrated_caps.append(synthetic_cap)
+
+        try:
+            exec_order, dep_graph = self.resolve_dependencies(hydrated_caps)
+        except Exception as e:
+            logger.warning(f"Dependency resolution error, using candidate order: {e}")
+            exec_order = [c.capability_urn for c in hydrated_caps]
+            dep_graph = None
+
+        hydrated_urn_set = {c.capability_urn for c in hydrated_caps}
+        executable_order = []
+        for urn in exec_order:
+            if not urn or urn not in hydrated_urn_set:
+                continue
+            if any(urn.startswith(f"{c.capability_urn}:") for c in hydrated_caps):
+                continue
+            node = dep_graph.nodes.get(urn) if dep_graph else None
+            if node and hasattr(node, "resource_type") and getattr(node, "resource_type", None) in (ResourceType.DOCUMENTATION, ResourceType.TEMPLATE):
+                continue
+            if any(urn.endswith(ext) for ext in (".md", ".txt", ".yaml", ".yml", ".json", ".csv")):
+                continue
+            executable_order.append(urn)
+
+        if not executable_order and candidate_urns:
+            executable_order = [u for u in candidate_urns if not any(u.endswith(ext) for ext in (".md", ".txt", ".yaml", ".yml", ".json", ".csv"))] or candidate_urns
+
+        # Sort executable order by architectural execution phase
+        executable_order.sort(key=lambda u: _semantic_phase_rank(u, next((c for c in hydrated_caps if c.capability_urn == u), None)))
+        executable_order = executable_order[:8]
+
+        # Categorize steps into architectural phases for multi-wave DAG construction
+        # Phase 0: Components / Models / Services / Scaffolding (independent fan-out, Wave 1)
+        # Phase 1: Assembly / Integration / Composition / Runner (fan-in, Wave 2)
+        # Phase 2: Verification / Testing / Quality Gate (validation, Wave 3)
+        phase_map: Dict[int, List[Dict[str, Any]]] = {0: [], 1: [], 2: []}
+        steps = []
+        all_deliverables_set = set()
+        all_verification_cmds_set = set()
+
+        caller_deliverables = []
+        req_deliv = getattr(request, "expected_deliverables", None) or getattr(request, "deliverables", None)
+        if req_deliv:
+            caller_deliverables = [req_deliv] if isinstance(req_deliv, str) else list(req_deliv)
+        elif initial_inputs and initial_inputs.get("expected_deliverables"):
+            caller_deliverables = initial_inputs["expected_deliverables"]
+
+        selection_by_urn = {s.urn: s for s in reasoning_res.selections} if reasoning_res else {}
+
+        for idx, urn in enumerate(executable_order, start=1):
+            cap = next((c for c in hydrated_caps if c.capability_urn == urn), None)
+            cap_name = cap.name if cap else urn.split(":")[-1]
+            step_id = f"step-{idx}-{cap_name}"
+            phase_rank = _semantic_phase_rank(urn, cap)
+            sel = selection_by_urn.get(urn)
+
+            instructions = ""
+            if cap and getattr(cap, "raw_instructions", None):
+                instructions = cap.raw_instructions
+            elif cap and getattr(cap, "description", None):
+                instructions = cap.description
+            elif cap and hasattr(cap, "provenance") and isinstance(cap.provenance, dict) and cap.provenance.get("description"):
+                instructions = cap.provenance["description"]
+            else:
+                instructions = f"Implement the requested capability '{cap_name}' to fulfill the objective: {request.original_instruction}."
+
+            # Derive step deliverables and verification criteria from capability contract & reasoning
+            step_deliverables = []
+            step_verification_cmds = []
+
+            if caller_deliverables and idx <= len(caller_deliverables):
+                step_deliverables = [caller_deliverables[idx - 1]]
+            elif sel and sel.expected_deliverables:
+                step_deliverables = list(sel.expected_deliverables)
+                step_verification_cmds = list(sel.verification_commands)
+            else:
+                clean_ident = cap_name.lower().replace("-", "_")
+                if "telemetry" in clean_ident:
+                    step_deliverables = ["telemetry.py"]
+                elif "health" in clean_ident:
+                    step_deliverables = ["health.py"]
+                elif "scaffold" in clean_ident or "structure" in clean_ident:
+                    step_deliverables = ["app.py"]
+                elif "assembly" in clean_ident or "runner" in clean_ident or "main" in clean_ident:
+                    step_deliverables = ["main.py"]
+                elif "test" in clean_ident or "verify" in clean_ident or "qa" in clean_ident:
+                    step_deliverables = ["test_service.py"]
+                    step_verification_cmds = ["python3 test_service.py"]
+                else:
+                    step_deliverables = [f"{clean_ident}.py"]
+
+            for d in step_deliverables:
+                all_deliverables_set.add(d)
+            for c in step_verification_cmds:
+                all_verification_cmds_set.add(c)
+
+            assigned_role = (sel.agent_id if sel and sel.agent_id else f"{cap_name}-specialist")
+            step_entry = {
+                "step_id": step_id,
+                "step_index": idx,
+                "capability_urn": urn,
+                "display_name": cap_name,
+                "role": assigned_role,
+                "agent_urn": sel.agent_urn if sel else None,
+                "agent_id": sel.agent_id if sel else None,
+                "agent_source": sel.agent_source if sel else None,
+                "paired_skills": sel.paired_skills if sel else [urn],
+                "covers_requirements": sel.covers_requirements if sel else [],
+                "selection_reason": sel.justification if sel else "Direct candidate selection",
+                "instructions": instructions,
+                "expected_deliverables": step_deliverables,
+                "verification_criteria": step_verification_cmds,
+                "phase_rank": phase_rank,
+                "dependencies": []
+            }
+            steps.append(step_entry)
+            phase_map[phase_rank].append(step_entry)
+
+        # Build dependency-aware DAG edges and execution waves
+        # Phase 0 steps are mutually independent (Wave 1)
+        # Phase 1 steps depend on all Phase 0 steps (Wave 2)
+        # Phase 2 steps depend on all Phase 1 steps (or Phase 0 if no Phase 1) (Wave 3)
+        dag_edges = []
+        phase_0_ids = [s["step_id"] for s in phase_map[0]]
+        phase_1_ids = [s["step_id"] for s in phase_map[1]]
+        phase_2_ids = [s["step_id"] for s in phase_map[2]]
+
+        for s in phase_map[1]:
+            s["dependencies"] = list(phase_0_ids)
+            for p0_id in phase_0_ids:
+                dag_edges.append((p0_id, s["step_id"], "OUTPUT_TO_INPUT", f"Prerequisite {p0_id}"))
+
+        upstream_for_phase_2 = phase_1_ids if phase_1_ids else phase_0_ids
+        for s in phase_map[2]:
+            s["dependencies"] = list(upstream_for_phase_2)
+            for up_id in upstream_for_phase_2:
+                dag_edges.append((up_id, s["step_id"], "OUTPUT_TO_INPUT", f"Prerequisite {up_id}"))
+
+        # Construct execution waves
+        waves = []
+        if phase_0_ids:
+            waves.append(phase_0_ids)
+        if phase_1_ids:
+            waves.append(phase_1_ids)
+        if phase_2_ids:
+            waves.append(phase_2_ids)
+
+        if not waves:
+            waves = [[s["step_id"]] for s in steps]
+
+        default_files = sorted(list(all_deliverables_set)) if all_deliverables_set else ["main.py", "test_service.py"]
+        default_cmds = sorted(list(all_verification_cmds_set))
+        require_tests_pass = bool(default_cmds)
+
+        plan_packet = {
+            "status": "PLAN_READY",
+            "request_id": request.request_id,
+            "objective": request.original_instruction,
+            "workspace_root": os.path.abspath(workspace_root or os.getcwd()),
+            "total_steps": len(steps),
+            "execution_waves": waves,
+            "dag_edges": dag_edges,
+            "steps": steps,
+            "expected_deliverables": [
+                {
+                    "step_id": s["step_id"],
+                    "description": f"Output artifact for {s['display_name']}",
+                    "files": s.get("expected_deliverables", default_files)
+                }
+                for s in steps
+            ],
+            "verification_criteria": {
+                "require_physical_files": True,
+                "disallow_escapes": True,
+                "require_tests_pass": require_tests_pass,
+                "expected_files": default_files,
+                "verification_commands": default_cmds
+            },
+            "semantic_reasoning": reasoning_res.to_dict() if reasoning_res else None
+        }
+
+        # Wire ProjectContractManager into native execution plan
+        try:
+            from ..sync.contract import ProjectContractManager
+            contract_mgr = ProjectContractManager(workspace_root or os.getcwd())
+            for s in steps:
+                contract_mgr.register_component(
+                    name=s["step_id"],
+                    owner_role=s["role"],
+                    files=s.get("expected_deliverables", default_files),
+                    dependencies=s.get("dependencies", [])
+                )
+            plan_packet["project_contract"] = {
+                "contract_id": contract_mgr.contract.get("contract_id"),
+                "version": contract_mgr.version,
+                "components": list(contract_mgr.contract.get("components", {}).keys()),
+                "interfaces": list(contract_mgr.contract.get("interfaces", {}).keys())
+            }
+        except Exception:
+            plan_packet["project_contract"] = None
+
+        # Persist authentic planned run to prevent fabricated run IDs
+        try:
+            from ..verification.persistence import VerificationAuditStore
+            if hasattr(self.ctx, "conn") and self.ctx.conn:
+                VerificationAuditStore.record_planned_run(
+                    conn=self.ctx.conn,
+                    run_id=request.request_id,
+                    objective=request.original_instruction,
+                    workspace_root=os.path.abspath(workspace_root or os.getcwd()),
+                    plan_dict=plan_packet
+                )
+        except Exception:
+            pass
+
+        return plan_packet
+

@@ -263,7 +263,8 @@ def test_02_call_me_execute_pipeline(exec_env):
 
     assert res is not None
     assert isinstance(res, dict)
-    assert res["status"] in ("SUCCEEDED", "ACCEPTED")
+    # Instruction-only capability execution returns HANDOFF_READY awaiting specialist dispatch
+    assert res["status"] == "HANDOFF_READY"
     assert res["completed_steps"] >= 1
     assert len(res["capabilities_used"]) >= 1
     assert res["run_id"] != ""
