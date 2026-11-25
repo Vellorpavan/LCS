@@ -83,10 +83,25 @@ class AntigravityAdapter(EnvironmentAdapter):
 
         candidates = [
             (os.path.join(real_ws, ".agents", "skills"), "WORKSPACE", True),
+            (os.path.join(real_ws, ".gemini", "skills"), "WORKSPACE", True),
+            (os.path.join(home, ".gemini", "antigravity", "builtin", "skills"), "BUILTIN", False),
             (os.path.join(home, ".gemini", "antigravity"), "USER_GLOBAL", False),
             (os.path.join(home, ".gemini", "config", "skills"), "USER_GLOBAL", False),
             (os.path.join(home, ".gemini", "config", "plugins"), "USER_GLOBAL", False),
         ]
+
+        plugins_dir = os.path.join(home, ".gemini", "config", "plugins")
+        if os.path.isdir(plugins_dir):
+            try:
+                for p_name in os.listdir(plugins_dir):
+                    p_skills = os.path.join(plugins_dir, p_name, "skills")
+                    if os.path.isdir(p_skills):
+                        candidates.append((p_skills, "USER_GLOBAL", False))
+                    p_agents = os.path.join(plugins_dir, p_name, "agents")
+                    if os.path.isdir(p_agents):
+                        candidates.append((p_agents, "USER_GLOBAL", False))
+            except Exception:
+                pass
 
         # Add workspace root for ambient rules (AGENTS.md, CLAUDE.md, .cursorrules, RULES.md)
         for rule_file in ("AGENTS.md", "CLAUDE.md", "RULES.md", ".cursorrules"):

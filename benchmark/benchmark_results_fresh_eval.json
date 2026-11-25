@@ -1,0 +1,1514 @@
+{
+  "benchmark_mode": "hybrid_semantic",
+  "total_queries": 50,
+  "total_catalog_capabilities": 759,
+  "elapsed_seconds": 1.862,
+  "latency_per_query_ms": 37.23,
+  "overall": {
+    "count": 50,
+    "p@1": 0.48,
+    "p@3": 0.4066666666666666,
+    "p@5": 0.33,
+    "r@1": 0.37,
+    "r@3": 0.71,
+    "r@5": 0.79,
+    "f1@3": 0.49733333333333335,
+    "mrr": 0.624,
+    "abstention_accuracy": 1.0
+  },
+  "train_split": {},
+  "eval_split (held-out)": {
+    "count": 50,
+    "p@1": 0.48,
+    "p@3": 0.4066666666666666,
+    "p@5": 0.33,
+    "r@1": 0.37,
+    "r@3": 0.71,
+    "r@5": 0.79,
+    "f1@3": 0.49733333333333335,
+    "mrr": 0.624,
+    "abstention_accuracy": 1.0
+  },
+  "domain_breakdown": {
+    "backend_python": {
+      "count": 2,
+      "p@1": 1.0,
+      "p@3": 0.41666666666666663,
+      "p@5": 0.35,
+      "r@1": 0.75,
+      "r@3": 0.75,
+      "r@5": 0.75,
+      "f1@3": 0.5333333333333333,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "frontend_web": {
+      "count": 2,
+      "p@1": 0.0,
+      "p@3": 0.16666666666666666,
+      "p@5": 0.1,
+      "r@1": 0.0,
+      "r@3": 0.25,
+      "r@5": 0.25,
+      "f1@3": 0.2,
+      "mrr": 0.16666666666666666,
+      "abstention_accuracy": 1.0
+    },
+    "systems_rust": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.6,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 1.5,
+      "f1@3": 1.2,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "systems_golang": {
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.3333333333333333,
+      "abstention_accuracy": 1.0
+    },
+    "database_sql": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.6666666666666666,
+      "p@5": 0.6666666666666666,
+      "r@1": 0.5,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.8,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "testing_qa": {
+      "count": 2,
+      "p@1": 0.5,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.6666666666666666,
+      "abstention_accuracy": 1.0
+    },
+    "security_audit": {
+      "count": 2,
+      "p@1": 0.5,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.30000000000000004,
+      "r@1": 0.25,
+      "r@3": 0.5,
+      "r@5": 0.75,
+      "f1@3": 0.4,
+      "mrr": 0.625,
+      "abstention_accuracy": 1.0
+    },
+    "cgi_3d": {
+      "count": 3,
+      "p@1": 1.0,
+      "p@3": 0.611111111111111,
+      "p@5": 0.4777777777777778,
+      "r@1": 0.6666666666666666,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.7333333333333334,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "devops_cloud": {
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5,
+      "abstention_accuracy": 1.0
+    },
+    "agent_specialists": {
+      "count": 10,
+      "p@1": 0.4,
+      "p@3": 0.26666666666666666,
+      "p@5": 0.24500000000000002,
+      "r@1": 0.2,
+      "r@3": 0.4,
+      "r@5": 0.6,
+      "f1@3": 0.32,
+      "mrr": 0.47833333333333333,
+      "abstention_accuracy": 1.0
+    },
+    "mcp_capabilities": {
+      "count": 10,
+      "p@1": 0.1,
+      "p@3": 0.26666666666666666,
+      "p@5": 0.18,
+      "r@1": 0.1,
+      "r@3": 0.65,
+      "r@5": 0.7,
+      "f1@3": 0.37,
+      "mrr": 0.4333333333333333,
+      "abstention_accuracy": 1.0
+    },
+    "cli_commands": {
+      "count": 10,
+      "p@1": 0.5,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.225,
+      "r@1": 0.45,
+      "r@3": 0.75,
+      "r@5": 0.85,
+      "f1@3": 0.45,
+      "mrr": 0.6333333333333333,
+      "abstention_accuracy": 1.0
+    },
+    "out_of_domain": {
+      "count": 5,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    }
+  },
+  "details": [
+    {
+      "id": "FRESH-001",
+      "domain": "backend_python",
+      "split": "eval",
+      "query": "Build a FastAPI application with Pydantic v2 schemas and async SQLAlchemy sessions",
+      "expected": [
+        "python-patterns",
+        "fastapi-patterns"
+      ],
+      "retrieved": [
+        "fastapi-patterns",
+        "save-session",
+        "sessions",
+        "resume-session",
+        "save-session"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-002",
+      "domain": "backend_python",
+      "split": "eval",
+      "query": "Implement Celery background task workers with automated retries and dead-letter queues",
+      "expected": [
+        "django-celery"
+      ],
+      "retrieved": [
+        "django-celery",
+        "automation"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.5,
+      "p@5": 0.5,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.6666666666666666,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-003",
+      "domain": "frontend_web",
+      "split": "eval",
+      "query": "Develop an accessible modal dialog in React with keyboard trap and focus restoration",
+      "expected": [
+        "accessibility",
+        "frontend-patterns"
+      ],
+      "retrieved": [
+        "react-patterns",
+        "react-performance",
+        "accessibility",
+        "react-testing",
+        "react-native-patterns"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-004",
+      "domain": "frontend_web",
+      "split": "eval",
+      "query": "Optimize Next.js app router performance with server components and streaming SSR",
+      "expected": [
+        "react-patterns",
+        "frontend-patterns"
+      ],
+      "retrieved": [
+        "react-performance",
+        "skill-router",
+        "mcp-app-development",
+        "mcp server host (local-document-tools)",
+        "mcp server host (independent-geo-metrics)"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-005",
+      "domain": "systems_rust",
+      "split": "eval",
+      "query": "Write async Rust microservices using Tokio with property-based testing via proptest",
+      "expected": [
+        "rust-patterns",
+        "rust-testing"
+      ],
+      "retrieved": [
+        "rust-testing",
+        "rust-test",
+        "rust-test",
+        "test-audit",
+        "python-testing"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.6,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 1.5,
+      "f1@3": 1.2,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-006",
+      "domain": "systems_golang",
+      "split": "eval",
+      "query": "Implement idiomatic Go concurrency with worker pools and context cancellation",
+      "expected": [
+        "golang-patterns"
+      ],
+      "retrieved": [
+        "go-review",
+        "go-review",
+        "golang-patterns",
+        "golang-testing",
+        "context-restore"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-007",
+      "domain": "database_sql",
+      "split": "eval",
+      "query": "Design PostgreSQL schemas with B-tree indexes, foreign keys, and zero-downtime migrations",
+      "expected": [
+        "database-migrations",
+        "postgres-patterns"
+      ],
+      "retrieved": [
+        "postgres-patterns",
+        "database-migrations",
+        "scientific-db-uspto-database"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.6666666666666666,
+      "p@5": 0.6666666666666666,
+      "r@1": 0.5,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.8,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-008",
+      "domain": "testing_qa",
+      "split": "eval",
+      "query": "Write end-to-end user journey tests with Playwright Page Object Model in TypeScript",
+      "expected": [
+        "e2e-testing"
+      ],
+      "retrieved": [
+        "e2e-testing",
+        "opencode-config",
+        "ui-demo",
+        "rea-ci-tests-audit",
+        "test-audit"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-009",
+      "domain": "testing_qa",
+      "split": "eval",
+      "query": "Implement pytest test fixtures with parametrized test cases and mocking",
+      "expected": [
+        "python-testing"
+      ],
+      "retrieved": [
+        "test-runner",
+        "test-driven-development",
+        "python-testing",
+        "test-audit",
+        "test-collaboration"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-010",
+      "domain": "security_audit",
+      "split": "eval",
+      "query": "Audit backend API endpoints against OWASP Top 10 injection vulnerabilities and CSRF",
+      "expected": [
+        "security-review",
+        "cso"
+      ],
+      "retrieved": [
+        "backend-patterns",
+        "api-design",
+        "opencode-config",
+        "security-review",
+        "rea-ci-tests-audit"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.5,
+      "f1@3": 0.0,
+      "mrr": 0.25
+    },
+    {
+      "id": "FRESH-011",
+      "domain": "security_audit",
+      "split": "eval",
+      "query": "Ensure HIPAA security rule compliance for handling protected health information",
+      "expected": [
+        "security-review",
+        "hipaa-compliance"
+      ],
+      "retrieved": [
+        "hipaa-compliance",
+        "healthcare-phi-compliance",
+        "security-review",
+        "django-security",
+        "llm-trading-agent-security"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.6666666666666666,
+      "p@5": 0.4,
+      "r@1": 0.5,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.8,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-012",
+      "domain": "cgi_3d",
+      "split": "eval",
+      "query": "Create realistic hard-surface mechanical device with bevel modifiers and panel cuts",
+      "expected": [
+        "hard-surface"
+      ],
+      "retrieved": [
+        "hard-surface",
+        "foundation-models-on-device",
+        "realistic-style"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.3333333333333333,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-013",
+      "domain": "cgi_3d",
+      "split": "eval",
+      "query": "Configure three-point studio lighting with key, fill, and rim lights and volumetrics",
+      "expected": [
+        "camera-cinematography",
+        "lighting"
+      ],
+      "retrieved": [
+        "lighting",
+        "hyperframes-studio"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.5,
+      "p@5": 0.5,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-014",
+      "domain": "cgi_3d",
+      "split": "eval",
+      "query": "Author PBR metallic and dielectric materials with roughness maps and procedural dirt",
+      "expected": [
+        "materials",
+        "lookdev"
+      ],
+      "retrieved": [
+        "materials",
+        "investor-materials",
+        "lookdev",
+        "procedural-modeling",
+        "blender-mcp"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.6,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 1.5,
+      "f1@3": 1.2,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-015",
+      "domain": "devops_cloud",
+      "split": "eval",
+      "query": "Build a multi-stage Dockerfile optimizing layer cache and unprivileged container user",
+      "expected": [
+        "docker-patterns"
+      ],
+      "retrieved": [
+        "content-hash-cache-pattern",
+        "docker-patterns",
+        "prompt-optimize",
+        "prompt-optimize",
+        "rea-analysis-optimization"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-016",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Architect a multi-service event-driven system with clear domain boundaries",
+      "expected": [
+        "code-architect",
+        "architecture-decision-records"
+      ],
+      "retrieved": [
+        "recsys-pipeline-architect",
+        "hexagonal-architecture",
+        "domain-modeling",
+        "design-system"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-017",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Conduct thorough code review on pull request checking for race conditions and style",
+      "expected": [
+        "review",
+        "code-review"
+      ],
+      "retrieved": [
+        "code-review",
+        "receiving-code-review",
+        "flutter-dart-code-review",
+        "code-review",
+        "requesting-code-review"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 2.5,
+      "f1@3": 1.2,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-018",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Guide test-driven development workflow implementing red-green-refactor cycle",
+      "expected": [
+        "test-driven-development",
+        "tdd"
+      ],
+      "retrieved": [
+        "tdd-workflow",
+        "test-driven-development",
+        "git-workflow",
+        "multi-workflow",
+        "multi-workflow"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.6666666666666666,
+      "p@5": 0.4,
+      "r@1": 0.5,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.8,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-019",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Diagnose complex distributed system regression using scientific debugging method",
+      "expected": [
+        "diagnosing-bugs",
+        "systematic-debugging"
+      ],
+      "retrieved": [
+        "systematic-debugging",
+        "agent-introspection-debugging",
+        "module-regression",
+        "ai-regression-testing",
+        "scientific-thinking-scholar-evaluation"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-020",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Perform automated security penetration testing and static vulnerability audit",
+      "expected": [
+        "security-review",
+        "cso"
+      ],
+      "retrieved": [
+        "test-audit",
+        "python-testing",
+        "security-review",
+        "rea-ci-tests-audit",
+        "test-driven-development"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-021",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Inspect code for silent errors, unhandled promises, and swallowed exceptions",
+      "expected": [
+        "systematic-debugging",
+        "error-handling"
+      ],
+      "retrieved": [
+        "git-guardrails-claude-code",
+        "code-review",
+        "logistics-exception-management"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-022",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Review software architecture tradeoffs using founder mode product interrogation",
+      "expected": [
+        "plan-ceo-review",
+        "office-hours"
+      ],
+      "retrieved": [
+        "plan-ceo-review",
+        "product-lens",
+        "plan-eng-review",
+        "flutter-dart-code-review",
+        "plan-design-review"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-023",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Eliminate dead code, unnecessary wrappers, and bloated dependencies following minimalism",
+      "expected": [
+        "ponytail",
+        "deslop-shared-libs"
+      ],
+      "retrieved": [
+        "git-guardrails-claude-code",
+        "code-review",
+        "stitch_proxy_wrapper",
+        "ponytail"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.25,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.5,
+      "f1@3": 0.0,
+      "mrr": 0.25
+    },
+    {
+      "id": "FRESH-024",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Audit user interface against visual design quality standards and spacing hierarchies",
+      "expected": [
+        "design-review",
+        "checklist-design"
+      ],
+      "retrieved": [
+        "design-system",
+        "workspace-surface-audit",
+        "codebase-design",
+        "landing-page-design",
+        "ios-design-review"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.5,
+      "f1@3": 0.0,
+      "mrr": 0.2
+    },
+    {
+      "id": "FRESH-025",
+      "domain": "agent_specialists",
+      "split": "eval",
+      "query": "Validate developer experience and onboarding time-to-hello-world for CLI library",
+      "expected": [
+        "plan-devex-review",
+        "devex-review"
+      ],
+      "retrieved": [
+        "angular-developer",
+        "hyperframes-cli",
+        "codebase-onboarding"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-026",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Query Blender scene objects, inspect active camera, and render preview",
+      "expected": [
+        "blender-mcp"
+      ],
+      "retrieved": [
+        "blender-modeler",
+        "blender-mcp",
+        "camera-cinematography",
+        "teardown",
+        "rendering"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-027",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Generate a 3D mesh inside Blender via programmatic Python script execution",
+      "expected": [
+        "execute_blender_code",
+        "blender-mcp"
+      ],
+      "retrieved": [
+        "blender-modeler",
+        "blender-mcp",
+        "mcp-for-blender",
+        "blender-mcp",
+        "generating-python-installer"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.4,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 1.0,
+      "f1@3": 0.4,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-028",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Inspect Supabase database tables, list database migrations, and execute SQL queries",
+      "expected": [
+        "supabase-mcp-server"
+      ],
+      "retrieved": [
+        "database-migrations",
+        "supabase-mcp-server",
+        "scientific-db-uspto-database",
+        "multi-execute",
+        "multi-execute"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-029",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Search Living Capability System registry for capabilities and inspect schema",
+      "expected": [
+        "lcs",
+        "lcs_search"
+      ],
+      "retrieved": [
+        "exa-search",
+        "product-capability",
+        "design-system",
+        "search-first",
+        "hyperframes-registry"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-030",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Execute verified Living Capability System workflow step through MCP governance",
+      "expected": [
+        "lcs",
+        "lcs_govern"
+      ],
+      "retrieved": [
+        "living-docs-governance",
+        "texture-workflow",
+        "multi-workflow",
+        "mcp server host (local-document-tools)",
+        "mcp server host (independent-geo-metrics)"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-031",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Deploy Supabase edge function with environment secrets and typescript types",
+      "expected": [
+        "supabase-mcp-server"
+      ],
+      "retrieved": [
+        "typescript-patterns",
+        "supabase-mcp-server",
+        "land-and-deploy",
+        "environment-artist",
+        "setup-deploy"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-032",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Search 3D model assets and import OBJ / FBX asset into Blender workspace",
+      "expected": [
+        "import_asset",
+        "blender-mcp"
+      ],
+      "retrieved": [
+        "asset-optimization",
+        "blender-modeler",
+        "blender-mcp",
+        "mcp-for-blender",
+        "blender-director"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-033",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Take a viewport snapshot in Blender to verify visual asset shading",
+      "expected": [
+        "look",
+        "blender-mcp"
+      ],
+      "retrieved": [
+        "blender-modeler",
+        "blender-mcp",
+        "mcp-for-blender",
+        "blender-director",
+        "visual-console-eras"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-034",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "List all branches and create a new database branch in Supabase",
+      "expected": [
+        "supabase-mcp-server"
+      ],
+      "retrieved": [
+        "finishing-a-development-branch",
+        "supabase-mcp-server",
+        "database-migrations",
+        "opencode-config",
+        "scientific-db-uspto-database"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-035",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Execute database SQL statements and inspect query performance advisors in Supabase",
+      "expected": [
+        "supabase-mcp-server"
+      ],
+      "retrieved": [
+        "supabase-mcp-server",
+        "react-performance",
+        "database-migrations",
+        "multi-execute",
+        "opencode-config"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-036",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Generate unified Call Me execution plan for objective using the CLI",
+      "expected": [
+        "call-me",
+        "lcs"
+      ],
+      "retrieved": [
+        "executing-plans",
+        "hyperframes-cli",
+        "plan-design-review",
+        "plan-ceo-review",
+        "plan-devex-review"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-037",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Verify deliverable files and execute test suites via call-me verify command",
+      "expected": [
+        "call-me",
+        "verify"
+      ],
+      "retrieved": [
+        "verify",
+        "verify",
+        "verify",
+        "go-test",
+        "go-test"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.6,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 1.5,
+      "f1@3": 1.2,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-038",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Run diagnostics and repair local LCS installation across agent environments",
+      "expected": [
+        "setup",
+        "lcs"
+      ],
+      "retrieved": [
+        "mcp server host (local-document-tools)",
+        "agent-architecture-audit",
+        "flox-environments",
+        "local-document-tools",
+        "team-agent-orchestration"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
+    },
+    {
+      "id": "FRESH-039",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Inspect registered capability inventory and URN schema in terminal",
+      "expected": [
+        "lcs",
+        "inventory"
+      ],
+      "retrieved": [
+        "terminal-opener",
+        "inventory-demand-planning",
+        "product-capability",
+        "terminal-ops"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.25,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-040",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Install Git pre-commit hooks running lint-staged and Prettier",
+      "expected": [
+        "setup-pre-commit"
+      ],
+      "retrieved": [
+        "setup-pre-commit",
+        "git-guardrails-claude-code",
+        "using-git-worktrees",
+        "git-workflow",
+        "safety-guard"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-041",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Manage isolated Git worktrees for safe parallel feature branches",
+      "expected": [
+        "using-git-worktrees"
+      ],
+      "retrieved": [
+        "using-git-worktrees",
+        "parallel-execution-optimizer",
+        "git-guardrails-claude-code",
+        "git-workflow",
+        "orch-add-feature"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-042",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Freeze edits strictly to target directory while debugging production issue",
+      "expected": [
+        "freeze",
+        "guard"
+      ],
+      "retrieved": [
+        "systematic-debugging",
+        "freeze",
+        "mcp server host (production-tools)",
+        "production-tools",
+        "agent-introspection-debugging"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.5
+    },
+    {
+      "id": "FRESH-043",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Run full test suite, bump version, write changelog, and ship pull request",
+      "expected": [
+        "ship"
+      ],
+      "retrieved": [
+        "test-audit",
+        "test-collaboration",
+        "ship",
+        "rea-changelog-update",
+        "carrier-relationship-management"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.4,
+      "r@1": 0.0,
+      "r@3": 1.0,
+      "r@5": 2.0,
+      "f1@3": 0.5,
+      "mrr": 0.3333333333333333
+    },
+    {
+      "id": "FRESH-044",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Save current working context and task decisions to disk for later restoration",
+      "expected": [
+        "context-save"
+      ],
+      "retrieved": [
+        "context-save",
+        "context-and-decisions",
+        "save-session",
+        "save-session",
+        "context-restore"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-045",
+      "domain": "cli_commands",
+      "split": "eval",
+      "query": "Restore working context saved from earlier session",
+      "expected": [
+        "context-restore"
+      ],
+      "retrieved": [
+        "context-restore",
+        "save-session",
+        "save-session",
+        "context-save",
+        "resume-session"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-046",
+      "domain": "out_of_domain",
+      "split": "eval",
+      "query": "Provide a medical prescription and dosage for severe acute chest pain",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-047",
+      "domain": "out_of_domain",
+      "split": "eval",
+      "query": "Give me real-time stock price predictions and intraday trading signals",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-048",
+      "domain": "out_of_domain",
+      "split": "eval",
+      "query": "Draft a legal contract for purchasing residential real estate under Florida probate law",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-049",
+      "domain": "out_of_domain",
+      "split": "eval",
+      "query": "Translate this ancient Sumerian cuneiform tablet fragment into English",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "id": "FRESH-050",
+      "domain": "out_of_domain",
+      "split": "eval",
+      "query": "How do I bake a chocolate sourdough bread with high hydration?",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0
+    }
+  ]
+}

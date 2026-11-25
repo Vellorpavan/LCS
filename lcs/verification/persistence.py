@@ -101,6 +101,21 @@ class VerificationAuditStore:
                 return True
         except sqlite3.OperationalError:
             pass
+
+        # Fallback check against user-level global LCS DB if running against local project DB
+        try:
+            from ..config import LCSConfig
+            user_db = os.path.join(LCSConfig.get_user_state_dir(), "lcs.db")
+            if os.path.exists(user_db):
+                with sqlite3.connect(user_db) as u_conn:
+                    cls.ensure_schema(u_conn)
+                    u_cur = u_conn.cursor()
+                    u_cur.execute("SELECT 1 FROM call_me_planned_runs WHERE run_id = ? LIMIT 1;", (run_id,))
+                    if u_cur.fetchone():
+                        return True
+        except Exception:
+            pass
+
         return False
 
     @classmethod
@@ -122,6 +137,32 @@ class VerificationAuditStore:
                 "plan": plan_dict,
                 "created_at": row[4]
             }
+
+        # Fallback check against user-level global LCS DB
+        try:
+            from ..config import LCSConfig
+            user_db = os.path.join(LCSConfig.get_user_state_dir(), "lcs.db")
+            if os.path.exists(user_db):
+                with sqlite3.connect(user_db) as u_conn:
+                    cls.ensure_schema(u_conn)
+                    u_cur = u_conn.cursor()
+                    u_cur.execute("SELECT run_id, objective, workspace_root, plan_json, created_at FROM call_me_planned_runs WHERE run_id = ? LIMIT 1;", (run_id,))
+                    u_row = u_cur.fetchone()
+                    if u_row:
+                        try:
+                            u_plan_dict = json.loads(u_row[3])
+                        except Exception:
+                            u_plan_dict = {}
+                        return {
+                            "run_id": u_row[0],
+                            "objective": u_row[1],
+                            "workspace_root": u_row[2],
+                            "plan": u_plan_dict,
+                            "created_at": u_row[4]
+                        }
+        except Exception:
+            pass
+
         return None
 
     @classmethod
@@ -236,10 +277,32 @@ class VerificationAuditStore:
                    verification_commands_json, evidence_json, cas_receipt_digest, verified_at
             FROM call_me_verification_records
             WHERE run_id = ?
-            ORDER BY verified_at DESC
+            ORDER BY verified_at DESC, rowid DESC
             LIMIT 1;
         """, (run_id,))
         row = cur.fetchone()
+        if not row:
+            # Fallback check against user-level global LCS DB
+            try:
+                from ..config import LCSConfig
+                user_db = os.path.join(LCSConfig.get_user_state_dir(), "lcs.db")
+                if os.path.exists(user_db):
+                    with sqlite3.connect(user_db) as u_conn:
+                        cls.ensure_schema(u_conn)
+                        u_cur = u_conn.cursor()
+                        u_cur.execute("""
+                            SELECT verification_id, run_id, is_verified, verification_state,
+                                   workspace_root, expected_files_json, file_digests_json,
+                                   verification_commands_json, evidence_json, cas_receipt_digest, verified_at
+                            FROM call_me_verification_records
+                            WHERE run_id = ?
+                            ORDER BY verified_at DESC, rowid DESC
+                            LIMIT 1;
+                        """, (run_id,))
+                        row = u_cur.fetchone()
+            except Exception:
+                pass
+
         if not row:
             return None
 

@@ -127,8 +127,9 @@ class LCSCoreBridge:
             # Primary source: Unified Capability Inventory (live cross-host catalog)
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
                 try:
-                    if self.ctx.inventory.total_count == 0 and hasattr(self.ctx, "adapter_registry"):
-                        self.ctx.inventory.initialize_environment(adapters=self.ctx.adapter_registry.list_all())
+                    if hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry:
+                        adapters = self.ctx.adapter_registry.list_all()
+                        self.ctx.inventory.refresh_discovery(adapters=adapters)
                     matches = self.ctx.inventory.search(query, limit=10)
                     for idx, m in enumerate(matches):
                         score = 100.0 - (idx * 5.0)
@@ -359,8 +360,11 @@ class LCSCoreBridge:
                     sub_queries.append(chunk)
 
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
-                if self.ctx.inventory.total_count == 0 and hasattr(self.ctx, "adapter_registry"):
-                    self.ctx.inventory.initialize_environment(adapters=self.ctx.adapter_registry.list_all())
+                adapters = self.ctx.adapter_registry.list_all() if hasattr(self.ctx, "adapter_registry") else None
+                try:
+                    self.ctx.inventory.refresh_discovery(adapters=adapters)
+                except Exception as e:
+                    logger.debug(f"Discovery refresh error: {e}")
 
                 if len(sub_queries) > 1:
                     # Multi-intent decomposition: select top candidate for each distinct sub-query
@@ -405,9 +409,11 @@ class LCSCoreBridge:
         # 3. Dependency Resolution & Topological Ordering
         exec_order, dep_graph = self.resolve_dependencies(hydrated_caps)
         # Filter execution order to only include executable capabilities (not static documentation/reference files)
+        hydrated_urn_set = {c.capability_urn for c in hydrated_caps}
         executable_order = []
         for urn in exec_order:
-            # Auxiliary bundle files (e.g. cap:references/..., cap:scripts/...) are internal bundle assets, not distinct plan steps
+            if not urn or urn not in hydrated_urn_set:
+                continue
             if any(urn.startswith(f"{c.capability_urn}:") for c in hydrated_caps):
                 continue
             node = dep_graph.nodes.get(urn) if dep_graph else None
@@ -687,14 +693,51 @@ class LCSCoreBridge:
         - Hydrates full specialist instructions for each step
         - Specifies expected deliverables and verification criteria
         """
-        # Resolve capabilities
+        # Ensure live capability discovery
+        if hasattr(self.ctx, "inventory") and self.ctx.inventory:
+            adapters = self.ctx.adapter_registry.list_all() if hasattr(self.ctx, "adapter_registry") else None
+            try:
+                self.ctx.inventory.refresh_discovery(adapters=adapters)
+            except Exception as e:
+                logger.debug(f"Discovery refresh error in plan: {e}")
+
+        # Determine active caller environment
+        active_host = (getattr(request, "invocation_environment", None) or getattr(request, "caller_environment", None) or (request.provenance.get("env") if hasattr(request, "provenance") and isinstance(request.provenance, dict) else "") or "").lower()
+        if not active_host and hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry:
+            try:
+                active_host = self.ctx.adapter_registry.detect_active().kind.value.lower()
+            except Exception:
+                pass
+
+        # Resolve capabilities via SemanticReasoner (host-assisted decision or local fallback)
+        reasoning_res = None
+        host_decision = (initial_inputs or {}).get("host_decision")
+        host_model = (initial_inputs or {}).get("host_model")
+
         if not candidate_urns:
             query = request.normalized_task_description or request.original_instruction
             if hasattr(self.ctx, "inventory") and self.ctx.inventory:
-                if self.ctx.inventory.total_count == 0:
-                    self.ctx.inventory.initialize_environment(adapters=None)
-                matches = self.ctx.inventory.search(query, limit=10)
-                candidate_urns = [m.urn for m in matches]
+                from ..intelligence.semantic_reasoner import SemanticReasoner
+                if host_decision:
+                    reqs = SemanticReasoner.decompose_requirements(query)
+                    reasoning_res = SemanticReasoner.validate_and_build_from_host_decision(
+                        objective=query,
+                        requirements=reqs,
+                        host_decision=host_decision,
+                        inventory=self.ctx.inventory,
+                        active_host=active_host,
+                        host_model=host_model,
+                        is_compatible_fn=self._is_capability_compatible_with_host,
+                    )
+                else:
+                    reasoning_res = SemanticReasoner.reason_locally(
+                        objective=query,
+                        inventory=self.ctx.inventory,
+                        active_host=active_host,
+                        is_compatible_fn=self._is_capability_compatible_with_host,
+                        max_steps=8,
+                    )
+                candidate_urns = [s.urn for s in reasoning_res.selections]
             else:
                 candidate_urns = []
 
@@ -727,9 +770,10 @@ class LCSCoreBridge:
             exec_order = [c.capability_urn for c in hydrated_caps]
             dep_graph = None
 
+        hydrated_urn_set = {c.capability_urn for c in hydrated_caps}
         executable_order = []
         for urn in exec_order:
-            if not urn:
+            if not urn or urn not in hydrated_urn_set:
                 continue
             if any(urn.startswith(f"{c.capability_urn}:") for c in hydrated_caps):
                 continue
@@ -763,11 +807,14 @@ class LCSCoreBridge:
         elif initial_inputs and initial_inputs.get("expected_deliverables"):
             caller_deliverables = initial_inputs["expected_deliverables"]
 
+        selection_by_urn = {s.urn: s for s in reasoning_res.selections} if reasoning_res else {}
+
         for idx, urn in enumerate(executable_order, start=1):
             cap = next((c for c in hydrated_caps if c.capability_urn == urn), None)
             cap_name = cap.name if cap else urn.split(":")[-1]
             step_id = f"step-{idx}-{cap_name}"
             phase_rank = _semantic_phase_rank(urn, cap)
+            sel = selection_by_urn.get(urn)
 
             instructions = ""
             if cap and getattr(cap, "raw_instructions", None):
@@ -779,12 +826,15 @@ class LCSCoreBridge:
             else:
                 instructions = f"Implement the requested capability '{cap_name}' to fulfill the objective: {request.original_instruction}."
 
-            # Derive step deliverables and verification criteria from capability contract
+            # Derive step deliverables and verification criteria from capability contract & reasoning
             step_deliverables = []
             step_verification_cmds = []
 
             if caller_deliverables and idx <= len(caller_deliverables):
                 step_deliverables = [caller_deliverables[idx - 1]]
+            elif sel and sel.expected_deliverables:
+                step_deliverables = list(sel.expected_deliverables)
+                step_verification_cmds = list(sel.verification_commands)
             else:
                 clean_ident = cap_name.lower().replace("-", "_")
                 if "telemetry" in clean_ident:
@@ -806,12 +856,19 @@ class LCSCoreBridge:
             for c in step_verification_cmds:
                 all_verification_cmds_set.add(c)
 
+            assigned_role = (sel.agent_id if sel and sel.agent_id else f"{cap_name}-specialist")
             step_entry = {
                 "step_id": step_id,
                 "step_index": idx,
                 "capability_urn": urn,
                 "display_name": cap_name,
-                "role": f"{cap_name}-specialist",
+                "role": assigned_role,
+                "agent_urn": sel.agent_urn if sel else None,
+                "agent_id": sel.agent_id if sel else None,
+                "agent_source": sel.agent_source if sel else None,
+                "paired_skills": sel.paired_skills if sel else [urn],
+                "covers_requirements": sel.covers_requirements if sel else [],
+                "selection_reason": sel.justification if sel else "Direct candidate selection",
                 "instructions": instructions,
                 "expected_deliverables": step_deliverables,
                 "verification_criteria": step_verification_cmds,
@@ -854,7 +911,8 @@ class LCSCoreBridge:
             waves = [[s["step_id"]] for s in steps]
 
         default_files = sorted(list(all_deliverables_set)) if all_deliverables_set else ["main.py", "test_service.py"]
-        default_cmds = sorted(list(all_verification_cmds_set)) if all_verification_cmds_set else ["python3 test_service.py"]
+        default_cmds = sorted(list(all_verification_cmds_set))
+        require_tests_pass = bool(default_cmds)
 
         plan_packet = {
             "status": "PLAN_READY",
@@ -876,11 +934,32 @@ class LCSCoreBridge:
             "verification_criteria": {
                 "require_physical_files": True,
                 "disallow_escapes": True,
-                "require_tests_pass": True,
+                "require_tests_pass": require_tests_pass,
                 "expected_files": default_files,
                 "verification_commands": default_cmds
-            }
+            },
+            "semantic_reasoning": reasoning_res.to_dict() if reasoning_res else None
         }
+
+        # Wire ProjectContractManager into native execution plan
+        try:
+            from ..sync.contract import ProjectContractManager
+            contract_mgr = ProjectContractManager(workspace_root or os.getcwd())
+            for s in steps:
+                contract_mgr.register_component(
+                    name=s["step_id"],
+                    owner_role=s["role"],
+                    files=s.get("expected_deliverables", default_files),
+                    dependencies=s.get("dependencies", [])
+                )
+            plan_packet["project_contract"] = {
+                "contract_id": contract_mgr.contract.get("contract_id"),
+                "version": contract_mgr.version,
+                "components": list(contract_mgr.contract.get("components", {}).keys()),
+                "interfaces": list(contract_mgr.contract.get("interfaces", {}).keys())
+            }
+        except Exception:
+            plan_packet["project_contract"] = None
 
         # Persist authentic planned run to prevent fabricated run IDs
         try:

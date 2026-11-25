@@ -364,16 +364,77 @@ class UnifiedResourceVerifier:
         return gate.verify(execution_context)
 
 
+def is_path_confined(target: str, base_workspace: str) -> bool:
+    """
+    Validates canonical path containment against sibling collisions, symlink escapes,
+    path traversal, Windows drives, and UNC shares using commonpath and relpath.
+    """
+    if not target or not base_workspace:
+        return False
+    try:
+        norm_base = os.path.abspath(base_workspace)
+        norm_target = os.path.abspath(target)
+
+        # Disallow alternate drive roots or UNC boundaries
+        if os.path.splitdrive(norm_base)[0].lower() != os.path.splitdrive(norm_target)[0].lower():
+            return False
+
+        # Commonpath verification: eliminates sibling-directory prefix collisions (/ws vs /ws_evil)
+        common = os.path.commonpath([norm_base, norm_target])
+        if common != norm_base:
+            return False
+
+        # Relpath verification: cannot be '.' or start with '..'
+        rel = os.path.relpath(norm_target, norm_base)
+        if rel.startswith("..") or os.path.isabs(rel):
+            return False
+
+        # Symlink canonical check (if path or symlink exists)
+        if os.path.exists(norm_target) or os.path.islink(norm_target):
+            real_base = os.path.realpath(norm_base)
+            real_target = os.path.realpath(norm_target)
+
+            if os.path.splitdrive(real_base)[0].lower() != os.path.splitdrive(real_target)[0].lower():
+                return False
+
+            common_real = os.path.commonpath([real_base, real_target])
+            if common_real != real_base:
+                return False
+
+            rel_real = os.path.relpath(real_target, real_base)
+            if rel_real.startswith("..") or os.path.isabs(rel_real):
+                return False
+
+        return True
+    except (ValueError, OSError):
+        return False
+
+
 class DeliverableVerificationGate(BaseVerificationGate):
     """
     Physical Deliverable Verification Gate for closed-loop execution.
     Checks:
     1. Expected files exist physically on disk within the authorized workspace.
     2. Files are non-empty where required.
-    3. Traversal attacks, path escapes, and NTFS ADS streams are rejected.
+    3. Traversal attacks, sibling prefix collisions, symlink escapes, and NTFS ADS are rejected.
     4. Optional verification commands (e.g. pytest / unittest) pass with exit code 0.
     5. Artifacts are digested into CAS for permanent auditability.
     """
+
+    EXPLICIT_PERMITTED_ENV_VARS = {
+        # System execution & path
+        "PATH", "PATHEXT", "SYSTEMROOT", "COMSPEC", "WINDIR",
+        # Localization
+        "LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES",
+        # Temporary files
+        "TMPDIR", "TEMP", "TMP",
+        # User & home
+        "USER", "LOGNAME", "SHELL", "HOME",
+        # Python runtime confinement
+        "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "PYTHONDONTWRITEBYTECODE",
+        # Terminal
+        "TERM", "COLUMNS", "LINES"
+    }
 
     def verify(self, execution_context: Dict[str, Any]) -> VerificationResult:
         run_id = execution_context.get("run_id", "unknown-run")
@@ -396,9 +457,26 @@ class DeliverableVerificationGate(BaseVerificationGate):
         escaped_files = []
         file_digests = {}
 
+        # Normalize and unpack expected_files specifications
+        normalized_specs = []
         for f_spec in expected_files:
-            rel_path = f_spec if isinstance(f_spec, str) else f_spec.get("path", "")
-            allow_empty = False if isinstance(f_spec, str) else f_spec.get("allow_empty", False)
+            if isinstance(f_spec, str):
+                normalized_specs.append({"path": f_spec, "allow_empty": False})
+            elif isinstance(f_spec, dict):
+                if "files" in f_spec and isinstance(f_spec["files"], list):
+                    for sub_f in f_spec["files"]:
+                        p = sub_f if isinstance(sub_f, str) else sub_f.get("path", "")
+                        ae = False if isinstance(sub_f, str) else sub_f.get("allow_empty", False)
+                        normalized_specs.append({"path": p, "allow_empty": ae})
+                else:
+                    normalized_specs.append({
+                        "path": f_spec.get("path", ""),
+                        "allow_empty": f_spec.get("allow_empty", False)
+                    })
+
+        for spec in normalized_specs:
+            rel_path = spec["path"]
+            allow_empty = spec["allow_empty"]
 
             # Security check: disallow Windows NTFS alternate data streams or traversal
             if ":" in rel_path or ".." in rel_path:
@@ -406,7 +484,7 @@ class DeliverableVerificationGate(BaseVerificationGate):
                 continue
 
             target_path = os.path.abspath(os.path.join(abs_workspace, rel_path))
-            if not target_path.startswith(abs_workspace):
+            if not is_path_confined(target_path, abs_workspace):
                 escaped_files.append(rel_path)
                 continue
 
@@ -415,6 +493,10 @@ class DeliverableVerificationGate(BaseVerificationGate):
             elif not allow_empty and os.path.getsize(target_path) == 0:
                 empty_files.append(rel_path)
             elif os.path.isfile(target_path):
+                # TOCTOU guard: re-verify confinement immediately before open
+                if not is_path_confined(target_path, abs_workspace):
+                    escaped_files.append(rel_path)
+                    continue
                 with open(target_path, "rb") as f_obj:
                     file_digests[rel_path] = hashlib.sha256(f_obj.read()).hexdigest()
 
@@ -454,11 +536,13 @@ class DeliverableVerificationGate(BaseVerificationGate):
             "cargo", "go"
         }
         failed_commands = []
+        command_results = []
         governance_violations = []
 
         import shlex
         import subprocess
         import re
+        import shutil
 
         is_gov_authorized = execution_context.get("governance_authorized", True)
 
@@ -468,12 +552,25 @@ class DeliverableVerificationGate(BaseVerificationGate):
                 if not cmd_tokens:
                     continue
 
-                binary_name = os.path.basename(cmd_tokens[0])
-                is_python_bin = bool(re.match(r"^python(3(\.(1[0-4]|\d))?)?(\.exe)?$", binary_name))
-                is_pytest_bin = bool(re.match(r"^py(\.test|test)(\.exe)?$", binary_name))
-                if not (binary_name in ALLOWED_VERIFICATION_BINARIES or is_python_bin or is_pytest_bin):
+                raw_binary = cmd_tokens[0]
+                resolved_exe = shutil.which(raw_binary)
+                if not resolved_exe:
                     governance_violations.append(
-                        f"Unauthorized executable '{cmd_tokens[0]}' in verification command"
+                        f"Executable '{raw_binary}' not found or not executable in PATH"
+                    )
+                    failed_commands.append({
+                        "cmd": cmd,
+                        "error": f"Governance violation: '{raw_binary}' not found or not executable"
+                    })
+                    continue
+
+                binary_name = os.path.basename(resolved_exe)
+                is_python_bin = bool(re.match(r"^python(3(\.(1[0-4]|\d))?)?(\.exe)?$", binary_name, re.I))
+                is_pytest_bin = bool(re.match(r"^py(\.test|test)(\.exe)?$", binary_name, re.I))
+                clean_base = binary_name[:-4] if binary_name.lower().endswith(".exe") else binary_name
+                if not (clean_base in ALLOWED_VERIFICATION_BINARIES or is_python_bin or is_pytest_bin):
+                    governance_violations.append(
+                        f"Unauthorized executable '{raw_binary}' ({binary_name}) in verification command"
                     )
                     failed_commands.append({
                         "cmd": cmd,
@@ -504,7 +601,7 @@ class DeliverableVerificationGate(BaseVerificationGate):
                             for part in token.split():
                                 if ".." in part:
                                     resolved_part = os.path.abspath(os.path.join(abs_workspace, part.strip("\"'")))
-                                    if not resolved_part.startswith(abs_workspace):
+                                    if not is_path_confined(resolved_part, abs_workspace):
                                         arg_violation = True
                                         governance_violations.append(
                                             f"Inline code argument contains prohibited path traversal escaping workspace: '{part}'"
@@ -529,7 +626,7 @@ class DeliverableVerificationGate(BaseVerificationGate):
                     # Check for directory traversal escaping workspace
                     if ".." in token:
                         resolved_arg = os.path.abspath(os.path.join(abs_workspace, token))
-                        if not resolved_arg.startswith(abs_workspace):
+                        if not is_path_confined(resolved_arg, abs_workspace):
                             arg_violation = True
                             governance_violations.append(
                                 f"Argument '{token}' escapes workspace confinement in '{cmd}'"
@@ -539,7 +636,7 @@ class DeliverableVerificationGate(BaseVerificationGate):
                     # If it looks like a path, ensure it resolves inside abs_workspace
                     if os.path.sep in token or token.startswith("/"):
                         resolved_arg = os.path.abspath(os.path.join(abs_workspace, token))
-                        if not resolved_arg.startswith(abs_workspace):
+                        if not is_path_confined(resolved_arg, abs_workspace):
                             arg_violation = True
                             governance_violations.append(
                                 f"Argument '{token}' escapes workspace confinement in '{cmd}'"
@@ -553,16 +650,32 @@ class DeliverableVerificationGate(BaseVerificationGate):
                     })
                     continue
 
+                # Sanitize execution environment with strict allowlist
+                clean_env = {
+                    k: v for k, v in os.environ.items()
+                    if k.upper() in self.EXPLICIT_PERMITTED_ENV_VARS
+                }
+
                 proc = subprocess.run(
-                    cmd_tokens,
+                    [resolved_exe] + cmd_tokens[1:],
                     cwd=abs_workspace,
+                    env=clean_env,
                     capture_output=True,
                     text=True,
                     timeout=30
                 )
+                cmd_rec = {
+                    "cmd": cmd,
+                    "exit_code": proc.returncode,
+                    "passed": proc.returncode == 0,
+                    "stdout_excerpt": (proc.stdout or "")[:300],
+                    "stderr_excerpt": (proc.stderr or "")[:300],
+                }
+                command_results.append(cmd_rec)
                 if proc.returncode != 0:
                     failed_commands.append({"cmd": cmd, "code": proc.returncode, "stderr": proc.stderr[:300]})
             except Exception as e:
+                command_results.append({"cmd": cmd, "exit_code": -1, "passed": False, "error": str(e)})
                 failed_commands.append({"cmd": cmd, "error": str(e)})
 
         if governance_violations:
@@ -573,13 +686,26 @@ class DeliverableVerificationGate(BaseVerificationGate):
                 details=f"Violations: {governance_violations}"
             )
 
+        artifact_verified = not (escaped_files or missing_files or empty_files)
+        functional_verified = len(failed_commands) == 0 and len(governance_violations) == 0
+
         if verification_commands:
             result.add_evidence(
                 EvidenceTier.TIER_4_CONTRACT_COMPLIANCE,
-                "Automated deliverable verification commands succeed",
+                "Automated deliverable verification commands succeed (application-level workspace confinement, non-OS sandbox)",
                 len(failed_commands) == 0,
-                details=f"Failed commands: {failed_commands}" if failed_commands else f"{len(verification_commands)} commands passed"
+                details=(
+                    f"Failed commands: {failed_commands}"
+                    if failed_commands
+                    else f"{len(verification_commands)} commands passed | Results: {json.dumps(command_results)}"
+                )
             )
+
+        if not hasattr(result, "metadata") or not isinstance(getattr(result, "metadata", None), dict):
+            result.metadata = {}
+        result.metadata["artifact_verified"] = artifact_verified
+        result.metadata["functional_verified"] = functional_verified
+        result.metadata["command_results"] = command_results
 
         if escaped_files or missing_files or empty_files or failed_commands:
             result.state = VerificationState.FAILED

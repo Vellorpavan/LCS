@@ -4,7 +4,7 @@ Living Capability System (LCS)
 Canonical Stage 2B Implementation: Milestones 1–4 Integrated.
 """
 
-__version__ = "3.2.0rc1"
+__version__ = "3.2.0rc2"
 
 import sys
 if sys.platform == "win32":

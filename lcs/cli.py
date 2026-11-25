@@ -1038,7 +1038,7 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
             return 1
         if getattr(args, "raw_json", False):
             print(json.dumps(receipt, indent=2))
-            return 0 if receipt.get("is_verified") else 1
+            return 0 if (receipt.get("is_verified") and receipt.get("verification_state") == "VERIFIED") else 1
         print("=" * 72)
         print(" CALL ME — PERSISTED VERIFICATION RECEIPT")
         print("=" * 72)
@@ -1053,7 +1053,7 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
         for ev in receipt.get("evidence", []):
             mark = "✓" if ev.get("passed") else "✗"
             print(f"  [{mark}] [Tier {ev.get('tier')}] {ev.get('criterion')} -> {ev.get('details')}")
-        return 0 if receipt.get("is_verified") else 1
+        return 0 if (receipt.get("is_verified") and receipt.get("verification_state") == "VERIFIED") else 1
 
     res = ctx.call_me.verify_deliverables(
         run_id=run_id,
@@ -1064,7 +1064,7 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
 
     if getattr(args, "raw_json", False):
         print(json.dumps(res, indent=2))
-        return 0 if res.get("is_verified") else 1
+        return 0 if (res.get("is_verified") and res.get("verification_state") == "VERIFIED") else 1
 
     print("=" * 72)
     print(" CALL ME — DELIVERABLE VERIFICATION REPORT")
@@ -1080,7 +1080,7 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
         mark = "✓" if ev.get("passed") else "✗"
         print(f"  [{mark}] [Tier {ev.get('tier')}] {ev.get('criterion')} -> {ev.get('details')}")
 
-    return 0 if res.get("is_verified") else 1
+    return 0 if (res.get("is_verified") and res.get("verification_state") == "VERIFIED") else 1
 
 
 

@@ -81,8 +81,8 @@ class GenericPOSIXAdapter(EnvironmentAdapter):
                 candidates.append((real_ws, "WORKSPACE", True))
                 break
 
-        # 2. Inspect environment variable LCS_SKILL_PATHS
-        env_paths = os.environ.get("LCS_SKILL_PATHS", "")
+        # 2. Inspect environment variables LCS_CAPABILITY_PATHS and LCS_SKILL_PATHS
+        env_paths = os.environ.get("LCS_CAPABILITY_PATHS", "") or os.environ.get("LCS_SKILL_PATHS", "")
         if env_paths:
             for p in env_paths.split(os.pathsep):
                 p = p.strip()

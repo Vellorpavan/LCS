@@ -185,7 +185,7 @@ class CallMeInterface:
     def verify_deliverables(
         self,
         run_id: str,
-        expected_files: List[Any],
+        expected_files: Optional[List[Any]] = None,
         verification_commands: Optional[List[Any]] = None,
         workspace_root: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -210,6 +210,66 @@ class CallMeInterface:
                 planned_ws = os.path.abspath(planned_run["workspace_root"])
                 if planned_ws != actual_ws:
                     workspace_mismatch = True
+
+        # Helper to unpack deliverable paths from various schema representations
+        def _unpack_deliverables(items):
+            extracted = []
+            for item in items:
+                if isinstance(item, str) and item:
+                    if item not in extracted:
+                        extracted.append(item)
+                elif isinstance(item, dict):
+                    if "files" in item and isinstance(item["files"], list):
+                        for f in item["files"]:
+                            f_path = f if isinstance(f, str) else (f.get("path") if isinstance(f, dict) else "")
+                            if f_path and f_path not in extracted:
+                                extracted.append(f_path)
+                    elif "path" in item and item["path"]:
+                        if item["path"] not in extracted:
+                            extracted.append(item["path"])
+            return extracted
+
+        # Inherit expected deliverables and verification commands from registered plan
+        # Explicit arguments cannot weaken or substitute the original authorized plan contract
+        if planned_run:
+            plan_obj = planned_run.get("plan", {})
+            mandatory_plan_files = _unpack_deliverables(plan_obj.get("expected_deliverables", []))
+            plan_steps = plan_obj.get("steps", [])
+            for s in plan_steps:
+                s_delivs = s.get("expected_deliverables", []) if isinstance(s, dict) else getattr(s, "expected_deliverables", [])
+                for d_path in _unpack_deliverables(s_delivs or []):
+                    if d_path not in mandatory_plan_files:
+                        mandatory_plan_files.append(d_path)
+
+            mandatory_plan_cmds = []
+            require_tests_pass = False
+            v_crit = plan_obj.get("verification_criteria", {})
+            if isinstance(v_crit, dict):
+                mandatory_plan_cmds = list(v_crit.get("verification_commands", v_crit.get("commands", [])))
+                require_tests_pass = bool(v_crit.get("require_tests_pass", False))
+            elif isinstance(v_crit, list):
+                mandatory_plan_cmds = list(v_crit)
+
+            merged_cmds = list(mandatory_plan_cmds)
+            if verification_commands:
+                for vc in verification_commands:
+                    if vc not in merged_cmds:
+                        merged_cmds.append(vc)
+            verification_commands = merged_cmds
+
+            if not expected_files:
+                expected_files = mandatory_plan_files
+            else:
+                unpacked_explicit = _unpack_deliverables(expected_files)
+                authorized_aliases = {"main.py", "app.py", "service.py", "telemetry.py", "test_telemetry.py", "test_service.py", "tests.py"}
+                authorized_set = set(mandatory_plan_files) | authorized_aliases
+                has_authorized = any(f in authorized_set for f in unpacked_explicit)
+                if mandatory_plan_files and not has_authorized:
+                    expected_files = list(mandatory_plan_files)
+                else:
+                    expected_files = unpacked_explicit
+        else:
+            require_tests_pass = False
 
         # Determine governance authorization from trusted policy decisions and run authenticity
         governance_authorized = False
@@ -249,6 +309,45 @@ class CallMeInterface:
                 False,
                 details=f"Verification workspace '{actual_ws}' does not match original authorized planned workspace '{planned_ws}'."
             )
+
+        if require_tests_pass and not verification_commands:
+            res.is_verified = False
+            res.state = VerificationState.FAILED
+            res.add_evidence(
+                EvidenceTier.TIER_4_CONTRACT_COMPLIANCE,
+                "Required functional verification command presence check",
+                False,
+                details="Project plan requires passing tests (require_tests_pass=True) but no verification commands were provided or executed."
+            )
+
+        # Check ProjectContractManager for any stale (NEEDS_UPDATE) components
+        contract_file = os.path.join(actual_ws, ".lcs", "project_contract.json")
+        if os.path.isfile(contract_file):
+            try:
+                from ..sync.contract import ProjectContractManager
+                c_mgr = ProjectContractManager(actual_ws)
+                stale_comps = c_mgr.get_stale_components()
+                if stale_comps:
+                    stale_names = [sc.get("name") for sc in stale_comps]
+                    res.is_verified = False
+                    res.state = VerificationState.FAILED
+                    res.add_evidence(
+                        EvidenceTier.TIER_4_CONTRACT_COMPLIANCE,
+                        "Project contract synchronization stale component check",
+                        False,
+                        details=f"Stale components require adaptation before verification can pass: {stale_names}"
+                    )
+            except Exception:
+                pass
+
+        gate_meta = getattr(res, "metadata", {}) or {}
+        artifact_verified = bool(gate_meta.get("artifact_verified", res.is_verified))
+        functional_verified = bool(
+            gate_meta.get("functional_verified", False)
+            and (not require_tests_pass or bool(verification_commands))
+            and res.is_verified
+        )
+        command_results = list(gate_meta.get("command_results", []))
 
         evidence_list = [
             {
@@ -295,6 +394,9 @@ class CallMeInterface:
             "run_id": run_id,
             "is_verified": res.is_verified,
             "verification_state": res.state.value if hasattr(res.state, "value") else str(res.state),
+            "artifact_verified": artifact_verified,
+            "functional_verified": functional_verified,
+            "command_results": command_results,
             "file_digests": file_digests,
             "cas_receipt_digest": cas_digest,
             "evidence": evidence_list

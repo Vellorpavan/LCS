@@ -316,6 +316,22 @@ LCS runs automated CI testing across all supported operating systems and Python 
 
 ---
 
+## Release Status, Security Boundaries & Known Limitations (`v3.2.0rc2` Experimental)
+
+> [!NOTE]
+> **`v3.2.0rc2` is an experimental release candidate.** It preserves all 9 cryptographically sealed frozen core modules while introducing host-assisted semantic reasoning, complete functional verification receipts, and synchronized project contracts.
+
+### What Is Tested vs. Demonstrated
+- **Cross-Platform Automated Test Suite**: Tested across Ubuntu, macOS, and Windows (Python 3.10–3.13) for frozen core invariants, CLI aliasing (`call-me` / `lcs`), canonical path confinement, negative verification integrity, project contract synchronization, and dynamic/recursive discovery.
+- **Native Host Subagent Execution**: Live multi-agent dispatch (`invoke_subagent`), multi-skill pairing with installed ECC agents, and synchronized contract adaptation have been **demonstrated on Google Antigravity**. Adapters for Claude Code, OpenCode, Codex, and custom hosts are **generated templates** validated structurally in tests and have not been live-executed in every external host runtime.
+- **Application-Level Governance vs. OS-Level Sandboxing**: Call Me enforces **application-level** security controls—canonical path confinement (`os.path.commonpath`), symlink/TOCTOU checks, strict environment variable allowlisting, and authorized test-binary whitelisting. It does **not** provide kernel/OS-level sandboxing (e.g., containers, seccomp, or Seatbelt). Untrusted external capabilities must not be executed without external OS-level isolation and explicit authorization.
+- **Selection Intelligence & Benchmark Limitations**:
+  - **Local Fallback Retrieval** (BM25 + subword character n-grams + domain synonyms, zero external embedding APIs) achieves **68.57% P@1 / 71.11% R@3** on `dataset_100_objectives.json` (77.50% P@1 / 84.17% R@3 held-out) and **44.00% P@1 / 70.00% R@3** on the harder `dataset_fresh_eval.json` (37.78% P@1 / 66.67% R@3 held-out, 100.00% adversarial abstention).
+  - **Host-Assisted Semantic Reasoning** (`SemanticReasoner`) improves paraphrase understanding by allowing the host AI model to reason over a compact candidate brief (`build_candidate_brief`) with deterministic URN/justification validation, though candidate recall remains bounded by the Stage A candidate window (`max_skills`).
+- **Contract Synchronization & Recursive Discovery**: Automated interface mutation detection, stale (`NEEDS_UPDATE`) propagation, and verification blocking are enforced deterministically by `ProjectContractManager`. Specialist redispatch is coordinated by the host orchestrator rather than an autonomous background daemon. Recursive capability acquisition is verified in automated acceptance tests using local/mocked discovery providers and governance gates.
+
+---
+
 ## Community & Security Guidelines
 
 - **Contributing**: Please review [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, development setup, and PR requirements.
