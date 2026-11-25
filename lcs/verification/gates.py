@@ -549,7 +549,13 @@ class DeliverableVerificationGate(BaseVerificationGate):
 
         for cmd in verification_commands:
             try:
-                cmd_tokens = cmd if isinstance(cmd, list) else shlex.split(cmd)
+                if isinstance(cmd, list):
+                    cmd_tokens = cmd
+                else:
+                    cmd_tokens = [
+                        t.strip('"').strip("'") if os.name == "nt" else t
+                        for t in shlex.split(cmd, posix=(os.name != "nt"))
+                    ]
                 if not cmd_tokens:
                     continue
 

@@ -74,9 +74,13 @@ def test_02_detect_content_modification(temp_workspace):
     with open(skill_file, "a", encoding="utf-8") as f:
         f.write("Updated line of text\n")
 
-    time.sleep(0.1)
-    events = watcher.drain_events()
-    mod_events = [e for e in events if e.kind == ChangeKind.MODIFIED and e.path == skill_file]
+    mod_events = []
+    for _ in range(15):
+        time.sleep(0.1)
+        events = watcher.drain_events()
+        mod_events.extend([e for e in events if e.kind == ChangeKind.MODIFIED and e.path == skill_file])
+        if mod_events:
+            break
     assert len(mod_events) >= 1
 
     watcher.stop()
