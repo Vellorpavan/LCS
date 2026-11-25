@@ -6,6 +6,7 @@ Agents/Subagents, Workflows, and Templates. Eliminates the 'exit 0 fallacy'.
 """
 
 import os
+import sys
 import re
 import json
 import hashlib
@@ -553,7 +554,10 @@ class DeliverableVerificationGate(BaseVerificationGate):
                     continue
 
                 raw_binary = cmd_tokens[0]
-                resolved_exe = shutil.which(raw_binary)
+                if raw_binary in ("python", "python3") and sys.executable:
+                    resolved_exe = sys.executable
+                else:
+                    resolved_exe = shutil.which(raw_binary)
                 if not resolved_exe:
                     governance_violations.append(
                         f"Executable '{raw_binary}' not found or not executable in PATH"

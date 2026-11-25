@@ -357,7 +357,7 @@ class HybridSemanticRetriever:
                     for ap in anchor_parts
                 )
                 if (has_generic_match or not has_tag_match) and not has_anchor_match and r_name not in expanded_synonyms:
-                    score *= 0.15
+                    score *= 0.10
 
         # De-prioritize generic auto-registered host agents over specialized skills
         if "host agent" in r_name or "lcs skill agent" in r_name or r_name.startswith("lcs-"):

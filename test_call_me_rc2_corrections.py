@@ -31,7 +31,7 @@ class TestCallMeRC2Corrections(unittest.TestCase):
 
     def setUp(self):
         self.workspace = tempfile.mkdtemp(prefix="call_me_rc2_test_")
-        self.cfg = LCSConfig.resolve()
+        self.cfg = LCSConfig.resolve(root_override=os.path.join(self.workspace, ".lcs"))
         self.ctx = LCSContext(self.cfg)
         self.ctx.inventory.refresh_discovery(adapters=self.ctx.adapter_registry.list_all())
         self._ensure_portable_test_catalog()
@@ -65,7 +65,7 @@ class TestCallMeRC2Corrections(unittest.TestCase):
                     lifecycle_state=OperationalLifecycleState.EXECUTABLE,
                     tags=tags,
                 )
-                self.ctx.inventory._register_resource_with_conflict_resolution(rec, persist=False)
+                self.ctx.inventory._register_resource_with_conflict_resolution(rec, persist=True)
 
     def tearDown(self):
         self.ctx.close()
