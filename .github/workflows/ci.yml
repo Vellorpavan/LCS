@@ -2,7 +2,7 @@ name: LCS Core CI/CD & Integrity Pipeline
 
 on:
   push:
-    branches: [ main, 'feature/**', 'verify/**', 'stage5**' ]
+    branches: [ main, 'feature/**', 'feat/**', 'verify/**', 'stage5**' ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
@@ -107,7 +107,7 @@ jobs:
           # Test safe uninstaller
           ./uninstall.sh --yes || bash uninstall.sh --yes
 
-      - name: Test Windows Installer (install.ps1)
+      - name: Test Windows Installer (install.ps1 & uninstall.ps1)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -117,4 +117,14 @@ jobs:
           & "$HOME\.local\bin\lcs.cmd" --version
           # Test repeat installation (idempotency)
           .\install.ps1 -Force
+          # Create user data sentinel and test safe uninstaller (preserves user data by default)
+          $UserLcsDir = Join-Path $env:USERPROFILE ".lcs"
+          New-Item -ItemType Directory -Path $UserLcsDir -Force | Out-Null
+          $Sentinel = Join-Path $UserLcsDir "ci_user_data_sentinel.txt"
+          "preserve-me" | Out-File -FilePath $Sentinel -Encoding utf8
+          .\uninstall.ps1
+          if (Test-Path "$HOME\.local\bin\call-me.cmd") { throw "call-me.cmd was not removed" }
+          if (Test-Path "$HOME\.local\bin\lcs.cmd") { throw "lcs.cmd was not removed" }
+          if (Test-Path "$HOME\.call-me\venv") { throw "venv was not removed" }
+          if (-not (Test-Path $Sentinel)) { throw "User data in .lcs was not preserved by default uninstall" }
 

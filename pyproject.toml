@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lcs-core"
-version = "3.2.0rc2"
+version = "3.2.0rc3"
 description = "Living Capability System (LCS) — Cryptographic Zero-Trust Discovery, Planning & Execution Substrate"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -574,4 +574,4 @@ def test_10_clean_wheel_build_contents_audit_and_isolated_install(tmp_path):
     # Verify lcs executable runs in fresh venv
     res_lcs = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10, env=clean_env)
     assert res_lcs.returncode == 0
-    assert "3.2.0rc2" in res_lcs.stdout
+    assert "3.2.0rc3" in res_lcs.stdout

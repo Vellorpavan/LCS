@@ -148,6 +148,7 @@ TECHNICAL_PHRASES: Dict[str, List[str]] = {
     "export to godot": ["godot-export"],
     "c++20": ["cpp-coding-standards", "cpp-testing"],
     "modern c++": ["cpp-coding-standards", "cpp-testing"],
+    "next.js": ["frontend-patterns", "nextjs", "react-patterns"],
 }
 
 TECH_SHORT_TOKENS: Set[str] = {
@@ -260,9 +261,18 @@ class HybridSemanticRetriever:
         r_name_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_name)) | set(re.split(r'[^a-zA-Z0-9]+', r_name))
         r_display_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_display)) | set(re.split(r'[^a-zA-Z0-9]+', r_display))
         r_desc_words = set(re.split(r'[^a-zA-Z0-9_\-]+', r_desc)) | set(re.split(r'[^a-zA-Z0-9]+', r_desc))
+        r_raw_words = getattr(record, "_cached_raw_words", None)
+        if r_raw_words is None:
+            r_raw = (getattr(record, "raw_content", "") or "")[:1500].lower()
+            r_raw_words = frozenset(re.split(r'[^a-zA-Z0-9]+', r_raw)) if r_raw else frozenset()
+            try:
+                setattr(record, "_cached_raw_words", r_raw_words)
+            except Exception:
+                pass
         r_tags = set(t.lower() for t in getattr(record, "tags", []))
 
         all_matched_tokens = 0
+        raw_bonus = 0.0
         for token in query_tokens:
             variants = stem_token(token)
             token_matched = False
@@ -284,6 +294,9 @@ class HybridSemanticRetriever:
             if any(v in r_desc_words for v in variants):
                 score += 12.0
                 token_matched = True
+            elif r_raw_words and any(v in r_raw_words for v in variants):
+                raw_bonus += 5.0
+                token_matched = True
 
             # Tag match
             if any(any(v == tag or v in tag for tag in r_tags) for v in variants):
@@ -292,6 +305,8 @@ class HybridSemanticRetriever:
 
             if token_matched:
                 all_matched_tokens += 1
+
+        score += min(raw_bonus, 15.0)
 
         # Token coverage boost
         if query_tokens and all_matched_tokens > 0:
@@ -336,7 +351,8 @@ class HybridSemanticRetriever:
             "verify", "ops", "builder", "guide", "style", "mood", "worlds", "pipeline",
             "workflow", "review", "audit", "setup", "clean", "sync", "check", "export",
             "import", "sim", "artist", "service", "engine", "cli", "mcp", "api", "plugin",
-            "skill", "agent", "tool", "tools", "helper", "manager", "driven", "development"
+            "skill", "agent", "tool", "tools", "helper", "manager", "driven", "development",
+            "application", "app", "module", "system"
         }
         name_parts = [p for p in re.split(r'[-_:\s]+', r_name) if len(p) >= 2]
         if len(name_parts) >= 2:
@@ -353,7 +369,10 @@ class HybridSemanticRetriever:
                     for qt in query_vocab if len(qt) >= 3
                 )
                 has_anchor_match = any(
-                    ap in query_vocab or any(ap in qv or qv in ap for qv in query_vocab if len(qv) >= 4)
+                    ap in query_vocab or any(
+                        len(ap) >= 5 and len(qv) >= 5 and (qv.startswith(ap) or ap.startswith(qv))
+                        for qv in query_vocab
+                    )
                     for ap in anchor_parts
                 )
                 if (has_generic_match or not has_tag_match) and not has_anchor_match and r_name not in expanded_synonyms:

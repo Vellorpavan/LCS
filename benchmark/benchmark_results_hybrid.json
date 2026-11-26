@@ -1,168 +1,205 @@
 {
   "benchmark_mode": "hybrid_semantic",
-  "total_queries": 105,
-  "total_catalog_capabilities": 759,
-  "elapsed_seconds": 5.428,
-  "latency_per_query_ms": 51.69,
+  "total_queries": 16,
+  "total_catalog_capabilities": 842,
+  "elapsed_seconds": 0.829,
+  "latency_per_query_ms": 51.8,
   "overall": {
-    "count": 105,
-    "p@1": 0.6857142857142857,
-    "p@3": 0.3936507936507936,
-    "p@5": 0.31174603174603177,
-    "r@1": 0.5,
-    "r@3": 0.7063492063492064,
-    "r@5": 0.7746031746031745,
-    "f1@3": 0.4873015873015873,
-    "mrr": 0.7573015873015873,
-    "abstention_accuracy": 1.0
+    "count": 16,
+    "p@1": 0.75,
+    "p@3": 0.6041666666666666,
+    "p@5": 0.49375,
+    "r@1": 0.453125,
+    "r@3": 0.7135416666666666,
+    "r@5": 0.8229166666666666,
+    "f1@3": 0.6389880952380952,
+    "mrr": 0.8041666666666667,
+    "abstention_accuracy": 0.75
   },
-  "train_split": {
-    "count": 62,
-    "p@1": 0.6129032258064516,
-    "p@3": 0.35752688172043007,
-    "p@5": 0.27446236559139786,
-    "r@1": 0.4274193548387097,
-    "r@3": 0.6209677419354839,
-    "r@5": 0.6908602150537635,
-    "f1@3": 0.4376344086021505,
-    "mrr": 0.6844086021505376,
-    "abstention_accuracy": 1.0
-  },
+  "train_split": {},
   "eval_split (held-out)": {
-    "count": 43,
-    "p@1": 0.7906976744186046,
-    "p@3": 0.4457364341085271,
-    "p@5": 0.36550387596899225,
-    "r@1": 0.6046511627906976,
-    "r@3": 0.8294573643410852,
-    "r@5": 0.8953488372093024,
-    "f1@3": 0.5589147286821706,
-    "mrr": 0.8624031007751939,
+    "count": 12,
+    "p@1": 0.75,
+    "p@3": 0.5555555555555555,
+    "p@5": 0.4083333333333334,
+    "r@1": 0.3541666666666667,
+    "r@3": 0.7013888888888888,
+    "r@5": 0.8472222222222222,
+    "f1@3": 0.601984126984127,
+    "mrr": 0.8222222222222223,
     "abstention_accuracy": 1.0
+  },
+  "adversarial_split": {
+    "count": 4,
+    "p@1": 0.75,
+    "p@3": 0.75,
+    "p@5": 0.75,
+    "r@1": 0.75,
+    "r@3": 0.75,
+    "r@5": 0.75,
+    "f1@3": 0.75,
+    "mrr": 0.75,
+    "abstention_accuracy": 0.75
   },
   "domain_breakdown": {
     "backend_python": {
-      "count": 10,
-      "p@1": 0.8,
-      "p@3": 0.4333333333333333,
-      "p@5": 0.28500000000000003,
-      "r@1": 0.45,
-      "r@3": 0.7,
-      "r@5": 0.75,
-      "f1@3": 0.53,
-      "mrr": 0.875,
-      "abstention_accuracy": 1.0
-    },
-    "frontend_web": {
-      "count": 10,
-      "p@1": 0.4,
-      "p@3": 0.36666666666666664,
-      "p@5": 0.28500000000000003,
-      "r@1": 0.25,
-      "r@3": 0.55,
-      "r@5": 0.6,
-      "f1@3": 0.43,
-      "mrr": 0.5666666666666667,
-      "abstention_accuracy": 1.0
-    },
-    "systems_programming": {
-      "count": 10,
-      "p@1": 0.6,
-      "p@3": 0.26666666666666666,
-      "p@5": 0.165,
-      "r@1": 0.5,
-      "r@3": 0.6,
-      "r@5": 0.6,
-      "f1@3": 0.36,
-      "mrr": 0.6333333333333333,
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.5,
+      "f1@3": 0.0,
+      "mrr": 0.2,
       "abstention_accuracy": 1.0
     },
     "database_sql": {
-      "count": 10,
-      "p@1": 1.0,
-      "p@3": 0.3833333333333333,
-      "p@5": 0.29833333333333334,
-      "r@1": 0.85,
-      "r@3": 0.9,
-      "r@5": 0.95,
-      "f1@3": 0.5266666666666666,
-      "mrr": 1.0,
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.5,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 1.0,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333,
       "abstention_accuracy": 1.0
     },
     "testing_qa": {
-      "count": 10,
-      "p@1": 0.7,
-      "p@3": 0.5,
-      "p@5": 0.31333333333333335,
-      "r@1": 0.6,
-      "r@3": 1.15,
-      "r@5": 1.15,
-      "f1@3": 0.6799999999999999,
-      "mrr": 0.85,
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 0.5,
+      "mrr": 1.0,
       "abstention_accuracy": 1.0
     },
-    "graphics_3d": {
-      "count": 10,
+    "systems_golang": {
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333,
+      "abstention_accuracy": 1.0
+    },
+    "systems_rust": {
+      "count": 1,
       "p@1": 1.0,
-      "p@3": 0.55,
-      "p@5": 0.43,
-      "r@1": 0.5333333333333333,
-      "r@3": 0.8,
-      "r@5": 0.95,
-      "f1@3": 0.64,
+      "p@3": 1.0,
+      "p@5": 0.8,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 2.0,
+      "f1@3": 1.2,
       "mrr": 1.0,
       "abstention_accuracy": 1.0
     },
     "security_compliance": {
-      "count": 10,
-      "p@1": 0.4,
-      "p@3": 0.2333333333333333,
-      "p@5": 0.15833333333333335,
-      "r@1": 0.2,
-      "r@3": 0.4,
-      "r@5": 0.4,
-      "f1@3": 0.29000000000000004,
-      "mrr": 0.5,
-      "abstention_accuracy": 1.0
-    },
-    "architecture_strategy": {
-      "count": 10,
-      "p@1": 0.7,
-      "p@3": 0.36666666666666664,
-      "p@5": 0.31333333333333335,
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
       "r@1": 0.5,
-      "r@3": 0.7,
-      "r@5": 0.7,
-      "f1@3": 0.47333333333333333,
-      "mrr": 0.7333333333333333,
-      "abstention_accuracy": 1.0
-    },
-    "devops_cloud": {
-      "count": 10,
-      "p@1": 0.7,
-      "p@3": 0.26666666666666666,
-      "p@5": 0.24,
-      "r@1": 0.7,
-      "r@3": 0.8,
-      "r@5": 1.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
       "f1@3": 0.4,
-      "mrr": 0.74,
+      "mrr": 1.0,
       "abstention_accuracy": 1.0
     },
-    "composite_multi_intent": {
-      "count": 10,
-      "p@1": 0.4,
-      "p@3": 0.26666666666666666,
-      "p@5": 0.28500000000000003,
-      "r@1": 0.16666666666666666,
-      "r@3": 0.31666666666666665,
-      "r@5": 0.5333333333333333,
-      "f1@3": 0.2866666666666667,
-      "mrr": 0.5533333333333333,
+    "cgi_3d_non_software": {
+      "count": 2,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.6,
+      "r@1": 0.3333333333333333,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0,
       "abstention_accuracy": 1.0
     },
-    "out_of_domain_abstain": {
-      "count": 5,
+    "multi_domain": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.8,
+      "r@1": 0.25,
+      "r@3": 0.75,
+      "r@5": 1.0,
+      "f1@3": 0.8571428571428571,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "devops_infra": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "docs_non_software": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "frontend_web": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 0.6666666666666666,
+      "p@5": 0.4,
+      "r@1": 0.3333333333333333,
+      "r@3": 0.6666666666666666,
+      "r@5": 0.6666666666666666,
+      "f1@3": 0.6666666666666666,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "missing_capability": {
+      "count": 1,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
+      "mrr": 1.0,
+      "abstention_accuracy": 1.0
+    },
+    "ambiguous": {
+      "count": 1,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.0,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0,
+      "abstention_accuracy": 0.0
+    },
+    "adversarial_ood": {
+      "count": 2,
       "p@1": 1.0,
       "p@3": 1.0,
       "p@5": 1.0,
@@ -176,1138 +213,74 @@
   },
   "details": [
     {
-      "id": "OBJ-001",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Build a resilient background task processing system in Django with Celery task queues and automated retries",
-      "expected": [
-        "django-patterns",
-        "django-celery"
-      ],
-      "retrieved": [
-        "django-celery",
-        "django-patterns",
-        "django-security",
-        "django-verification",
-        "django-tdd"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-002",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Implement clean Pythonic data processing pipelines with dependency injection and robust error handling",
-      "expected": [
-        "error-handling",
-        "python-patterns"
-      ],
-      "retrieved": [
-        "error-handling",
-        "android-clean-architecture",
-        "data-throughput-accelerator",
-        "opensource-pipeline",
-        "data-scraper-agent"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-003",
+      "id": "DISJOINT-001",
       "domain": "backend_python",
       "split": "eval",
-      "query": "Develop a FastAPI REST service with structured Pydantic v2 validation models and async database connection pooling",
+      "query": "Construct an asynchronous Python REST microservice with schema validation and dependency injection",
       "expected": [
         "fastapi-patterns",
         "python-patterns"
       ],
       "retrieved": [
-        "fastapi-patterns",
-        "api-design",
-        "scientific-db-pubmed-database",
-        "springboot-patterns",
-        "quarkus-patterns"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-004",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Architect a Django application following service layer patterns, custom middleware, and query optimization",
-      "expected": [
-        "django-patterns",
-        "postgres-patterns"
-      ],
-      "retrieved": [
-        "django-patterns",
-        "django-celery",
-        "rea-analysis-optimization",
-        "benchmark-optimization-loop"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.25,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-005",
-      "domain": "backend_python",
-      "split": "eval",
-      "query": "Create an async telemetry ingestion worker using Celery beat schedules and canvas workflows",
-      "expected": [
-        "telemetry-service",
-        "django-celery"
-      ],
-      "retrieved": [
-        "django-celery",
-        "telemetry-service",
-        "texture-workflow",
-        "migrate-workflows",
-        "run-workflow"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-006",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Refactor monolithic Django REST Framework viewsets into modular serializers and domain services",
-      "expected": [
-        "orch-refine-code",
-        "django-patterns"
-      ],
-      "retrieved": [
-        "django-patterns",
-        "django-celery",
-        "django-tdd",
-        "django-security",
-        "django-verification"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-007",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Build a high-performance Python analytics consumer using multiprocessing and zero-copy buffers",
-      "expected": [
-        "data-throughput-accelerator",
-        "python-patterns"
-      ],
-      "retrieved": [
-        "mcp server host (official-mcp-sdk-analytics)",
-        "official-mcp-sdk-analytics",
+        "python-review",
+        "python-review",
+        "network-config-validation",
         "python-testing",
-        "python-patterns",
-        "generating-python-installer"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.5,
-      "f1@3": 0.0,
-      "mrr": 0.25
-    },
-    {
-      "id": "OBJ-008",
-      "domain": "backend_python",
-      "split": "eval",
-      "query": "Implement a Django Celery periodic report generation pipeline with dead letter queues",
-      "expected": [
-        "django-celery"
-      ],
-      "retrieved": [
-        "django-celery",
-        "django-patterns",
-        "django-verification",
-        "django-security",
-        "django-tdd"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-009",
-      "domain": "backend_python",
-      "split": "train",
-      "query": "Construct a Python microservice with graceful shutdown, signal handling, and structured JSON logging",
-      "expected": [
-        "error-handling",
         "python-patterns"
       ],
-      "retrieved": [
-        "python-testing",
-        "python-patterns",
-        "error-handling",
-        "regex-vs-llm-structured-text",
-        "competitive-report-structure"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-010",
-      "domain": "backend_python",
-      "split": "eval",
-      "query": "Set up a FastAPI OpenAPI documentation generator with custom bearer token security schemes",
-      "expected": [
-        "security-review",
-        "fastapi-patterns"
-      ],
-      "retrieved": [
-        "fastapi-patterns",
-        "security-review",
-        "api-design",
-        "opencode-config",
-        "laravel-security"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-011",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Create an accessible React design system modal component with focus trapping and keyboard navigation",
-      "expected": [
-        "accessibility",
-        "frontend-patterns"
-      ],
-      "retrieved": [
-        "react-patterns",
-        "accessibility",
-        "design-system",
-        "react-performance",
-        "react-testing"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-012",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Optimize Next.js App Router server components and client state synchronization for minimal re-renders",
-      "expected": [
-        "react-performance",
-        "frontend-patterns"
-      ],
-      "retrieved": [
-        "react-native-patterns",
-        "skill-router",
-        "mcp server host (local-document-tools)",
-        "mcp server host (independent-geo-metrics)",
-        "mcp server host (official-mcp-sdk-analytics)"
-      ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
       "p@3": 0.0,
-      "p@5": 0.0,
+      "p@5": 0.2,
       "r@1": 0.0,
       "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-013",
-      "domain": "frontend_web",
-      "split": "eval",
-      "query": "Convert Figma UI mockups into Vue 3 composition API components with Pinia state management",
-      "expected": [
-        "ui-to-vue",
-        "vue-patterns"
-      ],
-      "retrieved": [
-        "vue-patterns",
-        "ui-to-vue",
-        "frontend-patterns",
-        "ui-plugin-navigation",
-        "ui-demo"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-014",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Design an elegant landing page using hallmark anti-slop typography, restrained palettes, and editorial layout",
-      "expected": [
-        "landing-page-design",
-        "hallmark"
-      ],
-      "retrieved": [
-        "landing-page-design",
-        "hallmark"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 1.0,
-      "p@5": 1.0,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-015",
-      "domain": "frontend_web",
-      "split": "eval",
-      "query": "Configure Vite build tool with chunk splitting, manual vendor chunks, and asset compression plugins",
-      "expected": [
-        "vite-patterns"
-      ],
-      "retrieved": [
-        "vite-patterns",
-        "rea-tool-design",
-        "plugin",
-        "ui-plugin-navigation"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.25,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-016",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Implement fluid spring physics and momentum flick gestures for interactive iOS web navigation",
-      "expected": [
-        "frontend-patterns",
-        "liquid-glass-design"
-      ],
-      "retrieved": [
-        "design-to-motion",
-        "ios-qa",
-        "ios-fix",
-        "ios-clean",
-        "ios-design-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-017",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Build a responsive Vue 3 dashboard table with sorting, pagination, and empty state fallbacks",
-      "expected": [
-        "ui-to-vue",
-        "vue-patterns"
-      ],
-      "retrieved": [
-        "dashboard-builder",
-        "ui-to-vue",
-        "prisma-patterns",
-        "api-design",
-        "blender-motion-state-inspection"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
       "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-018",
-      "domain": "frontend_web",
-      "split": "eval",
-      "query": "Audit web application UI states against the 6 interactive component states including loading and error",
-      "expected": [
-        "design-review",
-        "frontend-patterns"
-      ],
-      "retrieved": [
-        "click-path-audit",
-        "ui-demo",
-        "frontend-patterns",
-        "ponytail-audit",
-        "opencode-config"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.3333333333333333
-    },
-    {
-      "id": "OBJ-019",
-      "domain": "frontend_web",
-      "split": "train",
-      "query": "Set up Bun as a high-speed runtime, bundler, and test runner for modern TypeScript frontends",
-      "expected": [
-        "typescript-patterns",
-        "bun-runtime"
-      ],
-      "retrieved": [
-        "bun-runtime",
-        "agent-runtime-gateway-smoke-test",
-        "nextjs-turbopack",
-        "test-runner",
-        "typescript-patterns"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 1.0,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-020",
-      "domain": "frontend_web",
-      "split": "eval",
-      "query": "Design an interactive analytics dashboard with real-time SSE chart updates in React",
-      "expected": [
-        "dashboard-builder",
-        "frontend-patterns"
-      ],
-      "retrieved": [
-        "react-patterns",
-        "react-performance",
-        "dashboard-builder",
-        "liquid-glass-design",
-        "design-system"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.3333333333333333
-    },
-    {
-      "id": "OBJ-021",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Write idiomatic Rust async actors using Tokio channels and bounded mpsc communication",
-      "expected": [
-        "rust-testing",
-        "rust-patterns"
-      ],
-      "retrieved": [
-        "rust-patterns",
-        "rust-testing",
-        "counterparty-channel-discipline",
-        "rust-review",
-        "rust-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-022",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Build a concurrent Go worker pool with context cancellation, errgroup synchronization, and rate limiting",
-      "expected": [
-        "golang-patterns",
-        "golang-testing"
-      ],
-      "retrieved": [
-        "context-restore",
-        "context-save",
-        "redis-patterns",
-        "springboot-security"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
       "f1@3": 0.0,
-      "mrr": 0.0
+      "mrr": 0.2
     },
     {
-      "id": "OBJ-023",
-      "domain": "systems_programming",
-      "split": "eval",
-      "query": "Enforce modern C++20 Core Guidelines including RAII smart pointers, concepts, and zero raw new calls",
-      "expected": [
-        "cpp-coding-standards",
-        "cpp-testing"
-      ],
-      "retrieved": [
-        "cpp-coding-standards",
-        "karpathy-guidelines",
-        "manim-video",
-        "google-workspace-ops"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.25,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-024",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Implement custom Rust error types using thiserror and propagate results with ? operator",
-      "expected": [
-        "rust-patterns"
-      ],
-      "retrieved": [
-        "rust-patterns",
-        "rust-testing",
-        "error-handling",
-        "rust-review",
-        "rust-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-025",
-      "domain": "systems_programming",
-      "split": "eval",
-      "query": "Develop a high-performance Go HTTP middleware chaining engine with structured context values",
-      "expected": [
-        "golang-patterns"
-      ],
-      "retrieved": [
-        "golang-patterns",
-        "context-restore",
-        "context-save",
-        "context-and-decisions",
-        "context-budget"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-026",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Configure GoogleTest and CTest harnesses with AddressSanitizer and UndefinedBehaviorSanitizer",
-      "expected": [
-        "cpp-coding-standards",
-        "cpp-testing"
-      ],
-      "retrieved": [
-        "configure-ecc",
-        "healthcare-eval-harness",
-        "gan-style-harness",
-        "deepseek-harness-setup",
-        "harness-audit"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-027",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Write a zero-allocation byte parser in Rust with lifetime annotations and slice indexing",
-      "expected": [
-        "rust-patterns"
-      ],
-      "retrieved": [
-        "rust-patterns",
-        "rust-testing",
-        "rust-review",
-        "rust-build",
-        "rust-test"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-028",
-      "domain": "systems_programming",
-      "split": "eval",
-      "query": "Implement Go table-driven unit tests with subtests and benchmark memory allocations",
-      "expected": [
-        "golang-patterns",
-        "golang-testing"
-      ],
-      "retrieved": [
-        "go-test",
-        "go-test",
-        "golang-testing",
-        "benchmark-optimization-loop",
-        "test-collaboration"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.3333333333333333
-    },
-    {
-      "id": "OBJ-029",
-      "domain": "systems_programming",
-      "split": "train",
-      "query": "Refactor legacy C++ code to use std::span, std::string_view, and constexpr compile-time evaluation",
-      "expected": [
-        "cpp-coding-standards"
-      ],
-      "retrieved": [
-        "orch-refine-code",
-        "refactor-clean",
-        "scientific-thinking-scholar-evaluation",
-        "agent-self-evaluation"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-030",
-      "domain": "systems_programming",
-      "split": "eval",
-      "query": "Implement a lock-free ring buffer queue in Rust using atomic CAS operations",
-      "expected": [
-        "rust-patterns"
-      ],
-      "retrieved": [
-        "rust-patterns",
-        "rust-testing",
-        "rust-review",
-        "rust-build",
-        "rust-test"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-031",
+      "id": "DISJOINT-002",
       "domain": "database_sql",
-      "split": "train",
-      "query": "Design an optimized PostgreSQL schema with partial indexes, BRIN indexes for time-series, and row level security",
+      "split": "eval",
+      "query": "Architect relational tables with foreign keys, B-tree indexes, and reversible schema upgrades in PostgreSQL",
       "expected": [
-        "database-migrations",
-        "postgres-patterns"
-      ],
-      "retrieved": [
         "postgres-patterns",
-        "database-migrations",
-        "security-review",
-        "laravel-security"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.5,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-032",
-      "domain": "database_sql",
-      "split": "train",
-      "query": "Optimize slow ClickHouse analytical queries with ReplacingMergeTree and primary key sorting order",
-      "expected": [
-        "clickhouse-io"
-      ],
-      "retrieved": [
-        "clickhouse-io",
-        "agent-sort",
-        "mcp server host (official-mcp-sdk-analytics)",
-        "prompt-optimize",
-        "prompt-optimize"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-033",
-      "domain": "database_sql",
-      "split": "eval",
-      "query": "Write zero-downtime database migrations with backward-compatible schema changes and expand-contract pattern",
-      "expected": [
-        "database-migrations",
-        "postgres-patterns"
-      ],
-      "retrieved": [
-        "database-migrations",
-        "change-impact",
-        "scientific-db-uspto-database",
-        "scientific-db-pubmed-database",
-        "postgres-patterns"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 1.0,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-034",
-      "domain": "database_sql",
-      "split": "train",
-      "query": "Tune MySQL InnoDB connection pooling, transaction isolation levels, and composite index cardinality",
-      "expected": [
-        "mysql-patterns"
-      ],
-      "retrieved": [
-        "mysql-patterns",
-        "plan-tune"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.5,
-      "p@5": 0.5,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.6666666666666666,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-035",
-      "domain": "database_sql",
-      "split": "eval",
-      "query": "Partition high-volume ClickHouse event telemetry tables by month with TTL compression codecs",
-      "expected": [
-        "clickhouse-io"
-      ],
-      "retrieved": [
-        "clickhouse-io",
-        "telemetry-service",
-        "mcp server host (official-mcp-sdk-analytics)",
-        "official-mcp-sdk-analytics",
-        "dashboard-builder"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-036",
-      "domain": "database_sql",
-      "split": "train",
-      "query": "Build a Prisma ORM data modeling schema with multi-tenant relations and composite foreign keys",
-      "expected": [
-        "prisma-patterns",
-        "postgres-patterns"
-      ],
-      "retrieved": [
-        "prisma-patterns",
-        "domain-modeling",
-        "council-multi-model",
-        "data-scraper-agent",
-        "data-throughput-accelerator"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-037",
-      "domain": "database_sql",
-      "split": "train",
-      "query": "Implement distributed caching invalidation strategies using Redis pub/sub and write-through cache",
-      "expected": [
-        "redis-patterns"
-      ],
-      "retrieved": [
-        "redis-patterns",
-        "content-hash-cache-pattern",
-        "prompt-caching-strategy",
-        "rea-analysis-optimization",
-        "swift-actor-persistence"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-038",
-      "domain": "database_sql",
-      "split": "eval",
-      "query": "Diagnose Postgres deadlocks and lock contention using pg_stat_activity and lock monitoring queries",
-      "expected": [
-        "postgres-patterns"
-      ],
-      "retrieved": [
-        "postgres-patterns",
-        "swarm_monitor",
-        "database-migrations",
-        "health-monitor"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.25,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-039",
-      "domain": "database_sql",
-      "split": "train",
-      "query": "Create an automated database migration verification runner with rollback validation in CI",
-      "expected": [
         "database-migrations"
       ],
       "retrieved": [
-        "database-migrations",
-        "scientific-db-uspto-database",
-        "scientific-db-pubmed-database",
-        "quarkus-verification",
-        "django-verification"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-040",
-      "domain": "database_sql",
-      "split": "eval",
-      "query": "Configure MySQL semi-synchronous replication and GTID failover recovery topology",
-      "expected": [
-        "mysql-patterns"
-      ],
-      "retrieved": [
-        "mysql-patterns",
-        "configure-ecc",
+        "a11y-architect",
+        "architect",
+        "postgres-patterns",
         "database-migrations"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-041",
-      "domain": "testing_qa",
-      "split": "train",
-      "query": "Build comprehensive pytest test suites using fixtures, parametrization, and branch coverage enforcement",
-      "expected": [
-        "test-driven-development",
-        "python-testing"
-      ],
-      "retrieved": [
-        "test-runner",
-        "test-driven-development",
-        "python-testing",
-        "test-coverage",
-        "test-coverage"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.5,
       "r@1": 0.0,
-      "r@3": 1.0,
+      "r@3": 0.5,
       "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 0.5
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
     },
     {
-      "id": "OBJ-042",
+      "id": "DISJOINT-003",
       "domain": "testing_qa",
-      "split": "train",
-      "query": "Write end-to-end browser tests in Playwright using Page Object Model and trace artifact capture",
+      "split": "eval",
+      "query": "Create browser automation end-to-end checks using Page Object Model to stabilize flaky CI flows",
       "expected": [
         "e2e-testing"
       ],
       "retrieved": [
         "e2e-testing",
         "browser-qa",
-        "opencode-config",
-        "rea-ci-tests-audit",
-        "open-gstack-browser"
+        "project-flow-ops",
+        "open-gstack-browser",
+        "setup-browser-cookies"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1322,47 +295,105 @@
       "mrr": 1.0
     },
     {
-      "id": "OBJ-043",
-      "domain": "testing_qa",
+      "id": "DISJOINT-004",
+      "domain": "systems_golang",
       "split": "eval",
-      "query": "Apply strict test-driven development: write red failing unit tests first, implement minimum green code, then refactor",
+      "query": "Write concurrent Go worker pools with context cancellation and table-driven unit tests",
       "expected": [
-        "test-driven-development",
-        "tdd"
+        "golang-testing",
+        "golang-patterns"
       ],
       "retrieved": [
-        "test-driven-development",
-        "tdd-workflow",
-        "orch-refine-code",
-        "git-guardrails-claude-code",
-        "refactor-clean"
+        "go-test",
+        "go-test",
+        "golang-testing",
+        "test-audit",
+        "go-review"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
+      "p@1": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
     },
     {
-      "id": "OBJ-044",
-      "domain": "testing_qa",
-      "split": "train",
-      "query": "Implement Rust property-based tests using proptest crate to explore invariant edge cases",
+      "id": "DISJOINT-005",
+      "domain": "systems_rust",
+      "split": "eval",
+      "query": "Build a memory-safe Rust CLI with unit and property-based test suites",
       "expected": [
-        "rust-testing"
+        "rust-testing",
+        "rust-patterns"
       ],
       "retrieved": [
         "rust-testing",
         "rust-test",
         "rust-test",
         "rust-patterns",
-        "rea-ci-tests-audit"
+        "test-audit"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.8,
+      "r@1": 0.5,
+      "r@3": 1.5,
+      "r@5": 2.0,
+      "f1@3": 1.2,
+      "mrr": 1.0
+    },
+    {
+      "id": "DISJOINT-006",
+      "domain": "security_compliance",
+      "split": "eval",
+      "query": "Inspect healthcare data flows for HIPAA privacy rule compliance and OWASP vulnerabilities",
+      "expected": [
+        "security-review",
+        "hipaa-compliance"
+      ],
+      "retrieved": [
+        "hipaa-compliance",
+        "healthcare-phi-compliance",
+        "healthcare-reviewer",
+        "healthcare-eval-harness",
+        "healthcare-emr-patterns"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
+    },
+    {
+      "id": "DISJOINT-007",
+      "domain": "cgi_3d_non_software",
+      "split": "eval",
+      "query": "Model a mechanical hard-surface robot in Blender with PBR materials and export to Godot",
+      "expected": [
+        "materials",
+        "godot-export",
+        "hard-surface"
+      ],
+      "retrieved": [
+        "godot-export",
+        "materials",
+        "hard-surface",
+        "blender-modeler",
+        "blender-mcp"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1370,240 +401,26 @@
       "p@1": 1.0,
       "p@3": 1.0,
       "p@5": 0.6,
-      "r@1": 1.0,
-      "r@3": 3.0,
-      "r@5": 3.0,
-      "f1@3": 1.5,
+      "r@1": 0.3333333333333333,
+      "r@3": 1.0,
+      "r@5": 1.0,
+      "f1@3": 1.0,
       "mrr": 1.0
     },
     {
-      "id": "OBJ-045",
-      "domain": "testing_qa",
+      "id": "DISJOINT-008",
+      "domain": "cgi_3d_non_software",
       "split": "eval",
-      "query": "Investigate and resolve flaky Playwright browser integration tests with race condition debugging",
+      "query": "Set up architectural visualization interior lighting and camera framing in Blender",
       "expected": [
-        "systematic-debugging",
-        "e2e-testing"
-      ],
-      "retrieved": [
-        "e2e-testing",
-        "systematic-debugging",
-        "browser-qa",
-        "test-collaboration",
-        "investigate"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-046",
-      "domain": "testing_qa",
-      "split": "train",
-      "query": "Set up C# xUnit test project with FluentAssertions and Moq service mock dependencies",
-      "expected": [
-        "csharp-testing"
-      ],
-      "retrieved": [
-        "csharp-testing",
-        "test-collaboration",
-        "cpp-test",
-        "cpp-test",
-        "test-audit"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-047",
-      "domain": "testing_qa",
-      "split": "train",
-      "query": "Audit existing test suite to detect redundant, duplicate, or low-value tests bloating CI runs",
-      "expected": [
-        "test-audit"
-      ],
-      "retrieved": [
-        "test-audit",
-        "rea-ci-tests-audit",
-        "ecc-tools-cost-audit"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-048",
-      "domain": "testing_qa",
-      "split": "eval",
-      "query": "Develop an automated UI demo recording script using Playwright with mouse motion smoothing",
-      "expected": [
-        "ui-demo"
-      ],
-      "retrieved": [
-        "ui-demo",
-        "design-to-motion",
-        "motion-patterns",
-        "design-motion",
-        "ui-plugin-navigation"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-049",
-      "domain": "testing_qa",
-      "split": "train",
-      "query": "Implement Spring Boot integration tests with MockMvc and dynamic Testcontainers for PostgreSQL",
-      "expected": [
-        "springboot-tdd"
-      ],
-      "retrieved": [
-        "springboot-verification",
-        "springboot-tdd",
-        "postgres-patterns",
-        "test-collaboration",
-        "database-migrations"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-050",
-      "domain": "testing_qa",
-      "split": "eval",
-      "query": "Isolate and fix hard-to-reproduce bug using systematic root-cause hypothesis generation",
-      "expected": [
-        "systematic-debugging",
-        "diagnosing-bugs"
-      ],
-      "retrieved": [
-        "orch-fix-defect",
-        "systematic-debugging",
-        "ios-fix",
-        "build-fix",
-        "build-fix"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-051",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Model a sci-fi mechanical device in Blender using boolean bevel workflows, panel lines, and clean quad topology",
-      "expected": [
-        "hard-surface",
-        "blender-modeler"
-      ],
-      "retrieved": [
-        "blender-modeler",
-        "hard-surface",
-        "manga-style",
-        "android-clean-architecture",
-        "refactor-clean"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-052",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Set up a three-point cinematic studio lighting rig in Blender with warm key, cool fill, and crisp rim illumination",
-      "expected": [
+        "archviz",
         "lighting",
         "camera-cinematography"
       ],
       "retrieved": [
+        "archviz",
+        "camera-cinematography",
         "lighting",
-        "blender-mcp"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.5,
-      "p@5": 0.5,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-053",
-      "domain": "graphics_3d",
-      "split": "eval",
-      "query": "Create AAA character hair and fur grooming in Blender with hair cards and directional flow curves",
-      "expected": [
-        "character-artist",
-        "hair-groom"
-      ],
-      "retrieved": [
-        "hair-groom",
-        "character-artist",
-        "blender-modeler",
         "blender-mcp",
         "mcp-for-blender"
       ],
@@ -1611,117 +428,6 @@
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-054",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Generate procedural rock and terrain landscapes using Blender Geometry Nodes with custom scatter distribution",
-      "expected": [
-        "geometry-nodes",
-        "procedural-modeling"
-      ],
-      "retrieved": [
-        "geometry-nodes",
-        "blender-mcp",
-        "mcp-for-blender",
-        "procedural-modeling",
-        "blender-modeler"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 1.0,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-055",
-      "domain": "graphics_3d",
-      "split": "eval",
-      "query": "Build a production-ready PBR material with metallic roughness workflow, procedural scratches, and edge wear",
-      "expected": [
-        "materials",
-        "lookdev"
-      ],
-      "retrieved": [
-        "materials",
-        "texture-workflow",
-        "procedural-modeling"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-056",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Rig a bipedal humanoid character in Blender with IK FK switching constraints and weight painting",
-      "expected": [
-        "rigging",
-        "character-artist"
-      ],
-      "retrieved": [
-        "character-artist",
-        "blender-modeler",
-        "blender-mcp",
-        "mcp-for-blender",
-        "blender-director"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-057",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Author optimized game LOD meshes and convex UCX collision proxies for Unreal Engine export",
-      "expected": [
-        "collision-proxy",
-        "unreal-export",
-        "lod-pipeline"
-      ],
-      "retrieved": [
-        "unreal-export",
-        "collision-proxy",
-        "lod-pipeline",
-        "export-pipeline",
-        "godot-export"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
       "p@3": 1.0,
       "p@5": 0.6,
       "r@1": 0.3333333333333333,
@@ -1731,903 +437,50 @@
       "mrr": 1.0
     },
     {
-      "id": "OBJ-058",
-      "domain": "graphics_3d",
+      "id": "DISJOINT-009",
+      "domain": "multi_domain",
       "split": "eval",
-      "query": "Animate a smooth walk cycle keyframe sequence with easing curves in Blender Graph Editor",
+      "query": "Build a Python telemetry collector with PostgreSQL storage, HTML monitoring dashboard, and pytest suite",
       "expected": [
-        "animation"
+        "postgres-patterns",
+        "python-testing",
+        "telemetry-service",
+        "dashboard-builder"
       ],
       "retrieved": [
-        "animation",
-        "blender-mcp",
-        "mcp-for-blender",
-        "hyperframes-animation",
-        "blender-modeler"
+        "telemetry-service",
+        "postgres-patterns",
+        "dashboard-builder",
+        "design-html",
+        "python-testing"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.4,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 2.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-059",
-      "domain": "graphics_3d",
-      "split": "train",
-      "query": "Perform clean retopology over high-poly sculpted character mesh ensuring quad loop edge flow",
-      "expected": [
-        "sculpting",
-        "retopology"
-      ],
-      "retrieved": [
-        "retopology",
-        "sculpting",
-        "android-clean-architecture",
-        "character-artist",
-        "character-archetypes"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
+      "p@3": 1.0,
+      "p@5": 0.8,
+      "r@1": 0.25,
+      "r@3": 0.75,
       "r@5": 1.0,
-      "f1@3": 0.8,
+      "f1@3": 0.8571428571428571,
       "mrr": 1.0
     },
     {
-      "id": "OBJ-060",
-      "domain": "graphics_3d",
+      "id": "DISJOINT-010",
+      "domain": "devops_infra",
       "split": "eval",
-      "query": "Set up architectural visualization interior scene with physically accurate sunlight, portals, and Cycles rendering",
+      "query": "Package a Python service in a multi-stage Dockerfile and deploy manifests to Kubernetes",
       "expected": [
-        "rendering",
-        "archviz"
-      ],
-      "retrieved": [
-        "archviz",
-        "agent-architecture-audit",
-        "rendering"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.6666666666666666,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-061",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Conduct comprehensive OWASP Top 10 security audit to identify injection risks, broken auth, and sensitive data leakage",
-      "expected": [
-        "security-review",
-        "cso"
-      ],
-      "retrieved": [
-        "security-review",
-        "security-scan",
-        "data-scraper-agent",
-        "data-throughput-accelerator"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.25,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-062",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Audit healthcare data ingestion endpoints for strict HIPAA PHI privacy compliance and encryption at rest",
-      "expected": [
-        "security-review",
-        "hipaa-compliance"
-      ],
-      "retrieved": [
-        "healthcare-phi-compliance",
-        "hipaa-compliance",
-        "healthcare-eval-harness",
-        "production-audit",
-        "healthcare-emr-patterns"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-063",
-      "domain": "security_compliance",
-      "split": "eval",
-      "query": "Scan third-party agent skills and plugins with SkillSpector to detect malicious prompt injection or credential harvesting",
-      "expected": [
-        "skill-inspector"
-      ],
-      "retrieved": [
-        "skillspector",
-        "skill-inspector",
-        "plugin",
-        "migrate-agent-settings",
-        "prompt-optimizer"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-064",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Implement secure JWT session authentication with HTTP-only cookies, CSRF protection, and token rotation",
-      "expected": [
-        "security-review",
-        "backend-patterns"
-      ],
-      "retrieved": [
-        "setup-browser-cookies",
-        "opencode-config",
-        "django-security",
-        "token-budget-advisor",
-        "token-card"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-065",
-      "domain": "security_compliance",
-      "split": "eval",
-      "query": "Review API endpoints to prevent path traversal attacks, insecure direct object references (IDOR), and SSRF",
-      "expected": [
-        "security-review",
-        "cso"
-      ],
-      "retrieved": [
-        "security-review",
-        "prediction-market-risk-review",
-        "blender-director"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-066",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Enforce safe destructive command guardrails preventing unintentional database drop or force push in production",
-      "expected": [
-        "careful",
-        "guard"
-      ],
-      "retrieved": [
-        "git-guardrails-claude-code",
-        "safety-guard",
-        "database-migrations",
-        "mcp server host (production-tools)",
-        "production-tools"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-067",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Audit cloud deployment infrastructure for principle of least privilege IAM roles and secret token leaks",
-      "expected": [
-        "security-review"
-      ],
-      "retrieved": [
-        "enterprise-agent-ops",
-        "rea-ci-tests-audit",
-        "land-and-deploy",
-        "ponytail-audit",
-        "setup-deploy"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-068",
-      "domain": "security_compliance",
-      "split": "eval",
-      "query": "Inspect code for silent failures, unhandled promise rejections, and uncaught exceptions",
-      "expected": [
-        "systematic-debugging",
-        "error-handling"
-      ],
-      "retrieved": [
-        "git-guardrails-claude-code",
-        "code-review",
-        "logistics-exception-management"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-069",
-      "domain": "security_compliance",
-      "split": "train",
-      "query": "Verify cryptographic hash signatures of downloaded binary packages and enforce checksum verification",
-      "expected": [
-        "security-review"
-      ],
-      "retrieved": [
-        "verify",
-        "verify",
-        "verification-before-completion",
-        "quarkus-verification",
-        "verification-loop"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-070",
-      "domain": "security_compliance",
-      "split": "eval",
-      "query": "Audit Django REST API authorization policies against broken object level authorization vulnerabilities",
-      "expected": [
-        "security-review",
-        "django-patterns"
-      ],
-      "retrieved": [
-        "django-patterns",
-        "django-celery",
-        "django-security",
-        "django-verification",
-        "django-tdd"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-071",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Structure an Architecture Decision Record (ADR) documenting context, evaluated options, and trade-offs",
-      "expected": [
-        "domain-modeling",
-        "architecture-decision-records"
-      ],
-      "retrieved": [
-        "architecture-decision-records",
-        "context-and-decisions",
-        "agent-self-evaluation"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-072",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Conduct Garry Tan YC Office Hours review questioning problem formulation before writing any code",
-      "expected": [
-        "spec",
-        "office-hours"
-      ],
-      "retrieved": [
-        "receiving-code-review",
-        "code-review",
-        "office-hours",
-        "flutter-dart-code-review",
-        "code-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 0.3333333333333333
-    },
-    {
-      "id": "OBJ-073",
-      "domain": "architecture_strategy",
-      "split": "eval",
-      "query": "Adopt senior minimalist ponytail engineering: remove unnecessary wrappers, eliminate boilerplate, favor standard libraries",
-      "expected": [
-        "ponytail",
-        "deslop-shared-libs"
-      ],
-      "retrieved": [
-        "ponytail",
-        "ponytail-audit",
-        "coding-standards"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.6666666666666666,
-      "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-074",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Draft a formal technical specification with ASCII data flows, failure modes, and test matrices",
-      "expected": [
-        "spec",
-        "plan-eng-review"
-      ],
-      "retrieved": [
-        "data-scraper-agent",
-        "project-flow-ops",
-        "loop-design-check",
-        "dynamic-workflow-mode",
-        "test-audit"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-075",
-      "domain": "architecture_strategy",
-      "split": "eval",
-      "query": "Convene a structured four-voice council to evaluate architectural trade-offs between monolith and microservices",
-      "expected": [
-        "council"
-      ],
-      "retrieved": [
-        "council",
-        "council-multi-model",
-        "architecture-decision-records",
-        "android-clean-architecture",
-        "regex-vs-llm-structured-text"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 1.0,
-      "r@3": 2.0,
-      "r@5": 2.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-076",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Build a domain glossary clarifying ubiquitous language and entity boundaries across microservices",
-      "expected": [
-        "domain-modeling"
-      ],
-      "retrieved": [
-        "domain-modeling",
-        "hexagonal-architecture"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.5,
-      "p@5": 0.5,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.6666666666666666,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-077",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Establish an engineering review process for autonomous AI agents generating production code",
-      "expected": [
-        "ai-first-engineering",
-        "agentic-engineering"
-      ],
-      "retrieved": [
-        "ai-first-engineering",
-        "code-review",
-        "autonomous-agent-harness",
-        "receiving-code-review",
-        "flutter-dart-code-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-078",
-      "domain": "architecture_strategy",
-      "split": "eval",
-      "query": "Perform an engineering plan review evaluating edge cases, blast radius, and backward compatibility",
-      "expected": [
-        "autoplan",
-        "plan-eng-review"
-      ],
-      "retrieved": [
-        "plan-eng-review",
-        "plan-design-review",
-        "change-impact"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-079",
-      "domain": "architecture_strategy",
-      "split": "train",
-      "query": "Conduct a developer experience audit measuring time to first build, command ergonomics, and documentation clarity",
-      "expected": [
-        "devex-review"
-      ],
-      "retrieved": [
-        "ecc-tools-cost-audit",
-        "automation-audit-ops",
-        "_gstack-command",
-        "documentation-lookup"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-080",
-      "domain": "architecture_strategy",
-      "split": "eval",
-      "query": "Apply Andrej Karpathy guidelines: avoid premature abstraction, surgical diffs, and verifiable success criteria",
-      "expected": [
-        "andrej-karpathy-skills"
-      ],
-      "retrieved": [
-        "andrej-karpathy-skills",
-        "karpathy-guidelines"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.5,
-      "p@5": 0.5,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.6666666666666666,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-081",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Deploy and manage containerized services on an Uncloud cluster with automated Caddy reverse proxy ingress",
-      "expected": [
-        "uncloud"
-      ],
-      "retrieved": [
-        "uncloud",
-        "reverse-engineer-anything",
-        "land-and-deploy",
-        "collision-proxy",
-        "setup-deploy"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-082",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Write multi-stage Dockerfiles optimizing layer caching, non-root user execution, and minimal image size",
-      "expected": [
-        "docker-patterns"
-      ],
-      "retrieved": [
-        "prompt-caching-strategy",
-        "content-hash-cache-pattern",
-        "parallel-execution-optimizer",
-        "executing-plans",
-        "minimalist-style"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
-    },
-    {
-      "id": "OBJ-083",
-      "domain": "devops_cloud",
-      "split": "eval",
-      "query": "Configure Kubernetes Deployment manifests with pod disruption budgets, readiness probes, and resource limits",
-      "expected": [
+        "docker-patterns",
         "kubernetes-patterns"
       ],
       "retrieved": [
         "kubernetes-patterns",
+        "land-and-deploy",
         "setup-deploy",
-        "homelab-network-readiness"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.3333333333333333,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-084",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Set up Grafana SigNoz monitoring dashboards answering key operator questions on latency and error rate",
-      "expected": [
-        "dashboard-builder"
-      ],
-      "retrieved": [
-        "dashboard-builder",
-        "latency-critical-systems",
-        "swarm_monitor",
-        "error-handling",
-        "operator-approval-loop"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-085",
-      "domain": "devops_cloud",
-      "split": "eval",
-      "query": "Execute post-deployment canary verification monitoring error spikes, latency degradation, and rollbacks",
-      "expected": [
-        "canary"
-      ],
-      "retrieved": [
-        "canary-watch",
-        "canary",
-        "latency-critical-systems"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.6666666666666666,
-      "r@1": 1.0,
-      "r@3": 2.0,
-      "r@5": 2.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-086",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Configure Git worktrees for clean isolated workspace branching during feature implementation",
-      "expected": [
-        "using-git-worktrees"
-      ],
-      "retrieved": [
-        "using-git-worktrees",
-        "git-guardrails-claude-code",
-        "git-workflow",
-        "google-workspace-ops",
-        "orch-add-feature"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-087",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Track Claude Code token usage, spending metrics, and session cost attribution against budget limits",
-      "expected": [
-        "cost-tracking"
-      ],
-      "retrieved": [
-        "git-guardrails-claude-code",
-        "token-card",
-        "mcp server host (independent-geo-metrics)",
-        "independent-geo-metrics",
-        "cost-tracking"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 1.0,
-      "f1@3": 0.0,
-      "mrr": 0.2
-    },
-    {
-      "id": "OBJ-088",
-      "domain": "devops_cloud",
-      "split": "eval",
-      "query": "Set up Husky pre-commit hooks running lint-staged formatting, TypeScript typecheck, and unit tests",
-      "expected": [
-        "setup-pre-commit"
-      ],
-      "retrieved": [
-        "setup-pre-commit",
-        "hookify-rules",
-        "typescript-patterns",
-        "rust-testing",
-        "test-collaboration"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-089",
-      "domain": "devops_cloud",
-      "split": "train",
-      "query": "Automate shipping workflow: merge base, run regression checks, bump semantic version, and open PR",
-      "expected": [
-        "ship"
-      ],
-      "retrieved": [
-        "git-workflow",
-        "texture-workflow",
-        "ai-regression-testing",
-        "module-regression",
-        "ship"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 1.0,
-      "f1@3": 0.0,
-      "mrr": 0.2
-    },
-    {
-      "id": "OBJ-090",
-      "domain": "devops_cloud",
-      "split": "eval",
-      "query": "Audit CI pipeline workflows for test execution performance and test fixture drift",
-      "expected": [
-        "rea-ci-tests-audit"
-      ],
-      "retrieved": [
-        "rea-ci-tests-audit",
-        "test-audit",
-        "go-test",
-        "go-test",
-        "test-collaboration"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-091",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Build a Python telemetry service, assemble it into a working application, and run automated unit tests",
-      "expected": [
-        "telemetry-service",
-        "app-assembly",
-        "test-runner"
-      ],
-      "retrieved": [
-        "telemetry-service",
         "python-testing",
-        "taste-application",
-        "run-workflow",
-        "test-collaboration"
+        "python-patterns"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -2635,142 +488,56 @@
       "p@1": 1.0,
       "p@3": 0.3333333333333333,
       "p@5": 0.2,
-      "r@1": 0.3333333333333333,
-      "r@3": 0.3333333333333333,
-      "r@5": 0.3333333333333333,
-      "f1@3": 0.3333333333333333,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-092",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Design a key-value caching service with TTL expiry, and verify with automated pytest tests",
-      "expected": [
-        "python-patterns",
-        "python-testing"
-      ],
-      "retrieved": [
-        "content-hash-cache-pattern",
-        "diagram-design",
-        "test-driven-development",
-        "python-testing"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.25,
-      "r@1": 0.0,
-      "r@3": 0.0,
+      "r@1": 0.5,
+      "r@3": 0.5,
       "r@5": 0.5,
-      "f1@3": 0.0,
-      "mrr": 0.25
+      "f1@3": 0.4,
+      "mrr": 1.0
     },
     {
-      "id": "OBJ-093",
-      "domain": "composite_multi_intent",
+      "id": "DISJOINT-011",
+      "domain": "docs_non_software",
       "split": "eval",
-      "query": "Model a 3D robot asset in Blender, configure PBR materials, and export optimized GLTF for Godot",
+      "query": "Generate reference documentation and architectural decision records for an existing module",
       "expected": [
-        "materials",
-        "godot-export",
-        "hard-surface"
+        "architecture-decision-records",
+        "document-generate"
       ],
       "retrieved": [
-        "blender-modeler",
-        "blender-mcp",
-        "materials",
-        "investor-materials",
-        "godot-export"
+        "architecture-decision-records",
+        "context-and-decisions",
+        "android-clean-architecture",
+        "improve-codebase-architecture",
+        "archviz"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 0.0,
+      "p@1": 1.0,
       "p@3": 0.3333333333333333,
-      "p@5": 0.6,
-      "r@1": 0.0,
-      "r@3": 0.3333333333333333,
-      "r@5": 1.0,
-      "f1@3": 0.3333333333333333,
-      "mrr": 0.3333333333333333
-    },
-    {
-      "id": "OBJ-094",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Refactor backend API endpoints, verify zero behavior regression with pytest, and update release changelog",
-      "expected": [
-        "orch-refine-code",
-        "python-testing",
-        "rea-changelog-update"
-      ],
-      "retrieved": [
-        "backend-patterns",
-        "api-design",
-        "ai-regression-testing",
-        "module-regression",
-        "rea-changelog-update"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
       "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.3333333333333333,
-      "f1@3": 0.0,
-      "mrr": 0.2
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
     },
     {
-      "id": "OBJ-095",
-      "domain": "composite_multi_intent",
+      "id": "DISJOINT-012",
+      "domain": "frontend_web",
       "split": "eval",
-      "query": "Build a React customer dashboard component, connect to backend API, and write Playwright E2E verification tests",
+      "query": "Build an accessible React component with keyboard navigation and performance memoization",
       "expected": [
-        "dashboard-builder",
-        "e2e-testing",
-        "frontend-patterns"
+        "accessibility",
+        "react-performance",
+        "react-patterns"
       ],
       "retrieved": [
+        "react-performance",
         "react-patterns",
-        "dashboard-builder",
-        "api-connector-builder",
-        "backend-patterns",
-        "e2e-testing"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.4,
-      "r@1": 0.0,
-      "r@3": 0.3333333333333333,
-      "r@5": 0.6666666666666666,
-      "f1@3": 0.3333333333333333,
-      "mrr": 0.5
-    },
-    {
-      "id": "OBJ-096",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Implement health monitoring module, connect to central telemetry aggregator, and verify with tests",
-      "expected": [
-        "telemetry-service",
-        "health-monitor",
-        "test-runner"
-      ],
-      "retrieved": [
-        "health-monitor",
-        "swarm_monitor",
-        "telemetry-service",
-        "connect-chrome",
-        "kotlin-test"
+        "react-reviewer",
+        "frontend-patterns",
+        "react-testing"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -2785,107 +552,38 @@
       "mrr": 1.0
     },
     {
-      "id": "OBJ-097",
-      "domain": "composite_multi_intent",
+      "id": "DISJOINT-013",
+      "domain": "missing_capability",
       "split": "eval",
-      "query": "Perform OWASP Top 10 security review on authentication code and write regression tests proving fix",
-      "expected": [
-        "security-review",
-        "python-testing"
-      ],
-      "retrieved": [
-        "security-review",
-        "flutter-dart-code-review",
-        "code-review",
-        "opencode-config",
-        "code-review"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
+      "query": "Calibrate quantum flux capacitor warp matrix",
+      "expected": [],
+      "retrieved": [],
+      "expect_abstain": true,
+      "is_abstained": true,
+      "abstention_correct": true,
       "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 0.5,
-      "r@3": 0.5,
-      "r@5": 0.5,
-      "f1@3": 0.4,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-098",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Create an architectural decision record for database migration and implement the schema migration scripts",
-      "expected": [
-        "database-migrations",
-        "architecture-decision-records"
-      ],
-      "retrieved": [
-        "database-migrations",
-        "architecture-decision-records",
-        "scientific-db-uspto-database",
-        "scientific-db-pubmed-database",
-        "change-impact"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
-      "r@1": 0.5,
+      "p@3": 1.0,
+      "p@5": 1.0,
+      "r@1": 1.0,
       "r@3": 1.0,
       "r@5": 1.0,
-      "f1@3": 0.8,
+      "f1@3": 1.0,
       "mrr": 1.0
     },
     {
-      "id": "OBJ-099",
-      "domain": "composite_multi_intent",
+      "id": "DISJOINT-014",
+      "domain": "ambiguous",
       "split": "eval",
-      "query": "Scaffold a new CLI utility, configure pre-commit hooks, and verify unit test coverage",
-      "expected": [
-        "setup-pre-commit",
-        "python-patterns",
-        "python-testing"
-      ],
+      "query": "fix it",
+      "expected": [],
       "retrieved": [
-        "scaffold-exercises",
-        "hyperframes-cli",
-        "configure-ecc",
-        "setup-pre-commit",
-        "test-coverage"
+        "orch-fix-defect",
+        "build-fix",
+        "build-fix",
+        "ios-fix",
+        "investigate"
       ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.2,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.3333333333333333,
-      "f1@3": 0.0,
-      "mrr": 0.25
-    },
-    {
-      "id": "OBJ-100",
-      "domain": "composite_multi_intent",
-      "split": "train",
-      "query": "Design an interactive Three.js 3D mechanical simulator with telemetry dashboard HUD overlay",
-      "expected": [
-        "apple-design",
-        "teardown"
-      ],
-      "retrieved": [
-        "dashboard-builder",
-        "telemetry-service",
-        "liquid-glass-design",
-        "design-system",
-        "plan-design-review"
-      ],
-      "expect_abstain": false,
+      "expect_abstain": true,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
@@ -2898,29 +596,10 @@
       "mrr": 0.0
     },
     {
-      "id": "OBJ-101",
-      "domain": "out_of_domain_abstain",
-      "split": "train",
-      "query": "Provide a medical diagnosis for recurring chest pain and recommend prescription medication",
-      "expected": [],
-      "retrieved": [],
-      "expect_abstain": true,
-      "is_abstained": true,
-      "abstention_correct": true,
-      "p@1": 1.0,
-      "p@3": 1.0,
-      "p@5": 1.0,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-102",
-      "domain": "out_of_domain_abstain",
+      "id": "DISJOINT-015",
+      "domain": "adversarial_ood",
       "split": "eval",
-      "query": "Predict tomorrow's closing stock price of Apple with buy sell trading signals",
+      "query": "Prescribe medical treatment and dosage for acute chest pain",
       "expected": [],
       "retrieved": [],
       "expect_abstain": true,
@@ -2936,48 +615,10 @@
       "mrr": 1.0
     },
     {
-      "id": "OBJ-103",
-      "domain": "out_of_domain_abstain",
-      "split": "train",
-      "query": "How do I bake a chocolate sourdough bread at high altitude with steam injection?",
-      "expected": [],
-      "retrieved": [],
-      "expect_abstain": true,
-      "is_abstained": true,
-      "abstention_correct": true,
-      "p@1": 1.0,
-      "p@3": 1.0,
-      "p@5": 1.0,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-104",
-      "domain": "out_of_domain_abstain",
+      "id": "DISJOINT-016",
+      "domain": "adversarial_ood",
       "split": "eval",
-      "query": "Write a legal contract for buying real estate in California under probate law",
-      "expected": [],
-      "retrieved": [],
-      "expect_abstain": true,
-      "is_abstained": true,
-      "abstention_correct": true,
-      "p@1": 1.0,
-      "p@3": 1.0,
-      "p@5": 1.0,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 1.0,
-      "mrr": 1.0
-    },
-    {
-      "id": "OBJ-105",
-      "domain": "out_of_domain_abstain",
-      "split": "eval",
-      "query": "Translate this ancient Sumerian cuneiform tablet into classical Latin verse",
+      "query": "Bake a chocolate sourdough cake from scratch",
       "expected": [],
       "retrieved": [],
       "expect_abstain": true,
