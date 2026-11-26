@@ -17,7 +17,7 @@ param (
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "3.2.0rc1"
+$Version = "3.2.0rc3"
 
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host " CALL ME — MULTI-AGENT CAPABILITY ORCHESTRATOR INSTALLER v$Version" -ForegroundColor Cyan

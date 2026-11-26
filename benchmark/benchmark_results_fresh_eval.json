@@ -1,32 +1,44 @@
 {
   "benchmark_mode": "hybrid_semantic",
   "total_queries": 50,
-  "total_catalog_capabilities": 759,
-  "elapsed_seconds": 1.862,
-  "latency_per_query_ms": 37.23,
+  "total_catalog_capabilities": 842,
+  "elapsed_seconds": 2.638,
+  "latency_per_query_ms": 52.76,
   "overall": {
     "count": 50,
-    "p@1": 0.48,
-    "p@3": 0.4066666666666666,
-    "p@5": 0.33,
-    "r@1": 0.37,
-    "r@3": 0.71,
-    "r@5": 0.79,
-    "f1@3": 0.49733333333333335,
-    "mrr": 0.624,
+    "p@1": 0.5,
+    "p@3": 0.42,
+    "p@5": 0.3646666666666667,
+    "r@1": 0.38,
+    "r@3": 0.69,
+    "r@5": 0.85,
+    "f1@3": 0.5053333333333333,
+    "mrr": 0.6413333333333334,
     "abstention_accuracy": 1.0
   },
   "train_split": {},
   "eval_split (held-out)": {
-    "count": 50,
-    "p@1": 0.48,
-    "p@3": 0.4066666666666666,
-    "p@5": 0.33,
-    "r@1": 0.37,
-    "r@3": 0.71,
-    "r@5": 0.79,
-    "f1@3": 0.49733333333333335,
-    "mrr": 0.624,
+    "count": 45,
+    "p@1": 0.4444444444444444,
+    "p@3": 0.35555555555555557,
+    "p@5": 0.2940740740740741,
+    "r@1": 0.3111111111111111,
+    "r@3": 0.6555555555555556,
+    "r@5": 0.8333333333333334,
+    "f1@3": 0.45037037037037037,
+    "mrr": 0.6014814814814815,
+    "abstention_accuracy": 1.0
+  },
+  "adversarial_split": {
+    "count": 5,
+    "p@1": 1.0,
+    "p@3": 1.0,
+    "p@5": 1.0,
+    "r@1": 1.0,
+    "r@3": 1.0,
+    "r@5": 1.0,
+    "f1@3": 1.0,
+    "mrr": 1.0,
     "abstention_accuracy": 1.0
   },
   "domain_breakdown": {
@@ -45,23 +57,23 @@
     "frontend_web": {
       "count": 2,
       "p@1": 0.0,
-      "p@3": 0.16666666666666666,
-      "p@5": 0.1,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.30000000000000004,
       "r@1": 0.0,
-      "r@3": 0.25,
-      "r@5": 0.25,
-      "f1@3": 0.2,
-      "mrr": 0.16666666666666666,
+      "r@3": 0.5,
+      "r@5": 0.75,
+      "f1@3": 0.4,
+      "mrr": 0.41666666666666663,
       "abstention_accuracy": 1.0
     },
     "systems_rust": {
       "count": 1,
       "p@1": 1.0,
       "p@3": 1.0,
-      "p@5": 0.6,
+      "p@5": 0.8,
       "r@1": 0.5,
       "r@3": 1.5,
-      "r@5": 1.5,
+      "r@5": 2.0,
       "f1@3": 1.2,
       "mrr": 1.0,
       "abstention_accuracy": 1.0
@@ -69,13 +81,13 @@
     "systems_golang": {
       "count": 1,
       "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
+      "p@3": 0.0,
+      "p@5": 0.0,
       "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.3333333333333333,
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0,
       "abstention_accuracy": 1.0
     },
     "database_sql": {
@@ -99,19 +111,19 @@
       "r@3": 1.0,
       "r@5": 1.0,
       "f1@3": 0.5,
-      "mrr": 0.6666666666666666,
+      "mrr": 0.75,
       "abstention_accuracy": 1.0
     },
     "security_audit": {
       "count": 2,
       "p@1": 0.5,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.30000000000000004,
+      "p@3": 0.5,
+      "p@5": 0.4,
       "r@1": 0.25,
-      "r@3": 0.5,
-      "r@5": 0.75,
-      "f1@3": 0.4,
-      "mrr": 0.625,
+      "r@3": 0.75,
+      "r@5": 1.0,
+      "f1@3": 0.6000000000000001,
+      "mrr": 0.75,
       "abstention_accuracy": 1.0
     },
     "cgi_3d": {
@@ -141,37 +153,37 @@
     "agent_specialists": {
       "count": 10,
       "p@1": 0.4,
-      "p@3": 0.26666666666666666,
-      "p@5": 0.24500000000000002,
+      "p@3": 0.4,
+      "p@5": 0.35833333333333334,
       "r@1": 0.2,
-      "r@3": 0.4,
-      "r@5": 0.6,
-      "f1@3": 0.32,
-      "mrr": 0.47833333333333333,
+      "r@3": 0.6,
+      "r@5": 0.85,
+      "f1@3": 0.48,
+      "mrr": 0.575,
       "abstention_accuracy": 1.0
     },
     "mcp_capabilities": {
       "count": 10,
-      "p@1": 0.1,
-      "p@3": 0.26666666666666666,
-      "p@5": 0.18,
-      "r@1": 0.1,
-      "r@3": 0.65,
-      "r@5": 0.7,
-      "f1@3": 0.37,
-      "mrr": 0.4333333333333333,
+      "p@1": 0.2,
+      "p@3": 0.16666666666666666,
+      "p@5": 0.16,
+      "r@1": 0.15,
+      "r@3": 0.35,
+      "r@5": 0.6,
+      "f1@3": 0.22000000000000003,
+      "mrr": 0.3616666666666667,
       "abstention_accuracy": 1.0
     },
     "cli_commands": {
       "count": 10,
       "p@1": 0.5,
       "p@3": 0.3333333333333333,
-      "p@5": 0.225,
+      "p@5": 0.24500000000000002,
       "r@1": 0.45,
       "r@3": 0.75,
-      "r@5": 0.85,
+      "r@5": 0.9,
       "f1@3": 0.45,
-      "mrr": 0.6333333333333333,
+      "mrr": 0.6366666666666666,
       "abstention_accuracy": 1.0
     },
     "out_of_domain": {
@@ -199,10 +211,10 @@
       ],
       "retrieved": [
         "fastapi-patterns",
+        "fastapi-reviewer",
         "save-session",
         "sessions",
-        "resume-session",
-        "save-session"
+        "resume-session"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -246,15 +258,15 @@
       "split": "eval",
       "query": "Develop an accessible modal dialog in React with keyboard trap and focus restoration",
       "expected": [
-        "accessibility",
-        "frontend-patterns"
+        "frontend-patterns",
+        "accessibility"
       ],
       "retrieved": [
         "react-patterns",
         "react-performance",
         "accessibility",
         "react-testing",
-        "react-native-patterns"
+        "react-reviewer"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -279,22 +291,22 @@
       ],
       "retrieved": [
         "react-performance",
-        "skill-router",
-        "mcp-app-development",
-        "mcp server host (local-document-tools)",
-        "mcp server host (independent-geo-metrics)"
+        "frontend-patterns",
+        "performance-optimizer",
+        "react-patterns",
+        "nextjs-turbopack"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.4,
       "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
+      "r@3": 0.5,
+      "r@5": 1.0,
+      "f1@3": 0.4,
+      "mrr": 0.5
     },
     {
       "id": "FRESH-005",
@@ -309,18 +321,18 @@
         "rust-testing",
         "rust-test",
         "rust-test",
-        "test-audit",
-        "python-testing"
+        "rust-patterns",
+        "test-audit"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 1.0,
       "p@3": 1.0,
-      "p@5": 0.6,
+      "p@5": 0.8,
       "r@1": 0.5,
       "r@3": 1.5,
-      "r@5": 1.5,
+      "r@5": 2.0,
       "f1@3": 1.2,
       "mrr": 1.0
     },
@@ -335,21 +347,21 @@
       "retrieved": [
         "go-review",
         "go-review",
-        "golang-patterns",
-        "golang-testing",
-        "context-restore"
+        "go-reviewer",
+        "go-test",
+        "go-test"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
+      "p@3": 0.0,
+      "p@5": 0.0,
       "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.3333333333333333
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
     },
     {
       "id": "FRESH-007",
@@ -357,13 +369,13 @@
       "split": "eval",
       "query": "Design PostgreSQL schemas with B-tree indexes, foreign keys, and zero-downtime migrations",
       "expected": [
-        "database-migrations",
-        "postgres-patterns"
+        "postgres-patterns",
+        "database-migrations"
       ],
       "retrieved": [
         "postgres-patterns",
         "database-migrations",
-        "scientific-db-uspto-database"
+        "database-reviewer"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -388,9 +400,9 @@
       "retrieved": [
         "e2e-testing",
         "opencode-config",
+        "typescript-reviewer",
         "ui-demo",
-        "rea-ci-tests-audit",
-        "test-audit"
+        "rea-ci-tests-audit"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -413,11 +425,11 @@
         "python-testing"
       ],
       "retrieved": [
-        "test-runner",
         "test-driven-development",
         "python-testing",
         "test-audit",
-        "test-collaboration"
+        "rea-analysis-optimization",
+        "tdd"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -429,7 +441,7 @@
       "r@3": 1.0,
       "r@5": 1.0,
       "f1@3": 0.5,
-      "mrr": 0.3333333333333333
+      "mrr": 0.5
     },
     {
       "id": "FRESH-010",
@@ -442,22 +454,22 @@
       ],
       "retrieved": [
         "backend-patterns",
-        "api-design",
-        "opencode-config",
         "security-review",
-        "rea-ci-tests-audit"
+        "opencode-config",
+        "x-api",
+        "multi-backend"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.0,
+      "p@3": 0.3333333333333333,
       "p@5": 0.2,
       "r@1": 0.0,
-      "r@3": 0.0,
+      "r@3": 0.5,
       "r@5": 0.5,
-      "f1@3": 0.0,
-      "mrr": 0.25
+      "f1@3": 0.4,
+      "mrr": 0.5
     },
     {
       "id": "FRESH-011",
@@ -465,25 +477,25 @@
       "split": "eval",
       "query": "Ensure HIPAA security rule compliance for handling protected health information",
       "expected": [
-        "security-review",
-        "hipaa-compliance"
+        "hipaa-compliance",
+        "security-review"
       ],
       "retrieved": [
         "hipaa-compliance",
         "healthcare-phi-compliance",
         "security-review",
-        "django-security",
-        "llm-trading-agent-security"
+        "customs-trade-compliance",
+        "security"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 1.0,
       "p@3": 0.6666666666666666,
-      "p@5": 0.4,
+      "p@5": 0.6,
       "r@1": 0.5,
       "r@3": 1.0,
-      "r@5": 1.0,
+      "r@5": 1.5,
       "f1@3": 0.8,
       "mrr": 1.0
     },
@@ -518,8 +530,8 @@
       "split": "eval",
       "query": "Configure three-point studio lighting with key, fill, and rim lights and volumetrics",
       "expected": [
-        "camera-cinematography",
-        "lighting"
+        "lighting",
+        "camera-cinematography"
       ],
       "retrieved": [
         "lighting",
@@ -543,15 +555,15 @@
       "split": "eval",
       "query": "Author PBR metallic and dielectric materials with roughness maps and procedural dirt",
       "expected": [
-        "materials",
-        "lookdev"
+        "lookdev",
+        "materials"
       ],
       "retrieved": [
         "materials",
         "investor-materials",
         "lookdev",
         "procedural-modeling",
-        "blender-mcp"
+        "hard-surface"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -602,22 +614,23 @@
         "architecture-decision-records"
       ],
       "retrieved": [
-        "recsys-pipeline-architect",
-        "hexagonal-architecture",
+        "architect",
         "domain-modeling",
-        "design-system"
+        "recsys-pipeline-architect",
+        "a11y-architect",
+        "hexagonal-architecture"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
-      "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
+      "p@1": 1.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.2,
+      "r@1": 0.5,
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 1.0
     },
     {
       "id": "FRESH-017",
@@ -625,15 +638,15 @@
       "split": "eval",
       "query": "Conduct thorough code review on pull request checking for race conditions and style",
       "expected": [
-        "review",
-        "code-review"
+        "code-review",
+        "review"
       ],
       "retrieved": [
-        "code-review",
+        "requesting-code-review",
         "receiving-code-review",
-        "flutter-dart-code-review",
         "code-review",
-        "requesting-code-review"
+        "code-review",
+        "code-review"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -653,26 +666,26 @@
       "split": "eval",
       "query": "Guide test-driven development workflow implementing red-green-refactor cycle",
       "expected": [
-        "test-driven-development",
-        "tdd"
+        "tdd",
+        "test-driven-development"
       ],
       "retrieved": [
         "tdd-workflow",
         "test-driven-development",
-        "git-workflow",
-        "multi-workflow",
-        "multi-workflow"
+        "tdd-guide",
+        "tdd",
+        "tdd"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 1.0,
-      "p@3": 0.6666666666666666,
-      "p@5": 0.4,
+      "p@3": 1.0,
+      "p@5": 1.0,
       "r@1": 0.5,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.8,
+      "r@3": 1.5,
+      "r@5": 2.5,
+      "f1@3": 1.2,
       "mrr": 1.0
     },
     {
@@ -681,15 +694,15 @@
       "split": "eval",
       "query": "Diagnose complex distributed system regression using scientific debugging method",
       "expected": [
-        "diagnosing-bugs",
-        "systematic-debugging"
+        "systematic-debugging",
+        "diagnosing-bugs"
       ],
       "retrieved": [
         "systematic-debugging",
         "agent-introspection-debugging",
+        "scientific-thinking-scholar-evaluation",
         "module-regression",
-        "ai-regression-testing",
-        "scientific-thinking-scholar-evaluation"
+        "ai-regression-testing"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -716,8 +729,8 @@
         "test-audit",
         "python-testing",
         "security-review",
-        "rea-ci-tests-audit",
-        "test-driven-development"
+        "test-driven-development",
+        "automation-audit-ops"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -741,21 +754,21 @@
         "error-handling"
       ],
       "retrieved": [
-        "git-guardrails-claude-code",
-        "code-review",
+        "silent-failure-hunter",
+        "error-handling",
         "logistics-exception-management"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.0,
-      "p@5": 0.0,
+      "p@3": 0.3333333333333333,
+      "p@5": 0.3333333333333333,
       "r@1": 0.0,
-      "r@3": 0.0,
-      "r@5": 0.0,
-      "f1@3": 0.0,
-      "mrr": 0.0
+      "r@3": 0.5,
+      "r@5": 0.5,
+      "f1@3": 0.4,
+      "mrr": 0.5
     },
     {
       "id": "FRESH-022",
@@ -763,27 +776,27 @@
       "split": "eval",
       "query": "Review software architecture tradeoffs using founder mode product interrogation",
       "expected": [
-        "plan-ceo-review",
-        "office-hours"
+        "office-hours",
+        "plan-ceo-review"
       ],
       "retrieved": [
-        "plan-ceo-review",
         "product-lens",
-        "plan-eng-review",
-        "flutter-dart-code-review",
-        "plan-design-review"
+        "product-capability",
+        "review",
+        "dynamic-workflow-mode",
+        "android-clean-architecture"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 1.0,
+      "p@1": 0.0,
       "p@3": 0.3333333333333333,
       "p@5": 0.2,
-      "r@1": 0.5,
+      "r@1": 0.0,
       "r@3": 0.5,
       "r@5": 0.5,
       "f1@3": 0.4,
-      "mrr": 1.0
+      "mrr": 0.3333333333333333
     },
     {
       "id": "FRESH-023",
@@ -791,12 +804,12 @@
       "split": "eval",
       "query": "Eliminate dead code, unnecessary wrappers, and bloated dependencies following minimalism",
       "expected": [
-        "ponytail",
-        "deslop-shared-libs"
+        "deslop-shared-libs",
+        "ponytail"
       ],
       "retrieved": [
+        "orch-refine-code",
         "git-guardrails-claude-code",
-        "code-review",
         "stitch_proxy_wrapper",
         "ponytail"
       ],
@@ -823,22 +836,22 @@
       ],
       "retrieved": [
         "design-system",
-        "workspace-surface-audit",
-        "codebase-design",
         "landing-page-design",
-        "ios-design-review"
+        "design-review",
+        "frontend-design-direction",
+        "codebase-design"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.0,
+      "p@3": 0.3333333333333333,
       "p@5": 0.2,
       "r@1": 0.0,
-      "r@3": 0.0,
+      "r@3": 0.5,
       "r@5": 0.5,
-      "f1@3": 0.0,
-      "mrr": 0.2
+      "f1@3": 0.4,
+      "mrr": 0.3333333333333333
     },
     {
       "id": "FRESH-025",
@@ -851,7 +864,6 @@
       ],
       "retrieved": [
         "angular-developer",
-        "hyperframes-cli",
         "codebase-onboarding"
       ],
       "expect_abstain": false,
@@ -875,8 +887,8 @@
         "blender-mcp"
       ],
       "retrieved": [
-        "blender-modeler",
         "blender-mcp",
+        "mcp-for-blender",
         "camera-cinematography",
         "teardown",
         "rendering"
@@ -884,14 +896,14 @@
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 0.0,
+      "p@1": 1.0,
       "p@3": 0.3333333333333333,
       "p@5": 0.2,
-      "r@1": 0.0,
+      "r@1": 1.0,
       "r@3": 1.0,
       "r@5": 1.0,
       "f1@3": 0.5,
-      "mrr": 0.5
+      "mrr": 1.0
     },
     {
       "id": "FRESH-027",
@@ -906,8 +918,8 @@
         "blender-modeler",
         "blender-mcp",
         "mcp-for-blender",
-        "blender-mcp",
-        "generating-python-installer"
+        "blender-motion-state-inspection",
+        "blender-mcp"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -930,9 +942,8 @@
         "supabase-mcp-server"
       ],
       "retrieved": [
+        "database-reviewer",
         "database-migrations",
-        "supabase-mcp-server",
-        "scientific-db-uspto-database",
         "multi-execute",
         "multi-execute"
       ],
@@ -940,13 +951,13 @@
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
+      "p@3": 0.0,
+      "p@5": 0.0,
       "r@1": 0.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.5
+      "r@3": 0.0,
+      "r@5": 0.0,
+      "f1@3": 0.0,
+      "mrr": 0.0
     },
     {
       "id": "FRESH-029",
@@ -954,15 +965,15 @@
       "split": "eval",
       "query": "Search Living Capability System registry for capabilities and inspect schema",
       "expected": [
-        "lcs",
-        "lcs_search"
+        "lcs_search",
+        "lcs"
       ],
       "retrieved": [
+        "hyperframes-registry",
         "exa-search",
         "product-capability",
-        "design-system",
         "search-first",
-        "hyperframes-registry"
+        "living-docs-governance"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -987,10 +998,10 @@
       ],
       "retrieved": [
         "living-docs-governance",
-        "texture-workflow",
-        "multi-workflow",
-        "mcp server host (local-document-tools)",
-        "mcp server host (independent-geo-metrics)"
+        "docs-governance",
+        "tdd-workflow",
+        "uv-workflow",
+        "mcp-app-development"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1013,23 +1024,23 @@
         "supabase-mcp-server"
       ],
       "retrieved": [
+        "typescript-reviewer",
         "typescript-patterns",
-        "supabase-mcp-server",
-        "land-and-deploy",
         "environment-artist",
-        "setup-deploy"
+        "type-design-analyzer",
+        "supabase-mcp-server"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
-      "p@3": 0.3333333333333333,
+      "p@3": 0.0,
       "p@5": 0.2,
       "r@1": 0.0,
-      "r@3": 1.0,
+      "r@3": 0.0,
       "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 0.5
+      "f1@3": 0.0,
+      "mrr": 0.2
     },
     {
       "id": "FRESH-032",
@@ -1037,15 +1048,15 @@
       "split": "eval",
       "query": "Search 3D model assets and import OBJ / FBX asset into Blender workspace",
       "expected": [
-        "import_asset",
-        "blender-mcp"
+        "blender-mcp",
+        "import_asset"
       ],
       "retrieved": [
-        "asset-optimization",
         "blender-modeler",
+        "asset-optimization",
         "blender-mcp",
         "mcp-for-blender",
-        "blender-director"
+        "blender-motion-state-inspection"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1065,27 +1076,27 @@
       "split": "eval",
       "query": "Take a viewport snapshot in Blender to verify visual asset shading",
       "expected": [
-        "look",
-        "blender-mcp"
+        "blender-mcp",
+        "look"
       ],
       "retrieved": [
-        "blender-modeler",
         "blender-mcp",
         "mcp-for-blender",
-        "blender-director",
-        "visual-console-eras"
+        "blender-modeler",
+        "blender-motion-state-inspection",
+        "blender-director"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
-      "p@1": 0.0,
+      "p@1": 1.0,
       "p@3": 0.3333333333333333,
       "p@5": 0.2,
-      "r@1": 0.0,
+      "r@1": 0.5,
       "r@3": 0.5,
       "r@5": 0.5,
       "f1@3": 0.4,
-      "mrr": 0.5
+      "mrr": 1.0
     },
     {
       "id": "FRESH-034",
@@ -1097,10 +1108,37 @@
       ],
       "retrieved": [
         "finishing-a-development-branch",
-        "supabase-mcp-server",
+        "database-reviewer",
         "database-migrations",
-        "opencode-config",
-        "scientific-db-uspto-database"
+        "supabase-mcp-server",
+        "opencode-config"
+      ],
+      "expect_abstain": false,
+      "is_abstained": false,
+      "abstention_correct": false,
+      "p@1": 0.0,
+      "p@3": 0.0,
+      "p@5": 0.2,
+      "r@1": 0.0,
+      "r@3": 0.0,
+      "r@5": 1.0,
+      "f1@3": 0.0,
+      "mrr": 0.25
+    },
+    {
+      "id": "FRESH-035",
+      "domain": "mcp_capabilities",
+      "split": "eval",
+      "query": "Execute database SQL statements and inspect query performance advisors in Supabase",
+      "expected": [
+        "supabase-mcp-server"
+      ],
+      "retrieved": [
+        "database-reviewer",
+        "performance-optimizer",
+        "supabase-mcp-server",
+        "scientific-db-pubmed-database",
+        "react-performance"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1112,34 +1150,7 @@
       "r@3": 1.0,
       "r@5": 1.0,
       "f1@3": 0.5,
-      "mrr": 0.5
-    },
-    {
-      "id": "FRESH-035",
-      "domain": "mcp_capabilities",
-      "split": "eval",
-      "query": "Execute database SQL statements and inspect query performance advisors in Supabase",
-      "expected": [
-        "supabase-mcp-server"
-      ],
-      "retrieved": [
-        "supabase-mcp-server",
-        "react-performance",
-        "database-migrations",
-        "multi-execute",
-        "opencode-config"
-      ],
-      "expect_abstain": false,
-      "is_abstained": false,
-      "abstention_correct": false,
-      "p@1": 1.0,
-      "p@3": 0.3333333333333333,
-      "p@5": 0.2,
-      "r@1": 1.0,
-      "r@3": 1.0,
-      "r@5": 1.0,
-      "f1@3": 0.5,
-      "mrr": 1.0
+      "mrr": 0.3333333333333333
     },
     {
       "id": "FRESH-036",
@@ -1147,15 +1158,15 @@
       "split": "eval",
       "query": "Generate unified Call Me execution plan for objective using the CLI",
       "expected": [
-        "call-me",
-        "lcs"
+        "lcs",
+        "call-me"
       ],
       "retrieved": [
-        "executing-plans",
-        "hyperframes-cli",
+        "plan-canvas",
         "plan-design-review",
-        "plan-ceo-review",
-        "plan-devex-review"
+        "plan-orchestrate",
+        "multi-plan",
+        "multi-plan"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1175,15 +1186,15 @@
       "split": "eval",
       "query": "Verify deliverable files and execute test suites via call-me verify command",
       "expected": [
-        "call-me",
-        "verify"
+        "verify",
+        "call-me"
       ],
       "retrieved": [
         "verify",
         "verify",
         "verify",
-        "go-test",
-        "go-test"
+        "test-audit",
+        "multi-execute"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1207,23 +1218,23 @@
         "lcs"
       ],
       "retrieved": [
-        "mcp server host (local-document-tools)",
-        "agent-architecture-audit",
         "flox-environments",
         "local-document-tools",
-        "team-agent-orchestration"
+        "environment-artist",
+        "network-bgp-diagnostics",
+        "lcs"
       ],
       "expect_abstain": false,
       "is_abstained": false,
       "abstention_correct": false,
       "p@1": 0.0,
       "p@3": 0.0,
-      "p@5": 0.0,
+      "p@5": 0.2,
       "r@1": 0.0,
       "r@3": 0.0,
-      "r@5": 0.0,
+      "r@5": 0.5,
       "f1@3": 0.0,
-      "mrr": 0.0
+      "mrr": 0.2
     },
     {
       "id": "FRESH-039",
@@ -1236,9 +1247,9 @@
       ],
       "retrieved": [
         "terminal-opener",
+        "terminal-ops",
         "inventory-demand-planning",
-        "product-capability",
-        "terminal-ops"
+        "product-capability"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1250,7 +1261,7 @@
       "r@3": 0.5,
       "r@5": 0.5,
       "f1@3": 0.4,
-      "mrr": 0.5
+      "mrr": 0.3333333333333333
     },
     {
       "id": "FRESH-040",
@@ -1290,9 +1301,9 @@
       "retrieved": [
         "using-git-worktrees",
         "parallel-execution-optimizer",
-        "git-guardrails-claude-code",
         "git-workflow",
-        "orch-add-feature"
+        "git-guardrails-claude-code",
+        "finishing-a-development-branch"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1312,15 +1323,15 @@
       "split": "eval",
       "query": "Freeze edits strictly to target directory while debugging production issue",
       "expected": [
-        "freeze",
-        "guard"
+        "guard",
+        "freeze"
       ],
       "retrieved": [
         "systematic-debugging",
         "freeze",
-        "mcp server host (production-tools)",
         "production-tools",
-        "agent-introspection-debugging"
+        "agent-introspection-debugging",
+        "production-audit"
       ],
       "expect_abstain": false,
       "is_abstained": false,
@@ -1344,7 +1355,7 @@
       ],
       "retrieved": [
         "test-audit",
-        "test-collaboration",
+        "test-driven-development",
         "ship",
         "rea-changelog-update",
         "carrier-relationship-management"

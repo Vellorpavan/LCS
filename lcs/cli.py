@@ -159,18 +159,57 @@ def cmd_status(ctx: LCSContext, args: argparse.Namespace) -> int:
 
 def cmd_discover(ctx: LCSContext, args: argparse.Namespace) -> int:
     """Discovers tools from an MCP server and ingests them into LCS."""
-    print("=" * 72)
-    print(" LIVING CAPABILITY SYSTEM (LCS) — MCP CAPABILITY DISCOVERY")
-    print("=" * 72)
+    if not getattr(args, "format_json", False):
+        print("=" * 72)
+        print(" CALL ME — CAPABILITY DISCOVERY")
+        print("=" * 72)
 
     # Resolve server command
     if args.server_command:
         server_cmd = shlex.split(args.server_command, posix=(sys.platform != "win32"))
     else:
-        # Default to local MCP test fixture in project directory
+        # Default to local MCP test fixture in project directory when running from source checkout
         default_fixture = os.path.join(_PARENT, "mcp_test_server_fixture.py")
         if not os.path.exists(default_fixture):
             default_fixture = os.path.join(ctx.config.schema_dir, "mcp_test_server_fixture.py")
+        if not os.path.exists(default_fixture):
+            # Production installation: run local capability discovery across skills, agents, commands, and MCP
+            stats = ctx.inventory.refresh_discovery(adapters=ctx.adapter_registry.list_all())
+            records = ctx.inventory.list_all()
+            if getattr(args, "format_json", False):
+                print(json.dumps({
+                    "mode": "local_capability_discovery",
+                    "stats": stats,
+                    "total_capabilities": len(records),
+                    "capabilities": [
+                        {
+                            "urn": r.urn,
+                            "name": r.name,
+                            "resource_type": r.resource_type.value if hasattr(r.resource_type, "value") else str(r.resource_type),
+                            "origin_host": getattr(r.provenance, "origin_host", "unknown"),
+                            "description": (r.description or "")[:120],
+                        }
+                        for r in records[:50]
+                    ]
+                }, indent=2))
+            else:
+                print("\n[Local Capability Discovery]")
+                print(f"  Discovered Capabilities: {len(records)}")
+                print(f"  Refresh Stats:           {stats}")
+                rows = [
+                    [
+                        r.name,
+                        r.resource_type.value if hasattr(r.resource_type, "value") else str(r.resource_type),
+                        getattr(r.provenance, "origin_host", "unknown"),
+                        r.urn,
+                    ]
+                    for r in records[:25]
+                ]
+                print(_format_table(rows, ["Name", "Type", "Host", "Canonical URN"]))
+                if len(records) > 25:
+                    print(f"  ... and {len(records) - 25} more. Use 'call-me search <query>' or 'lcs skill list' to inspect all.")
+                print("\n" + "=" * 72)
+            return 0
         server_cmd = [sys.executable, default_fixture]
 
     server_name = args.server_name or "local-document-tools"
@@ -1478,6 +1517,7 @@ def build_parser(prog: str = "lcs") -> argparse.ArgumentParser:
     sub_discover.add_argument("--timeout", type=float, default=10.0, help="MCP request timeout in seconds (default: 10.0)")
     sub_discover.add_argument("--env", action="append", help="Pass environment variable to MCP server as KEY=VALUE or KEY")
     sub_discover.add_argument("--allow-env", action="append", help="Allow specific host environment variable to pass to MCP server")
+    sub_discover.add_argument("--format-json", action="store_true", help="Output discovery results as JSON")
     sub_discover.set_defaults(func=cmd_discover)
 
     # lcs search

@@ -1,0 +1,150 @@
+[
+  {
+    "id": "DISJOINT-001",
+    "domain": "backend_python",
+    "split": "eval",
+    "query": "Construct an asynchronous Python REST microservice with schema validation and dependency injection",
+    "expected_capabilities": ["fastapi-patterns", "python-patterns"],
+    "expected_agent": "fastapi-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-002",
+    "domain": "database_sql",
+    "split": "eval",
+    "query": "Architect relational tables with foreign keys, B-tree indexes, and reversible schema upgrades in PostgreSQL",
+    "expected_capabilities": ["postgres-patterns", "database-migrations"],
+    "expected_agent": "database-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-003",
+    "domain": "testing_qa",
+    "split": "eval",
+    "query": "Create browser automation end-to-end checks using Page Object Model to stabilize flaky CI flows",
+    "expected_capabilities": ["e2e-testing"],
+    "expected_agent": "e2e-runner",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-004",
+    "domain": "systems_golang",
+    "split": "eval",
+    "query": "Write concurrent Go worker pools with context cancellation and table-driven unit tests",
+    "expected_capabilities": ["golang-patterns", "golang-testing"],
+    "expected_agent": "go-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-005",
+    "domain": "systems_rust",
+    "split": "eval",
+    "query": "Build a memory-safe Rust CLI with unit and property-based test suites",
+    "expected_capabilities": ["rust-patterns", "rust-testing"],
+    "expected_agent": "rust-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-006",
+    "domain": "security_compliance",
+    "split": "eval",
+    "query": "Inspect healthcare data flows for HIPAA privacy rule compliance and OWASP vulnerabilities",
+    "expected_capabilities": ["hipaa-compliance", "security-review"],
+    "expected_agent": "security-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-007",
+    "domain": "cgi_3d_non_software",
+    "split": "eval",
+    "query": "Model a mechanical hard-surface robot in Blender with PBR materials and export to Godot",
+    "expected_capabilities": ["hard-surface", "materials", "godot-export"],
+    "expected_agent": null,
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-008",
+    "domain": "cgi_3d_non_software",
+    "split": "eval",
+    "query": "Set up architectural visualization interior lighting and camera framing in Blender",
+    "expected_capabilities": ["archviz", "lighting", "camera-cinematography"],
+    "expected_agent": null,
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-009",
+    "domain": "multi_domain",
+    "split": "eval",
+    "query": "Build a Python telemetry collector with PostgreSQL storage, HTML monitoring dashboard, and pytest suite",
+    "expected_capabilities": ["telemetry-service", "postgres-patterns", "dashboard-builder", "python-testing"],
+    "expected_agent": "python-reviewer",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-010",
+    "domain": "devops_infra",
+    "split": "eval",
+    "query": "Package a Python service in a multi-stage Dockerfile and deploy manifests to Kubernetes",
+    "expected_capabilities": ["docker-patterns", "kubernetes-patterns"],
+    "expected_agent": null,
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-011",
+    "domain": "docs_non_software",
+    "split": "eval",
+    "query": "Generate reference documentation and architectural decision records for an existing module",
+    "expected_capabilities": ["document-generate", "architecture-decision-records"],
+    "expected_agent": "doc-updater",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-012",
+    "domain": "frontend_web",
+    "split": "eval",
+    "query": "Build an accessible React component with keyboard navigation and performance memoization",
+    "expected_capabilities": ["accessibility", "react-patterns", "react-performance"],
+    "expected_agent": "react-build-resolver",
+    "expect_abstain": false
+  },
+  {
+    "id": "DISJOINT-013",
+    "domain": "missing_capability",
+    "split": "eval",
+    "query": "Calibrate quantum flux capacitor warp matrix",
+    "expected_capabilities": [],
+    "expected_agent": null,
+    "expect_abstain": true,
+    "kind": "missing_capability"
+  },
+  {
+    "id": "DISJOINT-014",
+    "domain": "ambiguous",
+    "split": "eval",
+    "query": "fix it",
+    "expected_capabilities": [],
+    "expected_agent": null,
+    "expect_abstain": true,
+    "kind": "ambiguous_clarification"
+  },
+  {
+    "id": "DISJOINT-015",
+    "domain": "adversarial_ood",
+    "split": "eval",
+    "query": "Prescribe medical treatment and dosage for acute chest pain",
+    "expected_capabilities": [],
+    "expected_agent": null,
+    "expect_abstain": true,
+    "kind": "out_of_domain"
+  },
+  {
+    "id": "DISJOINT-016",
+    "domain": "adversarial_ood",
+    "split": "eval",
+    "query": "Bake a chocolate sourdough cake from scratch",
+    "expected_capabilities": [],
+    "expected_agent": null,
+    "expect_abstain": true,
+    "kind": "out_of_domain"
+  }
+]

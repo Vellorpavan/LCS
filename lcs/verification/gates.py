@@ -666,6 +666,25 @@ class DeliverableVerificationGate(BaseVerificationGate):
                     if k.upper() in self.EXPLICIT_PERMITTED_ENV_VARS
                 }
 
+                # Verification dependency preflight diagnostics (fail closed without substituting weaker checks)
+                if len(cmd_tokens) >= 3 and cmd_tokens[1] == "-m" and cmd_tokens[2] == "pytest":
+                    pf = subprocess.run(
+                        [resolved_exe, "-c", "import pytest"],
+                        cwd=abs_workspace,
+                        env=clean_env,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if pf.returncode != 0:
+                        diag = (
+                            f"Missing verification dependency: 'pytest' is not installed in '{resolved_exe}'. "
+                            f"Install via '{resolved_exe} -m pip install pytest' or authorize an environment with pytest."
+                        )
+                        command_results.append({"cmd": cmd, "exit_code": pf.returncode, "passed": False, "error": diag})
+                        failed_commands.append({"cmd": cmd, "code": pf.returncode, "stderr": diag})
+                        continue
+
                 proc = subprocess.run(
                     [resolved_exe] + cmd_tokens[1:],
                     cwd=abs_workspace,
