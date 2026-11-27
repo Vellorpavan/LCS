@@ -178,7 +178,10 @@ class VerificationAuditStore:
         expected_files: List[Any],
         file_digests: Dict[str, str],
         verification_commands: List[Any],
-        evidence: List[Dict[str, Any]]
+        evidence: List[Dict[str, Any]],
+        objective_fulfilled: Optional[bool] = None,
+        fulfillment_status: Optional[str] = None,
+        substitute_reason: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Durably persists verification results into SQLite, CAS, and Audit Ledger.
@@ -186,17 +189,34 @@ class VerificationAuditStore:
         cls.ensure_schema(conn)
         verification_id = f"ver-{uuid.uuid4().hex[:12]}"
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        resolved_fulfilled = bool(is_verified) if objective_fulfilled is None else bool(objective_fulfilled)
+        resolved_status = fulfillment_status or ("FULFILLED" if resolved_fulfilled else "UNFULFILLED")
+
+        persisted_evidence = list(evidence or [])
+        if not any(isinstance(ev, dict) and ev.get("criterion") == "Objective fulfillment status" for ev in persisted_evidence):
+            detail_parts = [f"status={resolved_status}", f"objective_fulfilled={resolved_fulfilled}"]
+            if substitute_reason:
+                detail_parts.append(f"reason={substitute_reason}")
+            persisted_evidence.append({
+                "tier": 4,
+                "criterion": "Objective fulfillment status",
+                "passed": resolved_fulfilled,
+                "details": "; ".join(detail_parts),
+            })
 
         receipt_payload = {
             "verification_id": verification_id,
             "run_id": run_id,
             "is_verified": is_verified,
             "verification_state": verification_state,
+            "objective_fulfilled": resolved_fulfilled,
+            "fulfillment_status": resolved_status,
+            "substitute_reason": substitute_reason,
             "workspace_root": os.path.abspath(workspace_root),
             "expected_files": expected_files,
             "file_digests": file_digests,
             "verification_commands": verification_commands,
-            "evidence": evidence,
+            "evidence": persisted_evidence,
             "verified_at": now_iso
         }
 
@@ -232,7 +252,7 @@ class VerificationAuditStore:
                 json.dumps(expected_files, sort_keys=True),
                 json.dumps(file_digests, sort_keys=True),
                 json.dumps(verification_commands, sort_keys=True),
-                json.dumps(evidence, sort_keys=True),
+                json.dumps(persisted_evidence, sort_keys=True),
                 cas_digest,
                 now_iso
             ))
@@ -264,10 +284,12 @@ class VerificationAuditStore:
         cls,
         conn: sqlite3.Connection,
         run_id: str,
-        cas_engine: Optional[Any] = None
+        cas_engine: Optional[Any] = None,
+        workspace_root: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Retrieves the latest verification receipt for run_id from SQLite or CAS.
+        Retrieves the latest verification receipt for run_id from SQLite (primary conn,
+        workspace .lcs/lcs.db, or user global .lcs/lcs.db).
         """
         cls.ensure_schema(conn)
         cur = conn.cursor()
@@ -282,12 +304,19 @@ class VerificationAuditStore:
         """, (run_id,))
         row = cur.fetchone()
         if not row:
-            # Fallback check against user-level global LCS DB
+            candidate_dbs: List[str] = []
+            if workspace_root:
+                candidate_dbs.append(os.path.join(os.path.abspath(workspace_root), ".lcs", "lcs.db"))
             try:
                 from ..config import LCSConfig
-                user_db = os.path.join(LCSConfig.get_user_state_dir(), "lcs.db")
-                if os.path.exists(user_db):
-                    with sqlite3.connect(user_db) as u_conn:
+                candidate_dbs.append(os.path.join(LCSConfig.get_user_state_dir(), "lcs.db"))
+            except Exception:
+                pass
+            for db_path in candidate_dbs:
+                if not os.path.exists(db_path):
+                    continue
+                try:
+                    with sqlite3.connect(db_path) as u_conn:
                         cls.ensure_schema(u_conn)
                         u_cur = u_conn.cursor()
                         u_cur.execute("""
@@ -300,24 +329,43 @@ class VerificationAuditStore:
                             LIMIT 1;
                         """, (run_id,))
                         row = u_cur.fetchone()
-            except Exception:
-                pass
+                        if row:
+                            break
+                except Exception:
+                    continue
 
         if not row:
             return None
 
         (v_id, r_id, is_ver, v_state, ws_root, exp_f_json, f_dig_json, v_cmds_json, ev_json, cas_dig, v_at) = row
+        ev_list = json.loads(ev_json)
+        obj_fulfilled = bool(is_ver)
+        fulfill_status = "FULFILLED" if obj_fulfilled else "UNFULFILLED"
+        sub_reason = None
+        for ev in ev_list:
+            if isinstance(ev, dict) and ev.get("criterion") == "Objective fulfillment status":
+                obj_fulfilled = bool(ev.get("passed"))
+                details = str(ev.get("details") or "")
+                for part in details.split("; "):
+                    if part.startswith("status="):
+                        fulfill_status = part[len("status="):].strip()
+                    elif part.startswith("reason="):
+                        sub_reason = part[len("reason="):].strip()
+                break
 
         return {
             "verification_id": v_id,
             "run_id": r_id,
             "is_verified": bool(is_ver),
             "verification_state": v_state,
+            "objective_fulfilled": obj_fulfilled,
+            "fulfillment_status": fulfill_status,
+            "substitute_reason": sub_reason,
             "workspace_root": ws_root,
             "expected_files": json.loads(exp_f_json),
             "file_digests": json.loads(f_dig_json),
             "verification_commands": json.loads(v_cmds_json),
-            "evidence": json.loads(ev_json),
+            "evidence": ev_list,
             "cas_receipt_digest": cas_dig,
             "verified_at": v_at
         }

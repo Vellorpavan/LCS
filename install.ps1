@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Call Me Windows Installer (PowerShell)
 Supported platforms: Windows 10/11, Windows Server 2019/2022
@@ -17,7 +17,7 @@ param (
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "3.2.0rc3"
+$Version = "3.2.0rc4"
 
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host " CALL ME — MULTI-AGENT CAPABILITY ORCHESTRATOR INSTALLER v$Version" -ForegroundColor Cyan

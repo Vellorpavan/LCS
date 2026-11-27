@@ -63,28 +63,27 @@ Full backward compatibility is preserved for canonical `lcs` commands (`lcs call
 
 ---
 
-## Key Features in v3.2.0
+## Key Features (`v3.2.0rc3` Published + `v3.2.0rc4` Candidate)
 
 1. **Universal Local-First Setup (`lcs setup`)**:
    - Install once globally (`~/.lcs`) with automatic project-local state fallback (`./.lcs`).
    - Idempotent configuration management, health diagnostics (`lcs setup --check`), and self-healing repair (`lcs setup --repair`).
-2. **Pluggable Host Adapter Contract**:
-   - Zero modifications to the frozen core to integrate future coding agents.
-   - Declarative JSON/YAML adapter specifications with built-in path-traversal and shell-injection guards.
-3. **Cross-Agent Context Hydration**:
-   - Seamlessly transfer task context, dependencies, and capability state between different coding agents working on the same project without data leakage.
-4. **Universal Model Context Protocol (MCP) Interface**:
-   - Standard stdio JSON-RPC 2.0 server (`lcs serve-mcp`) exposing `lcs_call_me`.
-   - Built-in prevention against caller self-authorization: execution strictly requires authenticated, scoped governance tokens.
+2. **Official Vercel Find Skills Integration (`v3.2.0rc4` Candidate)**:
+   - Detects uncovered requirement clauses during planning (`call-me-plan` / `plan_call_me`) and queries `vercel-labs/skills` (`skills@1.4.4`) on demand.
+   - Applies pre-ranking semantic eligibility filtering (`assess_semantic_eligibility`) across both local and external candidates.
+   - Enforces `CALL_ME_ACQUISITION_POLICY=ASK` by default (`APPROVAL_REQUIRED` with `0` unapproved installs); supports `TRUSTED_AUTO` (`DEFAULT_TRUSTED_OWNERS`: `vercel-labs`, `anthropics`, `github`, `microsoft`, `openai` — note: trusted ownership is an allowlist for auto-approval, not a guarantee of safety) and `OFFLINE`.
+   - Refreshes the local capability inventory and replans into the active DAG within the same invocation once authorized.
+3. **Pluggable Host Adapter Contract & Cross-Agent Context Hydration**:
+   - Declarative JSON/YAML adapter specifications with path-traversal and shell-injection guards, plus seamless context transfer across hosts.
+4. **Universal Model Context Protocol (MCP) Interface (`lcs serve-mcp`)**:
+   - Standard stdio JSON-RPC 2.0 server exposing `lcs_call_me`, with fail-closed governance token enforcement.
 5. **Native Cross-Platform Concurrency Parity**:
-   - Genuine cross-process file locking on POSIX (`fcntl.flock`) and Windows (`kernel32.LockFileEx`).
-   - Secure Windows-native filesystem descriptor emulation and process tree lifecycle termination.
-6. **Out-of-the-Box Starter Capability Catalog**:
-   - Packaged starter capabilities (`python-scaffold`, `telemetry-service`, `health-monitor`, `app-assembly`, `test-runner`) for immediate application generation, monitoring, assembly, and test verification without custom fixtures.
-7. **Semantic Phase Scheduling & Dependency Gating**:
-   - Deterministic topological ordering guaranteeing components/services (Phase 0) run prior to assembly/aggregation (Phase 1), which run prior to verification/testing (Phase 2), with full concurrent fan-out/fan-in parallelism.
-8. **Specialist Subagent Delegation & Verification Receipts**:
-   - Seamless dispatch of specialist subagents in supported host environments (e.g. Antigravity), capturing cryptographic task provenance, child conversation tracking, and output verification gates.
+   - Cross-process file locking on POSIX (`fcntl.flock`) and Windows (`kernel32.LockFileEx`).
+6. **Local & Acquired Multi-Skill Composition + Bidirectional Sync**:
+   - Topological wave scheduling (`Phase 0` components -> `Phase 1` assembly -> `Phase 2` verification) across local and acquired skills, with `ProjectContractManager` interface mutation invalidation (`NEEDS_UPDATE`) and evidence-backed adaptation (`mark_component_adapted`).
+7. **Objective Fulfillment Verification & Persistent Receipt Inspection (`v3.2.0rc4` Candidate)**:
+   - Distinguishes raw artifact/test exit codes from genuine objective fulfillment (`FULFILLED`, `PARTIAL_SUBSTITUTE`, `UNFULFILLED`), blocking weaker fallback substitutes and skipped mandatory tests.
+   - Persists cryptographic SHA-256 receipts in SQLite and CAS, inspectable from a separate process via `lcs --root <dir> call-me-verify <run-id> --workspace <dir> --inspect --format-json`.
 
 ---
 
@@ -104,8 +103,9 @@ LCS enforces strict mathematical and architectural constraints to guarantee zero
 ## System Requirements & Supported Platforms
 
 ### System Requirements
-- **Python**: $\ge 3.10$ (fully tested on 3.10, 3.11, 3.12, 3.13)
-- **Dependencies**: `pyyaml >= 6.0` (core); `pytest`, `mcp` (development/MCP tools)
+- **Python**: `3.10–3.13` (established cross-platform CI matrix; `pyproject.toml` specifies `requires-python = ">=3.10"` with classifiers `3.10`–`3.14`)
+- **Core Dependencies**: `pyyaml >= 6.0` (core); `pytest`, `mcp`, `build` (development/MCP tools)
+- **External Find Skills Acquisition (Optional)**: **Node.js `>= 22.20`** (`node` and `npx` on `PATH`), **Git**, and outbound HTTPS access to `skills.sh` / GitHub. Local-only workflows do **not** require Node.js or network access.
 - **Disk**: Minimal footprint (< 50MB for core and runtime database)
 
 ### Cross-Platform Architecture
@@ -125,27 +125,43 @@ To prevent ambiguity between simulated adapters and real-world execution, LCS ma
 
 | Host Agent | Target Command Artifact | Invocation Syntax | Verification Classification | Capabilities & Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Google Antigravity** | `~/.gemini/config/skills/call-me/SKILL.md` | `/call-me` | **LIVE_VERIFIED** | Active runtime; multi-capability intake, DAG planning, and handoff verified. |
+| **Google Antigravity** | `~/.gemini/config/skills/call-me/SKILL.md` | `/call-me` | **LIVE_VERIFIED** | Active runtime; multi-capability intake, DAG planning, subagent dispatch, and contract sync verified. |
 | **OpenCode** | `~/.opencode/commands/call-me.md` | `/call-me` | **PROTOCOL_VERIFIED** | Standalone binary (`opencode v2.3.2`) verified; remote execution requires valid provider key. |
 | **Claude Code** | `~/.claude/commands/call-me.md` | `/call-me` | **PROTOCOL_VERIFIED** | Markdown command contract verified; CLI binary uninstalled locally. |
-| **OpenAI Codex** | `.agents/skills/call-me/SKILL.md` | `/call-me` | **PROTOCOL_VERIFIED** | Ambient rule and skill discovery verified; CLI binary uninstalled locally. |
+| **OpenAI Codex** | `.agents/skills/call-me/SKILL.md` (or `~/.agents/skills/call-me/SKILL.md`) | `$call-me` / skill discovery | **PROTOCOL_VERIFIED** | Installed via `lcs setup --environment codex` or `lcs install-command --environment codex`; ambient skill discovery verified. |
 | **Custom Agents** | `.nexus/commands/call-me.md` (or custom) | `/call-me` | **CONTRACT_LIVE_VERIFIED** | Declarative spec schema validated, dynamic loader instantiated, security checks active. |
 
 ---
 
 ## Installation & Setup
 
-### 1. Installation
+> [!NOTE]
+> Call Me is **not** published on PyPI or npm. Install from GitHub Releases (`v3.2.0rc3` is the latest published experimental release) or a source checkout.
 
-**From Built Wheel Package:**
+### 1. Installation (macOS, Linux & Windows)
+
+**macOS & Linux (`install.sh`):**
 ```bash
-pip install lcs_core-3.2.0rc1-py3-none-any.whl
+git clone --branch v3.2.0rc3 --depth 1 https://github.com/Vellorpavan/LCS.git
+cd LCS
+chmod +x install.sh && ./install.sh
+export PATH="$HOME/.local/bin:$PATH"
+call-me --version && lcs --version
 ```
 
-**From Source Repository (Editable Mode):**
+**Windows (`install.ps1` in PowerShell):**
+```powershell
+git clone --branch v3.2.0rc3 --depth 1 https://github.com/Vellorpavan/LCS.git
+Set-Location LCS
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+$env:Path = "$HOME\.local\bin;" + $env:Path
+call-me --version; lcs --version
+```
+
+**From Release Wheel or Editable Source:**
 ```bash
-git clone https://github.com/Vellorpavan/LCS.git
-cd lcs
+pip install lcs_core-<version>-py3-none-any.whl
+# or from source checkout:
 pip install -e ".[dev]"
 ```
 
@@ -196,6 +212,14 @@ lcs call-me --execute "Scaffold SQLite telemetry service, build health check ser
 
 # Slash command syntax supported directly from CLI
 lcs call-me "/call-me Scaffold SQLite telemetry service and run verification tests" --execute
+
+# Plan with default ASK policy and resume after approving external skill specs
+lcs --root . call-me-plan "Build a Python telemetry CLI service, and create a clear GitHub README.md" --workspace . --format-json
+CALL_ME_ACQUISITION_APPROVED_SPECS="owner/repo@skill" lcs --root . call-me-plan "Build a Python telemetry CLI service, and create a clear GitHub README.md" --workspace . --format-json
+
+# Verify deliverables and inspect persisted receipt from a separate process
+lcs --root . call-me-verify <run-id> --workspace . --files README.md app.py --commands "python3 -m unittest -v" --format-json
+lcs --root . call-me-verify <run-id> --workspace . --inspect --format-json
 ```
 
 ### 3. Python API Integration
@@ -316,19 +340,22 @@ LCS runs automated CI testing across all supported operating systems and Python 
 
 ---
 
-## Release Status, Security Boundaries & Known Limitations (`v3.2.0rc2` Experimental)
+## Release Status, Security Boundaries & Known Limitations (`v3.2.0rc3` Published / `v3.2.0rc4` Candidate)
 
 > [!NOTE]
-> **`v3.2.0rc2` is an experimental release candidate.** It preserves all 9 cryptographically sealed frozen core modules while introducing host-assisted semantic reasoning, complete functional verification receipts, and synchronized project contracts.
+> **`v3.2.0rc3` is the latest published experimental release candidate**; `v3.2.0rc4` is a release-candidate preparation on `feat/find-skills-acquisition` (cross-platform CI pending). All 9 cryptographically sealed frozen core modules and schemas remain unchanged.
 
-### What Is Tested vs. Demonstrated
-- **Cross-Platform Automated Test Suite**: Tested across Ubuntu, macOS, and Windows (Python 3.10–3.13) for frozen core invariants, CLI aliasing (`call-me` / `lcs`), canonical path confinement, negative verification integrity, project contract synchronization, and dynamic/recursive discovery.
-- **Native Host Subagent Execution**: Live multi-agent dispatch (`invoke_subagent`), multi-skill pairing with installed ECC agents, and synchronized contract adaptation have been **demonstrated on Google Antigravity**. Adapters for Claude Code, OpenCode, Codex, and custom hosts are **generated templates** validated structurally in tests and have not been live-executed in every external host runtime.
-- **Application-Level Governance vs. OS-Level Sandboxing**: Call Me enforces **application-level** security controls—canonical path confinement (`os.path.commonpath`), symlink/TOCTOU checks, strict environment variable allowlisting, and authorized test-binary whitelisting. It does **not** provide kernel/OS-level sandboxing (e.g., containers, seccomp, or Seatbelt). Untrusted external capabilities must not be executed without external OS-level isolation and explicit authorization.
+### What Is Tested vs. Pending
+- **Cross-Platform Automated Test Suite**: `v3.2.0rc3` passed the 15-job CI matrix across Ubuntu, macOS, and Windows (Python 3.10–3.13) + 3 platform installer jobs. `v3.2.0rc4` CI execution is pending branch push/PR verification.
+- **Native Host Subagent Execution vs. Fresh-Session Slash-Command Trace**: Multi-agent dispatch (`invoke_subagent`), multi-skill pairing, and synchronized contract adaptation have been **demonstrated on Google Antigravity**, while a genuine fresh-session Antigravity UI `/call-me` end-to-end trace remains a manual acceptance item. Adapters for Claude Code, OpenCode, Codex, and custom hosts are **protocol/template-verified** and do not share identical native subagent APIs.
+- **External Acquisition Integrity & Confinement Limitations**:
+  - `npx skills@1.4.4 add` resolves from upstream repository HEAD unless pinned (commit/hash is recorded post-install in `skills-lock.json`); `SKILL.md` is digest-checked against the evaluated upstream `SKILL.md`, while supporting scripts outside `SKILL.md` are pattern/symlink-scanned post-install rather than pre-hashed before download.
+  - `DEFAULT_TRUSTED_OWNERS` (`vercel-labs`, `anthropics`, `github`, `microsoft`, `openai`) governs `TRUSTED_AUTO` auto-approval only and is **not** a guarantee of safety. `ASK` remains the default policy.
+  - Call Me enforces **application-level** security controls (canonical path confinement via `os.path.commonpath`, `os.path.islink` / `O_NOFOLLOW`, environment allowlisting) and does **not** provide OS/kernel-level sandboxing (containers, seccomp, or Seatbelt).
 - **Selection Intelligence & Benchmark Limitations**:
-  - **Local Fallback Retrieval** (BM25 + subword character n-grams + domain synonyms, zero external embedding APIs) achieves **68.57% P@1 / 71.11% R@3** on `dataset_100_objectives.json` (77.50% P@1 / 84.17% R@3 held-out) and **44.00% P@1 / 70.00% R@3** on the harder `dataset_fresh_eval.json` (37.78% P@1 / 66.67% R@3 held-out, 100.00% adversarial abstention).
-  - **Host-Assisted Semantic Reasoning** (`SemanticReasoner`) improves paraphrase understanding by allowing the host AI model to reason over a compact candidate brief (`build_candidate_brief`) with deterministic URN/justification validation, though candidate recall remains bounded by the Stage A candidate window (`max_skills`).
-- **Contract Synchronization & Recursive Discovery**: Automated interface mutation detection, stale (`NEEDS_UPDATE`) propagation, and verification blocking are enforced deterministically by `ProjectContractManager`. Specialist redispatch is coordinated by the host orchestrator rather than an autonomous background daemon. Recursive capability acquisition is verified in automated acceptance tests using local/mocked discovery providers and governance gates.
+  - **Local Fallback Retrieval** achieves **68.57% P@1 / 71.11% R@3** on `dataset_100_objectives.json` (77.50% P@1 / 84.17% R@3 held-out) and **44.00% P@1 / 70.00% R@3** on `dataset_fresh_eval.json` (37.78% P@1 / 66.67% R@3 held-out, 100.00% adversarial abstention).
+  - **Host-Assisted Semantic Reasoning** (`SemanticReasoner`) and **Semantic Eligibility Filtering** (`assess_semantic_eligibility`) remain bounded by the Stage A candidate window and heuristic domain matching when host reasoning is unavailable.
+- **Contract Synchronization**: Interface mutation detection, stale (`NEEDS_UPDATE`) propagation, verification blocking, and evidence-backed adaptation (`mark_component_adapted`) are enforced by `ProjectContractManager`; specialist redispatch is coordinated by the host orchestrator rather than an autonomous background daemon.
 
 ---
 

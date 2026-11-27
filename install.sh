@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-CALL_ME_VERSION="3.2.0rc3"
+CALL_ME_VERSION="3.2.0rc4"
 INSTALL_DIR="${CALL_ME_HOME:-$HOME/.call-me}"
 VENV_DIR="$INSTALL_DIR/venv"
 BIN_DIR="${CALL_ME_BIN_DIR:-$HOME/.local/bin}"
