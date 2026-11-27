@@ -5,6 +5,7 @@ acquisition, negative/resilience cases (Test D), and same-invocation integration
 
 import os
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -338,7 +339,7 @@ def test_unavailable_mandatory_runtime_cannot_report_fulfilled(tmp_path, monkeyp
         ver = ctx.call_me.verify_deliverables(
             run_id=run_id,
             expected_files=["app.py", "test_app.py"],
-            verification_commands=["/Library/Frameworks/Python.framework/Versions/3.14/bin/python3 -m unittest -v test_app.py"],
+            verification_commands=[f"{sys.executable} -m unittest -v test_app.py"],
             workspace_root=str(tmp_path),
         )
         assert ver["objective_fulfilled"] is False

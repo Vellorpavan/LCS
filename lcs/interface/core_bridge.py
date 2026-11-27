@@ -961,6 +961,8 @@ class LCSCoreBridge:
 
         default_files = sorted(list(all_deliverables_set)) if all_deliverables_set else ["main.py", "test_service.py"]
         default_cmds = sorted(list(all_verification_cmds_set))
+        if not default_cmds and any(w in request.original_instruction.lower() for w in ("unit test", "unit tests", "pytest", "unittest", "test suite", "integration test")):
+            default_cmds = ["pytest -q"] if "pytest" in request.original_instruction.lower() else ["python3 -m unittest -v"]
         require_tests_pass = bool(default_cmds)
 
         plan_packet = {
