@@ -349,6 +349,40 @@ class CallMeInterface:
         )
         command_results = list(gate_meta.get("command_results", []))
 
+        # Objective-level fulfillment: distinguish artifact/test pass from silent weaker substitute/fallback
+        # or skipped mandatory runtime tests
+        substitute_detected = False
+        skipped_test_detected = False
+        substitute_reason = None
+        for cr in command_results:
+            combined_out = f"{cr.get('stdout_excerpt', '')}\n{cr.get('stderr_excerpt', '')}\n{cr.get('error', '')}".lower()
+            if any(marker in combined_out for marker in ("urllib_fallback", "mock_fallback", "skipped_real_runtime", "substitute_fallback")):
+                substitute_detected = True
+                substitute_reason = "Functional check executed via a weaker substitute fallback rather than the requested runtime"
+                break
+            if any(marker in combined_out for marker in ("skipped=", " skipped", "pytest.skip", "unittest.skiptest", "[skipped]")):
+                skipped_test_detected = True
+                substitute_reason = "Mandatory functional verification included skipped test cases"
+
+        has_passing_cmd = bool(command_results) and all(
+            bool(cr.get("passed")) and int(cr.get("exit_code", 1)) == 0 for cr in command_results
+        )
+        if verification_commands and not has_passing_cmd:
+            functional_verified = False
+
+        objective_fulfilled = bool(
+            res.is_verified
+            and artifact_verified
+            and (not require_tests_pass or functional_verified)
+            and not substitute_detected
+            and not skipped_test_detected
+        )
+        fulfillment_status = (
+            "PARTIAL_SUBSTITUTE"
+            if substitute_detected
+            else ("FULFILLED" if objective_fulfilled else "UNFULFILLED")
+        )
+
         evidence_list = [
             {
                 "tier": e.tier.value if hasattr(e.tier, "value") else str(e.tier),
@@ -384,11 +418,15 @@ class CallMeInterface:
                     expected_files=expected_files,
                     file_digests=file_digests,
                     verification_commands=verification_commands or [],
-                    evidence=evidence_list
+                    evidence=evidence_list,
+                    objective_fulfilled=objective_fulfilled,
+                    fulfillment_status=fulfillment_status,
+                    substitute_reason=substitute_reason,
                 )
                 cas_digest = receipt.get("cas_receipt_digest")
-            except Exception:
-                pass
+            except Exception as pers_err:
+                import logging
+                logging.getLogger("lcs.interface").warning(f"Failed to persist verification receipt for '{run_id}': {pers_err}")
 
         return {
             "run_id": run_id,
@@ -396,20 +434,24 @@ class CallMeInterface:
             "verification_state": res.state.value if hasattr(res.state, "value") else str(res.state),
             "artifact_verified": artifact_verified,
             "functional_verified": functional_verified,
+            "objective_fulfilled": objective_fulfilled,
+            "fulfillment_status": fulfillment_status,
+            "substitute_reason": substitute_reason,
             "command_results": command_results,
             "file_digests": file_digests,
             "cas_receipt_digest": cas_digest,
             "evidence": evidence_list
         }
 
-    def get_verification_receipt(self, run_id: str) -> Optional[Dict[str, Any]]:
+    def get_verification_receipt(self, run_id: str, workspace_root: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Retrieves a previously persisted verification receipt by run ID."""
         from ..verification.persistence import VerificationAuditStore
         if hasattr(self.ctx, "conn") and self.ctx.conn:
             return VerificationAuditStore.get_verification_receipt(
                 conn=self.ctx.conn,
                 run_id=run_id,
-                cas_engine=getattr(self.ctx, "cas_engine", None)
+                cas_engine=getattr(self.ctx, "cas_engine", None),
+                workspace_root=workspace_root,
             )
         return None
 

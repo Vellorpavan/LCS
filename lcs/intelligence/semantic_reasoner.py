@@ -64,6 +64,16 @@ class CapabilityGap:
 
 
 @dataclass
+class EligibilityVerdict:
+    eligible: bool
+    matched_requirement: str
+    purpose_alignment: str
+    deliverable_role: str
+    contradiction_reason: Optional[str] = None
+    relevance_score: float = 0.0
+
+
+@dataclass
 class SemanticReasoningResult:
     objective: str
     reasoning_mode: str  # "host_assisted" | "local_fallback"
@@ -364,6 +374,16 @@ class SemanticReasoner:
         if best_req_score < HybridSemanticRetriever.MIN_ABSTAIN_THRESHOLD:
             return False, f"Score {best_req_score:.1f} below relevance threshold ({HybridSemanticRetriever.MIN_ABSTAIN_THRESHOLD})"
 
+        elig = cls.assess_semantic_eligibility(
+            name=r_name,
+            description=r_desc,
+            instructions=getattr(record, "raw_content", "") or "",
+            requirement_text=requirements[0].text if requirements else objective,
+            objective=objective,
+        )
+        if not elig.eligible:
+            return False, elig.contradiction_reason or "Failed semantic eligibility check"
+
         return True, f"Defensible match for {best_req_id} (score={best_req_score:.1f})"
 
     @classmethod
@@ -391,6 +411,150 @@ class SemanticReasoner:
                 continue
             return m
         return None
+
+    _ELIGIBILITY_GENERIC_WORDS: Set[str] = {
+        "clear", "accurate", "technically", "good", "best", "clean", "modern", "new",
+        "existing", "basic", "simple", "advanced", "complete", "full", "fast",
+        "professional", "professionally", "compelling", "visually", "designed",
+        "exceptional", "build", "create", "make", "write", "transform", "implement",
+        "develop", "generate", "update", "using", "with", "into", "from", "module",
+        "project", "service", "system", "tool", "application", "app", "file",
+    }
+    _ELIGIBILITY_GENERIC_NAME_PARTS: Set[str] = {
+        "skill", "skills", "agent", "agents", "helper", "manager", "resolver",
+        "context", "guide", "style", "genre", "mode", "ops", "cli", "mcp", "api",
+        "patterns", "service", "module", "system", "app", "application", "workflow",
+        "pipeline", "tool", "tools", "plugin", "builder", "review", "audit",
+        "best", "practices",
+    }
+    _CONTRADICTORY_DOMAIN_MARKERS: Set[str] = {
+        "blender", "3d", "mesh", "sculpt", "retopology", "lookdev", "rigging",
+        "godot", "unreal", "unity", "game", "games", "pixel", "voxel", "anime",
+        "horror", "paper", "academic", "citation", "arxiv", "manuscript",
+        "clinical", "patient", "hipaa", "emr", "ehr", "fhir", "dicom",
+        "ios", "swiftui", "android", "kotlin", "flutter", "terraform", "kubernetes",
+    }
+
+    @classmethod
+    def assess_semantic_eligibility(
+        cls,
+        name: str,
+        description: str,
+        instructions: str,
+        requirement_text: str,
+        objective: str = "",
+    ) -> EligibilityVerdict:
+        """
+        Generalized semantic eligibility gate applied consistently to local and
+        external candidates before ranking, acquisition, and DAG construction.
+        Prevents generic body-word overlap, popularity, or superficial keyword
+        matches from compensating for missing requirement-to-capability relevance.
+        """
+        c_name = (name or "").strip().lower()
+        c_desc = (description or "").strip().lower()
+        c_inst = (instructions or "").strip().lower()
+
+        # Extract frontmatter description + first heading/summary from instructions
+        fm_desc = ""
+        m_fm = re.search(r"description:\s*(.+)", c_inst[:600])
+        if m_fm:
+            fm_desc = m_fm.group(1).strip()
+        purpose_text = " ".join(p for p in [c_desc[:350], fm_desc[:300], c_inst[:250]] if p)
+
+        # Meaningful subject tokens from requirement & objective (excluding generic filler)
+        raw_req_toks = [
+            re.sub(r"\.(?:md|py|ts|tsx|js|json|yaml|yml|html|css|sh)$", "", t)
+            for t in _extract_keywords(requirement_text or objective)
+        ]
+        req_subject = [t for t in raw_req_toks if t and t not in cls._ELIGIBILITY_GENERIC_WORDS]
+        if not req_subject:
+            req_subject = raw_req_toks
+        obj_subject_set = set(
+            re.sub(r"\.(?:md|py|ts|tsx|js|json|yaml|yml|html|css|sh)$", "", t)
+            for t in _extract_keywords(objective or requirement_text)
+        ) - cls._ELIGIBILITY_GENERIC_WORDS
+        req_vocab: Set[str] = set(req_subject) if req_subject else obj_subject_set
+        for t in list(req_vocab):
+            req_vocab |= stem_token(t)
+            for syn in TECHNICAL_SYNONYMS.get(t, []):
+                req_vocab.add(syn.lower())
+
+        # Name anchor tokens (non-generic parts of candidate name)
+        name_parts = [p for p in re.split(r"[-_:\s]+", c_name) if len(p) >= 2]
+        anchors = [p for p in name_parts if p not in cls._ELIGIBILITY_GENERIC_NAME_PARTS]
+        matched_anchors = [
+            ap for ap in anchors
+            if ap in req_vocab or any(
+                len(ap) >= 5 and len(rv) >= 5 and (ap.startswith(rv) or rv.startswith(ap))
+                for rv in req_vocab
+            )
+        ]
+
+        # Contradictory domain check: candidate declares specialized domain markers absent from objective
+        full_obj_words = set(re.split(r"[^a-z0-9_+#.-]+", (objective + " " + requirement_text).lower()))
+        purpose_words = set(re.split(r"[^a-z0-9_+#.-]+", (c_name + " " + purpose_text)))
+        cand_domain_markers = purpose_words & cls._CONTRADICTORY_DOMAIN_MARKERS
+        unmatched_domain_markers = [dm for dm in cand_domain_markers if dm not in full_obj_words]
+        if unmatched_domain_markers and not matched_anchors:
+            return EligibilityVerdict(
+                eligible=False,
+                matched_requirement=requirement_text,
+                purpose_alignment="contradictory_domain",
+                deliverable_role="none",
+                contradiction_reason=f"Contradictory domain markers {sorted(unmatched_domain_markers)[:3]} absent from objective",
+                relevance_score=0.0,
+            )
+
+        # Purpose token overlap (excluding generic adjectives/verbs)
+        purpose_toks = {
+            re.sub(r"\.(?:md|py|ts|tsx|js|json|yaml|yml|html|css|sh)$", "", t)
+            for t in re.split(r"[^a-z0-9_+#.-]+", purpose_text)
+            if len(t) >= 2 and t not in STOPWORDS and t not in cls._ELIGIBILITY_GENERIC_WORDS
+        }
+        purpose_hits = [
+            rt for rt in req_subject
+            if rt in purpose_toks or any(
+                len(rt) >= 5 and len(pt) >= 5 and (rt.startswith(pt) or pt.startswith(rt))
+                for pt in purpose_toks
+            )
+        ]
+
+        # Multi-anchor compound name guard: e.g. genre-open-world-sandbox ("world" alone != "hello world")
+        if len(anchors) >= 2 and len(matched_anchors) <= 1:
+            unmatched_anchors = [a for a in anchors if a not in matched_anchors]
+            if unmatched_domain_markers or (len(matched_anchors) == 0 and len(purpose_hits) < 2) or (
+                len(matched_anchors) == 1 and len(unmatched_anchors) >= 2 and len(purpose_hits) < 2
+            ):
+                return EligibilityVerdict(
+                    eligible=False,
+                    matched_requirement=requirement_text,
+                    purpose_alignment="ungrounded_compound_anchors",
+                    deliverable_role="none",
+                    contradiction_reason=f"Compound anchors {unmatched_anchors} and purpose do not support '{requirement_text}'",
+                    relevance_score=0.0,
+                )
+
+        # Minimum requirement-to-capability relationship bar
+        min_purpose_hits = 1 if len(req_subject) <= 1 else 2
+        if not matched_anchors and len(purpose_hits) < min_purpose_hits:
+            return EligibilityVerdict(
+                eligible=False,
+                matched_requirement=requirement_text,
+                purpose_alignment="insufficient_alignment",
+                deliverable_role="none",
+                contradiction_reason=f"No meaningful anchor or purpose alignment for '{requirement_text}'",
+                relevance_score=0.0,
+            )
+
+        score = len(matched_anchors) * 35.0 + len(set(purpose_hits)) * 20.0
+        return EligibilityVerdict(
+            eligible=True,
+            matched_requirement=requirement_text,
+            purpose_alignment=f"anchors={matched_anchors}, purpose_hits={sorted(set(purpose_hits))}",
+            deliverable_role=c_name,
+            contradiction_reason=None,
+            relevance_score=round(score, 2),
+        )
 
     @classmethod
     def _derive_deliverables_and_commands(
@@ -431,8 +595,14 @@ class SemanticReasoner:
                 commands.append("python3 -m pytest")
             else:
                 commands.append("python3 test_service.py")
+        elif "readme" in combined_text and "python" not in " ".join(r.text.lower() for r in covered_reqs):
+            deliverables.append("README.md")
         else:
-            deliverables.append(f"{clean_ident}.py")
+            file_matches = re.findall(r"\b([A-Za-z0-9_.-]+\.(?:md|txt|json|yaml|yml|html|css|ts|tsx|js|go|rs))\b", combined_text)
+            if file_matches:
+                deliverables.append(file_matches[0])
+            else:
+                deliverables.append(f"{clean_ident}.py")
 
         if is_frontend_html and ("dashboard" in clean_ident or "frontend" in clean_ident):
             if "dashboard.html" not in deliverables:
@@ -702,6 +872,17 @@ class SemanticReasoner:
                 if is_testing_cap and not req_wants_testing:
                     rejected.append({"urn": m.urn, "reason": f"Testing capability not requested by '{req.text}'"})
                     continue
+
+                elig = cls.assess_semantic_eligibility(
+                    name=m.name,
+                    description=getattr(m, "description", "") or "",
+                    instructions=getattr(m, "raw_content", "") or "",
+                    requirement_text=req.text,
+                    objective=objective,
+                )
+                if not elig.eligible:
+                    rejected.append({"urn": m.urn, "reason": elig.contradiction_reason or "Failed semantic eligibility"})
+                    continue
                 scored_candidates.append((best_score, m))
 
             # Rank by best_score descending so stronger retrieval results are never pushed out by clause order
@@ -766,6 +947,15 @@ class SemanticReasoner:
                 continue
             is_testing_cap = any(w in om.name.lower() for w in ("testing", "tdd", "test-audit", "test-runner", "e2e-testing"))
             if is_testing_cap and not obj_wants_testing:
+                continue
+            elig = cls.assess_semantic_eligibility(
+                name=om.name,
+                description=getattr(om, "description", "") or "",
+                instructions=getattr(om, "raw_content", "") or "",
+                requirement_text=objective,
+                objective=objective,
+            )
+            if not elig.eligible:
                 continue
             if om.urn not in selected_by_urn and not any(s.name.lower() == om.name.lower() for s in selected_by_urn.values()):
                 req0 = requirements[0] if requirements else None

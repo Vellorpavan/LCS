@@ -470,7 +470,7 @@ def test_07_clean_wheel_build_and_simulated_cross_platform_install(tmp_path):
     # 4. Verify executable runs
     res_ver = subprocess.run([venv_lcs, "--version"], capture_output=True, text=True, timeout=10, env=clean_env)
     assert res_ver.returncode == 0
-    assert "3.2.0rc3" in res_ver.stdout
+    assert "3.2.0rc4" in res_ver.stdout
 
     res_help = subprocess.run([venv_lcs, "--help"], capture_output=True, text=True, timeout=10)
     assert res_help.returncode == 0

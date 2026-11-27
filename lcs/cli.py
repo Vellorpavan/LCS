@@ -1026,8 +1026,9 @@ def cmd_call_me(ctx: LCSContext, args: argparse.Namespace) -> int:
 
 def cmd_call_me_plan(ctx: LCSContext, args: argparse.Namespace) -> int:
     """Generates structured DAG plan and specialist instructions for host agents."""
-    raw_instruction = args.task
-    if not raw_instruction or not raw_instruction.strip():
+    import re
+    raw_instruction = re.sub(r"^\s*/?call-me\s+", "", args.task, flags=re.IGNORECASE).strip()
+    if not raw_instruction:
         print("Error: Task description cannot be empty.", file=sys.stderr)
         return 1
 
@@ -1071,7 +1072,7 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
     inspect_mode = getattr(args, "inspect", False)
 
     if inspect_mode:
-        receipt = ctx.call_me.get_verification_receipt(run_id)
+        receipt = ctx.call_me.get_verification_receipt(run_id, workspace_root=workspace)
         if not receipt:
             print(f"Error: No persisted verification receipt found for run ID '{run_id}'", file=sys.stderr)
             return 1
@@ -1085,6 +1086,8 @@ def cmd_call_me_verify(ctx: LCSContext, args: argparse.Namespace) -> int:
         print(f"  Verification ID:     {receipt.get('verification_id')}")
         print(f"  Verification State:  {receipt.get('verification_state')}")
         print(f"  Verified Deliverable: {'YES' if receipt.get('is_verified') else 'NO'}")
+        print(f"  Fulfillment Status:  {receipt.get('fulfillment_status', 'UNFULFILLED')}")
+        print(f"  Objective Fulfilled: {'YES' if receipt.get('objective_fulfilled') else 'NO'}")
         if receipt.get("cas_receipt_digest"):
             print(f"  CAS Receipt Digest:  {receipt.get('cas_receipt_digest')}")
         print(f"  Verified At:         {receipt.get('verified_at')}")

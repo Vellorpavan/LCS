@@ -737,8 +737,57 @@ class LCSCoreBridge:
                         is_compatible_fn=self._is_capability_compatible_with_host,
                         max_steps=8,
                     )
+                acquisition_report = None
+                if reasoning_res and getattr(reasoning_res, "gaps", None):
+                    try:
+                        from ..intelligence.find_skills_provider import (
+                            AcquisitionPolicy,
+                            FindSkillsAcquisitionCoordinator,
+                        )
+                        acq_policy = AcquisitionPolicy.resolve((initial_inputs or {}).get("acquisition_policy"))
+                        if acq_policy != AcquisitionPolicy.OFFLINE:
+                            coord = FindSkillsAcquisitionCoordinator(
+                                policy=acq_policy,
+                            )
+                            ws_target = workspace_root or self.ctx.config.root_dir or os.getcwd()
+                            app_cb = (initial_inputs or {}).get("acquisition_approval_cb")
+                            if app_cb is None:
+                                approved_specs_raw = os.environ.get("CALL_ME_ACQUISITION_APPROVED_SPECS", "")
+                                approved_specs = {s.strip().lower() for s in approved_specs_raw.split(",") if s.strip()}
+                                if approved_specs:
+                                    app_cb = lambda cand: cand.package_spec.lower() in approved_specs
+                            acquisition_report = coord.resolve_gaps(
+                                objective=query,
+                                gaps=reasoning_res.gaps,
+                                inventory=self.ctx.inventory,
+                                workspace_root=ws_target,
+                                approval_callback=app_cb,
+                            )
+                            if acquisition_report.get("acquired_skills"):
+                                # Host-independent inventory refresh across registered adapters + workspace .agents/skills
+                                try:
+                                    from ..adapters.generic import GenericPOSIXAdapter
+                                    refresh_adapters = list(self.ctx.adapter_registry.list_all()) if hasattr(self.ctx, "adapter_registry") and self.ctx.adapter_registry else []
+                                    refresh_adapters.append(GenericPOSIXAdapter(workspace_root=ws_target))
+                                    self.ctx.inventory.refresh_discovery(adapters=refresh_adapters)
+                                except Exception as ref_err:
+                                    logger.debug(f"Post-acquisition inventory refresh warning: {ref_err}")
+                                acquisition_report["final_capability_count"] = self.ctx.inventory.total_count
+                                if not host_decision:
+                                    reasoning_res = SemanticReasoner.reason_locally(
+                                        objective=query,
+                                        inventory=self.ctx.inventory,
+                                        active_host=active_host,
+                                        is_compatible_fn=self._is_capability_compatible_with_host,
+                                        max_steps=8,
+                                    )
+                    except Exception as acq_err:
+                        logger.warning(f"External Find Skills acquisition skipped: {acq_err}")
+                        acquisition_report = {"status": "ERROR", "error": str(acq_err)}
+
                 candidate_urns = [s.urn for s in reasoning_res.selections]
             else:
+                acquisition_report = None
                 candidate_urns = []
 
         hydrated_caps: List[HydratedCapability] = []
@@ -938,7 +987,8 @@ class LCSCoreBridge:
                 "expected_files": default_files,
                 "verification_commands": default_cmds
             },
-            "semantic_reasoning": reasoning_res.to_dict() if reasoning_res else None
+            "semantic_reasoning": reasoning_res.to_dict() if reasoning_res else None,
+            "acquisition_report": acquisition_report if "acquisition_report" in locals() else None,
         }
 
         # Wire ProjectContractManager into native execution plan
